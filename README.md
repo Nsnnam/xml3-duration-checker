@@ -33,6 +33,10 @@ npm run build:offline
 
 Artifact được tạo tại `releases/web/` và `releases/single-page/xml3-duration-checker.html`. Có thể mở file single HTML trực tiếp bằng trình duyệt.
 
+## Sử dụng trực tiếp trên web
+
+Ứng dụng được xuất bản tại **[https://nsnnam.github.io/xml3-duration-checker/](https://nsnnam.github.io/xml3-duration-checker/)**. GitHub Actions sẽ tự build và cập nhật GitHub Pages mỗi khi có commit mới vào nhánh `main`. File single HTML nằm tại `releases/single-page/xml3-duration-checker.html` trong repo để tải về và sử dụng offline.
+
 ## Hướng dẫn nhanh
 
 Chọn file XML hồ sơ, bấm **Phân tích XML3**, sau đó xem các dòng trong bảng **Cảnh báo chi tiết theo dịch vụ**. Mặc định bảng chỉ hiển thị dòng vượt ngưỡng; bỏ chọn **Chỉ cảnh báo** để xem toàn bộ bản ghi XML3. Dùng **Xuất XLSX** để lưu báo cáo.
@@ -55,7 +59,7 @@ Các trường nghiệp vụ lấy theo file mô tả `3176.xls`, sheet `Bang 3_
 
 ## Phiên bản
 
-Phiên bản hiện tại: **1.0.1** · ngày **2026-08-28** · múi giờ **Asia/Ho_Chi_Minh (GMT+7)**. Xem [CHANGELOG.md](CHANGELOG.md) để biết lịch sử thay đổi.
+Phiên bản hiện tại: **1.0.2** · ngày **2026-08-28** · múi giờ **Asia/Ho_Chi_Minh (GMT+7)**. Xem [CHANGELOG.md](CHANGELOG.md) để biết lịch sử thay đổi.
 
 ## Tác giả và hỗ trợ
 

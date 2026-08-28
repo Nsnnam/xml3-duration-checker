@@ -1,13 +1,13 @@
 export const APP_META = {
   name: "XML3 Duration Checker",
-  version: "1.0.1",
+  version: "1.0.2",
   date: "2026-08-28",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
     {
-      version: "1.0.1",
+      version: "1.0.2",
       date: "2026-08-28",
       changes: ["Khởi tạo công cụ kiểm tra thời gian thực hiện–trả kết quả XML3."],
     },

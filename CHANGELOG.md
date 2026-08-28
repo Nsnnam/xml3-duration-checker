@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.2] — 2026-08-28
+
+- Bổ sung GitHub Actions tự build và xuất bản bản web portable lên GitHub Pages.
+- Cập nhật README với đường dẫn sử dụng trực tiếp trên web.
+
 ## [1.0.1] — 2026-08-28
 
 - Tinh giản dependency và loại bỏ toàn bộ scaffold ICD không dùng.
