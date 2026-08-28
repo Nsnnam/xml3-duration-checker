@@ -14,5 +14,11 @@ assert.deepEqual(getChronologyIssues("202608280900", "202608280930", "2026082809
   "NGAY_KQ sớm hơn NGAY_TH_YL",
 ]);
 assert.deepEqual(getChronologyIssues("202608280900", "202608280930", "202608281100"), []);
+assert.deepEqual(getChronologyIssues("202608280900", "202608280900", "202608280900"), [
+  "NGAY_YL = NGAY_TH_YL = NGAY_KQ",
+]);
+assert.deepEqual(getChronologyIssues("202608280900", "202608280930", "202608280930"), [
+  "NGAY_TH_YL = NGAY_KQ",
+]);
 assert.equal(formatXmlDateTime("202608280930"), "08/28/2026 09:30");
 console.log("XML3 duration, group-filter support and chronology smoke test: OK");

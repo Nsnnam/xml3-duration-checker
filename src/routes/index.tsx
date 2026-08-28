@@ -5,6 +5,7 @@ import { formatTimestampForFilename, formatXmlDateTime } from "../lib/timezone";
 import {
   DEFAULT_GROUP_CODES,
   DURATION_LIMIT_MINUTES,
+  GROUP_OPTIONS,
   analyzeXml3Files,
   type BatchAnalysis,
   type Xml3Record,
@@ -19,26 +20,26 @@ export function HomePage() {
   const [analysis, setAnalysis] = useState<BatchAnalysis | null>(null);
   const [busy, setBusy] = useState(false);
   const [onlyWarnings, setOnlyWarnings] = useState(true);
-  const [groupFilterText, setGroupFilterText] = useState(DEFAULT_GROUP_CODES.join(", "));
+  const [groupCodes, setGroupCodes] = useState<string[]>([...DEFAULT_GROUP_CODES]);
   const [notice, setNotice] = useState("");
-  const groupCodes = useMemo(
-    () =>
-      groupFilterText
-        .split(",")
-        .map((code) => code.trim())
-        .filter(Boolean),
-    [groupFilterText],
-  );
 
   const filteredRecords = useMemo(
     () =>
       analysis
-        ? analysis.records.filter((record) => groupCodes.includes(record.MA_NHOM.trim()))
+        ? analysis.records.filter(
+            (record) =>
+              groupCodes.includes(record.MA_NHOM.trim()) ||
+              record.hasOrderWarning ||
+              record.hasEqualWarning,
+          )
         : [],
     [analysis, groupCodes],
   );
   const filteredWarnings = useMemo(
-    () => filteredRecords.filter((record) => record.status === "warning" || record.hasOrderWarning),
+    () =>
+      filteredRecords.filter(
+        (record) => record.status === "warning" || record.hasOrderWarning || record.hasEqualWarning,
+      ),
     [filteredRecords],
   );
   const records = onlyWarnings ? filteredWarnings : filteredRecords;
@@ -138,8 +139,7 @@ export function HomePage() {
             }
             onClear={clearAll}
             onAnalyze={runAnalysis}
-            groupFilterText={groupFilterText}
-            onGroupFilterTextChange={setGroupFilterText}
+            onGroupCodesChange={setGroupCodes}
             onToggleWarnings={setOnlyWarnings}
             onExport={() => analysis && exportXml3Report(analysis, filteredRecords)}
           />
@@ -173,8 +173,7 @@ function CheckerView({
   onRemoveFile,
   onClear,
   onAnalyze,
-  groupFilterText,
-  onGroupFilterTextChange,
+  onGroupCodesChange,
   onToggleWarnings,
   onExport,
 }: {
@@ -191,8 +190,7 @@ function CheckerView({
   onRemoveFile: (name: string) => void;
   onClear: () => void;
   onAnalyze: () => void;
-  groupFilterText: string;
-  onGroupFilterTextChange: (value: string) => void;
+  onGroupCodesChange: (value: string[]) => void;
   onToggleWarnings: (value: boolean) => void;
   onExport: () => void;
 }) {
@@ -231,26 +229,40 @@ function CheckerView({
               }}
             />
           </label>
-          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <label
-              className="block text-xs font-bold uppercase tracking-wide text-slate-500"
-              htmlFor="group-filter"
-            >
-              Mã nhóm áp dụng cảnh báo (MA_NHOM · cột 6)
-            </label>
-            <input
-              id="group-filter"
-              value={groupFilterText}
-              onChange={(event) => onGroupFilterTextChange(event.target.value)}
-              className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none ring-teal-500 focus:ring-2"
-              placeholder="Ví dụ: 2, 3, 8, 18"
-              aria-describedby="group-filter-help"
-            />
-            <p id="group-filter-help" className="mt-2 text-xs text-slate-500">
-              Mặc định: <b>2, 3, 8, 18</b>. Nhập các mã cách nhau bằng dấu phẩy; chỉ các dòng thuộc
-              nhóm này được đưa vào bảng và báo cáo.
+          <fieldset className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <legend className="px-1 text-xs font-bold uppercase tracking-wide text-slate-500">
+              Mã nhóm áp dụng cảnh báo thời lượng (MA_NHOM · cột 6)
+            </legend>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {GROUP_OPTIONS.map((option) => (
+                <label
+                  key={option.code}
+                  className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm transition hover:border-teal-300 hover:bg-teal-50"
+                >
+                  <input
+                    type="checkbox"
+                    checked={groupCodes.includes(option.code)}
+                    onChange={(event) =>
+                      onGroupCodesChange(
+                        event.target.checked
+                          ? [...groupCodes, option.code]
+                          : groupCodes.filter((code) => code !== option.code),
+                      )
+                    }
+                    className="mt-0.5 accent-teal-700"
+                  />
+                  <span>
+                    <b className="text-teal-800">Nhóm {option.code}</b>
+                    <span className="block text-xs leading-5 text-slate-500">{option.title}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              Mặc định đã chọn: <b>2, 3, 8, 18</b>. Bộ chọn này chỉ lọc cảnh báo thời lượng và các
+              dòng trong bảng/báo cáo; kiểm tra trình tự thời gian áp dụng cho mọi mã nhóm.
             </p>
-          </div>
+          </fieldset>
           {files.length > 0 && (
             <div className="mt-4 space-y-2">
               {files.map((file) => (
@@ -302,13 +314,13 @@ function CheckerView({
             <Rule label="Công thức" value="NGAY_KQ − NGAY_TH_YL" />
             <Rule
               label="Cảnh báo"
-              value={`Nhóm đã chọn và > ${DURATION_LIMIT_MINUTES} phút`}
+              value={`Nhóm đã chọn, > ${DURATION_LIMIT_MINUTES} phút hoặc trùng mốc`}
               danger
             />
           </div>
           <p className="mt-7 border-t border-white/10 pt-5 text-xs leading-5 text-slate-400">
-            Đúng 70 phút vẫn là đạt; chỉ những dòng có thời lượng{" "}
-            <b className="text-white">&gt; 70 phút</b> mới được đánh dấu cảnh báo.
+            Đúng 70 phút vẫn là đạt. Kiểm tra trùng mốc áp dụng cho mọi nhóm; chỉ cảnh báo thời
+            lượng mới phụ thuộc các nhóm được tích.
           </p>
         </div>
       </section>
@@ -318,11 +330,16 @@ function CheckerView({
           <section className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
             <Metric label="File đã nạp" value={analysis.files.length} />
             <Metric label="FILEHOSO XML3" value={analysis.tableFiles} tone="teal" />
-            <Metric label="Dòng theo nhóm" value={filteredRecords.length} tone="teal" />
+            <Metric label="Dòng theo bộ lọc" value={filteredRecords.length} tone="teal" />
             <Metric label="Cảnh báo đang lọc" value={filteredWarnings.length} tone="rose" />
             <Metric
               label="Sai thứ tự"
               value={filteredRecords.filter((record) => record.hasOrderWarning).length}
+              tone="rose"
+            />
+            <Metric
+              label="Trùng mốc"
+              value={filteredRecords.filter((record) => record.hasEqualWarning).length}
               tone="rose"
             />
             <Metric
@@ -347,8 +364,9 @@ function CheckerView({
               <div>
                 <h2 className="font-bold text-rose-900">Cảnh báo chi tiết theo dịch vụ</h2>
                 <p className="mt-1 text-xs text-slate-500">
-                  Đang lọc MA_NHOM: {groupCodes.length ? groupCodes.join(", ") : "(chưa nhập nhóm)"}
-                  . Thời gian hiển thị MM/DD/YYYY HH:mm; kiểm tra NGAY_YL → NGAY_TH_YL → NGAY_KQ.
+                  Lọc thời lượng theo MA_NHOM:{" "}
+                  {groupCodes.length ? groupCodes.join(", ") : "(không chọn nhóm)"}. Cảnh báo trình
+                  tự/trùng mốc áp dụng mọi nhóm; thời gian hiển thị MM/DD/YYYY HH:mm.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -469,14 +487,16 @@ function Metric({
 }
 
 function WarningRow({ record }: { record: Xml3Record }) {
-  const isWarning = record.status === "warning" || record.hasOrderWarning;
+  const isWarning = record.status === "warning" || record.hasOrderWarning || record.hasEqualWarning;
   const label = record.hasOrderWarning
     ? "SAI THỨ TỰ"
-    : record.status === "warning"
-      ? "CẢNH BÁO"
-      : record.status === "ok"
-        ? "ĐẠT"
-        : record.status.toUpperCase();
+    : record.hasEqualWarning
+      ? "TRÙNG MỐC"
+      : record.status === "warning"
+        ? "CẢNH BÁO"
+        : record.status === "ok"
+          ? "ĐẠT"
+          : record.status.toUpperCase();
   return (
     <tr
       className={`border-t border-slate-100 align-top ${isWarning ? "bg-rose-50/60" : "hover:bg-slate-50"}`}
@@ -563,7 +583,7 @@ function GuideView() {
             </thead>
             <tbody>
               {[
-                ["MA_NHOM", "6", "Mã nhóm dùng để lọc cảnh báo; mặc định 2, 3, 8, 18"],
+                ["MA_NHOM", "6", "Mã nhóm dùng để lọc cảnh báo thời lượng; mặc định 2, 3, 8, 18"],
                 ["NGAY_YL", "37", "Thời điểm chỉ định"],
                 ["NGAY_TH_YL", "38", "Thời điểm thực hiện / bắt đầu tính"],
                 ["NGAY_KQ", "39", "Thời điểm trả kết quả / kết thúc tính"],

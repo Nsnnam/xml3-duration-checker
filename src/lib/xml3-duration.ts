@@ -1,5 +1,11 @@
 export const DURATION_LIMIT_MINUTES = 70;
 export const DEFAULT_GROUP_CODES = ["2", "3", "8", "18"] as const;
+export const GROUP_OPTIONS = [
+  { code: "2", title: "Chi phí thuốc, vật tư y tế" },
+  { code: "3", title: "Chi phí xét nghiệm, chẩn đoán hình ảnh, thăm dò chức năng" },
+  { code: "8", title: "Chi phí khác" },
+  { code: "18", title: "Nhóm 18 (theo dữ liệu đơn vị)" },
+] as const;
 
 export type Xml3Record = {
   fileName: string;
@@ -24,8 +30,9 @@ export type Xml3Record = {
   MA_HIEU_SP: string;
   durationMinutes: number | null;
   hasOrderWarning: boolean;
+  hasEqualWarning: boolean;
   orderIssues: string[];
-  status: "warning" | "order-warning" | "ok" | "missing" | "invalid" | "negative";
+  status: "warning" | "order-warning" | "equal-warning" | "ok" | "missing" | "invalid" | "negative";
   detail: string;
 };
 
@@ -157,13 +164,27 @@ export function getChronologyIssues(ngayYl: string, ngayThYl: string, ngayKq: st
     ["NGAY_YL", ngayYl, "NGAY_TH_YL", ngayThYl],
     ["NGAY_TH_YL", ngayThYl, "NGAY_KQ", ngayKq],
   ];
+  const parsedYl = parseXmlDateTime(ngayYl);
+  const parsedThYl = parseXmlDateTime(ngayThYl);
+  const parsedKq = parseXmlDateTime(ngayKq);
   return order
     .filter(([, startRaw, , endRaw]) => {
       const start = parseXmlDateTime(startRaw);
       const end = parseXmlDateTime(endRaw);
       return Boolean(start && end && end.getTime() < start.getTime());
     })
-    .map(([startName, , endName]) => `${endName} sớm hơn ${startName}`);
+    .map(([startName, , endName]) => `${endName} sớm hơn ${startName}`)
+    .concat(
+      parsedYl &&
+        parsedThYl &&
+        parsedKq &&
+        parsedYl.getTime() === parsedThYl.getTime() &&
+        parsedThYl.getTime() === parsedKq.getTime()
+        ? ["NGAY_YL = NGAY_TH_YL = NGAY_KQ"]
+        : parsedThYl && parsedKq && parsedThYl.getTime() === parsedKq.getTime()
+          ? ["NGAY_TH_YL = NGAY_KQ"]
+          : [],
+    );
 }
 
 function chronologyIssues(fields: Record<Xml3Field, string>): string[] {
@@ -173,7 +194,8 @@ function chronologyIssues(fields: Record<Xml3Field, string>): string[] {
 function evaluateRecord(fields: Record<Xml3Field, string>, fileName: string): Xml3Record {
   const durationMinutes = minutesBetween(fields.NGAY_TH_YL, fields.NGAY_KQ);
   const orderIssues = chronologyIssues(fields);
-  const hasOrderWarning = orderIssues.length > 0;
+  const hasOrderWarning = orderIssues.some((issue) => issue.includes("sớm hơn"));
+  const hasEqualWarning = orderIssues.some((issue) => issue.includes("="));
   let status: Xml3Record["status"] = "ok";
   const details: string[] = [];
 
@@ -197,7 +219,15 @@ function evaluateRecord(fields: Record<Xml3Field, string>, fileName: string): Xm
 
   if (hasOrderWarning) {
     if (status === "ok") status = "order-warning";
-    details.unshift(`Kiểm tra thứ tự: ${orderIssues.join("; ")}`);
+    details.unshift(
+      `Kiểm tra thứ tự: ${orderIssues.filter((issue) => issue.includes("sớm hơn")).join("; ")}`,
+    );
+  }
+  if (hasEqualWarning) {
+    if (status === "ok") status = "equal-warning";
+    details.unshift(
+      `Kiểm tra trùng mốc: ${orderIssues.filter((issue) => issue.includes("=")).join("; ")}`,
+    );
   }
 
   return {
@@ -206,6 +236,7 @@ function evaluateRecord(fields: Record<Xml3Field, string>, fileName: string): Xm
     table: "XML3",
     durationMinutes,
     hasOrderWarning,
+    hasEqualWarning,
     orderIssues,
     status,
     detail: details.join(" · "),
@@ -217,7 +248,7 @@ function formatMinutes(value: number): string {
 }
 
 function isWarning(record: Xml3Record): boolean {
-  return record.status === "warning" || record.hasOrderWarning;
+  return record.status === "warning" || record.hasOrderWarning || record.hasEqualWarning;
 }
 
 function decodeFileContent(content: string, label: string): Document {

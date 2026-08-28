@@ -8,7 +8,7 @@
 
 Mở ứng dụng, chọn một hoặc nhiều file XML hồ sơ, sau đó bấm **Phân tích XML3**. Công cụ tìm các phần `FILEHOSO` có `LOAIHOSO=XML3`, giải mã `NOIDUNGFILE` từ Base64 và đọc các phần tử `CHI_TIET_DVKT`.
 
-Mặc định ứng dụng lọc các dòng có `MA_NHOM` (cột 6) thuộc nhóm `2, 3, 8, 18`. Người dùng có thể thay đổi danh sách mã nhóm bằng cách nhập các mã cách nhau bởi dấu phẩy.
+Mặc định giao diện chọn các nhóm `2, 3, 8, 18` bằng ô tích: **Nhóm 2 – Chi phí thuốc, vật tư y tế**, **Nhóm 3 – Chi phí xét nghiệm, chẩn đoán hình ảnh, thăm dò chức năng**, **Nhóm 8 – Chi phí khác** và **Nhóm 18 – theo dữ liệu đơn vị**. Các ô tích chỉ lọc cảnh báo thời lượng; cảnh báo trình tự và trùng mốc vẫn kiểm tra trên mọi `MA_NHOM`.
 
 Quy trình thời gian được kiểm tra theo thứ tự bắt buộc:
 
@@ -26,7 +26,7 @@ Nếu số phút lớn hơn 70, dòng được đánh dấu **CẢNH BÁO**. Đ�
 
 ## Xử lý ngoại lệ
 
-Dòng thiếu một trong ba mốc được đánh dấu `missing`. Dòng có định dạng ngày giờ không đọc được được đánh dấu `invalid`. Dòng có thời điểm kết quả sớm hơn thời điểm thực hiện được đánh dấu `negative`. Nếu `NGAY_TH_YL` sớm hơn `NGAY_YL`, hoặc `NGAY_KQ` sớm hơn `NGAY_TH_YL`, dòng được đánh dấu **SAI THỨ TỰ** để kiểm tra. Các nhóm này được thống kê riêng và không được xem là đạt.
+Dòng thiếu một trong ba mốc được đánh dấu `missing`. Dòng có định dạng ngày giờ không đọc được được đánh dấu `invalid`. Dòng có thời điểm kết quả sớm hơn thời điểm thực hiện được đánh dấu `negative`. Nếu `NGAY_TH_YL` sớm hơn `NGAY_YL`, hoặc `NGAY_KQ` sớm hơn `NGAY_TH_YL`, dòng được đánh dấu **SAI THỨ TỰ**. Nếu `NGAY_YL = NGAY_TH_YL = NGAY_KQ` hoặc `NGAY_TH_YL = NGAY_KQ`, dòng được đánh dấu **TRÙNG MỐC**. Các cảnh báo này không phụ thuộc mã nhóm.
 
 ## Báo cáo
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.0] — 2026-08-28
+
+- Thay ô nhập mã nhóm bằng các ô tích có tiêu đề: Nhóm 2 thuốc/vật tư y tế, Nhóm 3 xét nghiệm/CĐHA/TDCN, Nhóm 8 chi phí khác và Nhóm 18 theo dữ liệu đơn vị.
+- Tách phạm vi: checkbox chỉ lọc cảnh báo thời lượng; cảnh báo sai thứ tự và trùng mốc áp dụng cho mọi MA_NHOM.
+- Cảnh báo `NGAY_YL = NGAY_TH_YL = NGAY_KQ` và `NGAY_TH_YL = NGAY_KQ`.
+
 ## [1.1.0] — 2026-08-28
 
 - Thêm tùy chọn lọc `MA_NHOM` với mặc định `2, 3, 8, 18`.
