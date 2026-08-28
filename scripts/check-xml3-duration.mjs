@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
-import { getChronologyIssues, minutesBetween, parseXmlDateTime } from "../src/lib/xml3-duration.ts";
+import {
+  DEFAULT_GROUP_CODES,
+  GROUP_OPTIONS,
+  getChronologyIssues,
+  withPatientInfo,
+  minutesBetween,
+  parseXmlDateTime,
+} from "../src/lib/xml3-duration.ts";
 import { formatXmlDateTime } from "../src/lib/timezone.ts";
 
 assert.equal(minutesBetween("202608280800", "202608280910"), 70);
@@ -21,4 +28,14 @@ assert.deepEqual(getChronologyIssues("202608280900", "202608280930", "2026082809
   "NGAY_TH_YL = NGAY_KQ",
 ]);
 assert.equal(formatXmlDateTime("202608280930"), "08/28/2026 09:30");
-console.log("XML3 duration, group-filter support and chronology smoke test: OK");
+assert.deepEqual(DEFAULT_GROUP_CODES, ["2", "3", "8", "18"]);
+assert.equal(GROUP_OPTIONS.length, 18);
+
+const linked = withPatientInfo(
+  { MA_LK: "LK-001", MA_BN: "", HO_TEN: "" },
+  new Map([["LK-001", { MA_LK: "LK-001", MA_BN: "BN-001", HO_TEN: "Nguyễn Văn A" }]]),
+);
+assert.equal(linked.MA_BN, "BN-001");
+assert.equal(linked.HO_TEN, "Nguyễn Văn A");
+assert.equal(linked.MA_LK, "LK-001");
+console.log("XML3 duration, 18-group filter, chronology and XML1/XML3 join smoke test: OK");

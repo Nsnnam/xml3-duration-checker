@@ -6,9 +6,9 @@
 
 ## Cách thực hiện
 
-Mở ứng dụng, chọn một hoặc nhiều file XML hồ sơ, sau đó bấm **Phân tích XML3**. Công cụ tìm các phần `FILEHOSO` có `LOAIHOSO=XML3`, giải mã `NOIDUNGFILE` từ Base64 và đọc các phần tử `CHI_TIET_DVKT`.
+Mở ứng dụng, chọn một hoặc nhiều file XML hồ sơ có XML1 và XML3, sau đó bấm **Phân tích XML3**. Công cụ nối thông tin bệnh nhân giữa XML1 và XML3 bằng `MA_LK`. Công cụ tìm các phần `FILEHOSO` có `LOAIHOSO=XML3`, giải mã `NOIDUNGFILE` từ Base64 và đọc các phần tử `CHI_TIET_DVKT`.
 
-Mặc định giao diện chọn các nhóm `2, 3, 8, 18` bằng ô tích: **Nhóm 2 – Chi phí thuốc, vật tư y tế**, **Nhóm 3 – Chi phí xét nghiệm, chẩn đoán hình ảnh, thăm dò chức năng**, **Nhóm 8 – Chi phí khác** và **Nhóm 18 – theo dữ liệu đơn vị**. Các ô tích chỉ lọc cảnh báo thời lượng; cảnh báo trình tự và trùng mốc vẫn kiểm tra trên mọi `MA_NHOM`.
+Giao diện hiển thị gọn 18 ô tích theo Phụ lục 3 QĐ 5937: `1 Xét nghiệm`, `2 Chẩn đoán hình ảnh`, `3 Thăm dò chức năng`, `4 Thuốc`, `5–6 chưa có mô tả`, `7 Máu`, `8 Phẫu thuật`, `9 chưa có mô tả`, `10 Vật tư y tế`, `11 chưa có mô tả`, `12 Vận chuyển`, `13 Khám bệnh`, `14 Ngày giường bệnh ban ngày`, `15 Ngày giường bệnh điều trị nội trú`, `16 Ngày giường lưu`, `17 Chế phẩm máu`, `18 Thủ thuật`. Mặc định tích `2, 3, 8, 18`. Các ô tích chỉ lọc cảnh báo thời lượng; cảnh báo trình tự và trùng mốc vẫn kiểm tra trên mọi `MA_NHOM`.
 
 Quy trình thời gian được kiểm tra theo thứ tự bắt buộc:
 
@@ -30,7 +30,7 @@ Dòng thiếu một trong ba mốc được đánh dấu `missing`. Dòng có đ
 
 ## Báo cáo
 
-Nút **Xuất XLSX** tạo ba sheet: `Tóm tắt` cho các chỉ số tổng hợp, `Chi tiết` cho toàn bộ dòng theo bộ lọc hiện tại, và `Nhật ký` cho thông tin giải mã/phân tích. Tên file theo múi giờ `Asia/Ho_Chi_Minh`.
+Bảng kết quả ưu tiên `MA_BN` (XML1 cột 3) và `HO_TEN` (XML1 cột 4), đồng thời cho phép tìm theo mã bệnh nhân, họ tên hoặc `MA_LK`. Nút **Xuất XLSX** tạo ba sheet: `Tóm tắt` cho các chỉ số tổng hợp, `Chi tiết` cho toàn bộ dòng theo bộ lọc hiện tại, và `Nhật ký` cho thông tin giải mã/phân tích. Tên file theo múi giờ `Asia/Ho_Chi_Minh`.
 
 ## An toàn
 

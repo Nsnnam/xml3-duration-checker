@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.0] — 2026-08-28
+
+- Thu gọn đầy đủ 18 ô tích MA_NHOM theo Phụ lục 3 QĐ 5937; mặc định tích 2, 3, 8 và 18.
+- Đọc XML1, nối với XML3 bằng MA_LK và ưu tiên hiển thị MA_BN cột 3, HO_TEN cột 4.
+- Thêm tìm kiếm theo mã bệnh nhân, họ tên hoặc MA_LK; báo cáo XLSX cũng ưu tiên các trường bệnh nhân.
+
 ## [1.2.0] — 2026-08-28
 
 - Thay ô nhập mã nhóm bằng các ô tích có tiêu đề: Nhóm 2 thuốc/vật tư y tế, Nhóm 3 xét nghiệm/CĐHA/TDCN, Nhóm 8 chi phí khác và Nhóm 18 theo dữ liệu đơn vị.

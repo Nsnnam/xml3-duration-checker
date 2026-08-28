@@ -1,16 +1,16 @@
 export const APP_META = {
   name: "XML3 Duration Checker",
-  version: "1.2.0",
+  version: "1.3.0",
   date: "2026-08-28",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
     {
-      version: "1.2.0",
+      version: "1.3.0",
       date: "2026-08-28",
       changes: [
-        "Thêm checkbox nhóm có tiêu đề, kiểm tra trình tự/trùng mốc trên mọi nhóm và định dạng MM/DD/YYYY HH:mm.",
+        "Đủ 18 mã nhóm QĐ 5937, mặc định 2/3/8/18; nối MA_BN/HO_TEN XML1 với XML3 bằng MA_LK và thêm tìm kiếm bệnh nhân.",
       ],
     },
   ],

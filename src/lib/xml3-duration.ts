@@ -1,16 +1,32 @@
 export const DURATION_LIMIT_MINUTES = 70;
 export const DEFAULT_GROUP_CODES = ["2", "3", "8", "18"] as const;
 export const GROUP_OPTIONS = [
-  { code: "2", title: "Chi phí thuốc, vật tư y tế" },
-  { code: "3", title: "Chi phí xét nghiệm, chẩn đoán hình ảnh, thăm dò chức năng" },
-  { code: "8", title: "Chi phí khác" },
-  { code: "18", title: "Nhóm 18 (theo dữ liệu đơn vị)" },
+  { code: "1", title: "Xét nghiệm" },
+  { code: "2", title: "Chẩn đoán hình ảnh" },
+  { code: "3", title: "Thăm dò chức năng" },
+  { code: "4", title: "Thuốc" },
+  { code: "5", title: "Mã nhóm 5 (chưa có mô tả trong Phụ lục 3)" },
+  { code: "6", title: "Mã nhóm 6 (chưa có mô tả trong Phụ lục 3)" },
+  { code: "7", title: "Máu" },
+  { code: "8", title: "Phẫu thuật" },
+  { code: "9", title: "Mã nhóm 9 (chưa có mô tả trong Phụ lục 3)" },
+  { code: "10", title: "Vật tư y tế" },
+  { code: "11", title: "Mã nhóm 11 (chưa có mô tả trong Phụ lục 3)" },
+  { code: "12", title: "Vận chuyển" },
+  { code: "13", title: "Khám bệnh" },
+  { code: "14", title: "Ngày giường bệnh ban ngày" },
+  { code: "15", title: "Ngày giường bệnh điều trị nội trú" },
+  { code: "16", title: "Ngày giường lưu" },
+  { code: "17", title: "Chế phẩm máu" },
+  { code: "18", title: "Thủ thuật" },
 ] as const;
 
 export type Xml3Record = {
   fileName: string;
   table: "XML3";
   MA_LK: string;
+  MA_BN: string;
+  HO_TEN: string;
   STT: string;
   MA_DICH_VU: string;
   MA_VAT_TU: string;
@@ -105,12 +121,48 @@ function textOf(parent: Element, tag: Xml3Field): string {
   return parent.getElementsByTagName(tag)[0]?.textContent?.trim() ?? "";
 }
 
-function readXml3Records(doc: Document, fileName: string): Xml3Record[] {
+export type PatientInfo = { MA_LK: string; MA_BN: string; HO_TEN: string };
+
+export function withPatientInfo(
+  record: Xml3Record,
+  patients: ReadonlyMap<string, PatientInfo>,
+): Xml3Record {
+  const patient = patients.get(record.MA_LK);
+  return { ...record, MA_BN: patient?.MA_BN ?? "", HO_TEN: patient?.HO_TEN ?? "" };
+}
+
+function directTextOf(parent: Element, tag: string): string {
+  return (
+    Array.from(parent.children)
+      .find((child) => child.tagName.toUpperCase() === tag)
+      ?.textContent?.trim() ?? ""
+  );
+}
+
+function readXml1Patients(doc: Document): Map<string, PatientInfo> {
+  const patients = new Map<string, PatientInfo>();
+  for (const node of Array.from(doc.getElementsByTagName("*"))) {
+    const patient = {
+      MA_LK: directTextOf(node, "MA_LK"),
+      MA_BN: directTextOf(node, "MA_BN"),
+      HO_TEN: directTextOf(node, "HO_TEN"),
+    };
+    if (patient.MA_LK && (patient.MA_BN || patient.HO_TEN)) patients.set(patient.MA_LK, patient);
+  }
+  return patients;
+}
+
+function readXml3Records(
+  doc: Document,
+  fileName: string,
+  patients: Map<string, PatientInfo>,
+): Xml3Record[] {
   return Array.from(doc.getElementsByTagName("CHI_TIET_DVKT"), (item) => {
     const fields = Object.fromEntries(
       XML3_FIELDS.map((field) => [field, textOf(item, field)]),
     ) as Record<Xml3Field, string>;
-    return evaluateRecord(fields, fileName);
+    const record = evaluateRecord(fields, fileName);
+    return withPatientInfo(record, patients);
   });
 }
 
@@ -232,6 +284,8 @@ function evaluateRecord(fields: Record<Xml3Field, string>, fileName: string): Xm
 
   return {
     ...fields,
+    MA_BN: "",
+    HO_TEN: "",
     fileName,
     table: "XML3",
     durationMinutes,
@@ -258,13 +312,39 @@ function decodeFileContent(content: string, label: string): Document {
   return parseXml(decoded, label);
 }
 
-export async function analyzeXml3File(file: File): Promise<Xml3Analysis> {
+async function collectXml1Patients(file: File): Promise<Map<string, PatientInfo>> {
+  const outer = parseXml(await file.text(), file.name);
+  const patients = new Map<string, PatientInfo>();
+  for (const fileNode of Array.from(outer.getElementsByTagName("FILEHOSO"))) {
+    const type = fileNode.getElementsByTagName("LOAIHOSO")[0]?.textContent?.trim() ?? "";
+    if (type !== "XML1") continue;
+    const content = fileNode.getElementsByTagName("NOIDUNGFILE")[0]?.textContent ?? "";
+    const inner = decodeFileContent(content, `${file.name} XML1`);
+    for (const [maLk, patient] of readXml1Patients(inner)) patients.set(maLk, patient);
+  }
+  return patients;
+}
+
+export async function analyzeXml3File(
+  file: File,
+  sharedPatients = new Map<string, PatientInfo>(),
+): Promise<Xml3Analysis> {
   const text = await file.text();
   const outer = parseXml(text, file.name);
   const records: Xml3Record[] = [];
   let tableFiles = 0;
   const log: string[] = [`[${file.name}] Bắt đầu đọc XML chứa 15 bảng`];
   const fileNodes = Array.from(outer.getElementsByTagName("FILEHOSO"));
+  const patients = sharedPatients;
+
+  for (const fileNode of fileNodes) {
+    const type = fileNode.getElementsByTagName("LOAIHOSO")[0]?.textContent?.trim() ?? "";
+    const content = fileNode.getElementsByTagName("NOIDUNGFILE")[0]?.textContent ?? "";
+    if (type === "XML1") {
+      const inner = decodeFileContent(content, `${file.name} XML1`);
+      for (const [maLk, patient] of readXml1Patients(inner)) patients.set(maLk, patient);
+    }
+  }
 
   for (const fileNode of fileNodes) {
     const type = fileNode.getElementsByTagName("LOAIHOSO")[0]?.textContent?.trim() ?? "";
@@ -272,12 +352,12 @@ export async function analyzeXml3File(file: File): Promise<Xml3Analysis> {
     tableFiles++;
     const content = fileNode.getElementsByTagName("NOIDUNGFILE")[0]?.textContent ?? "";
     const inner = decodeFileContent(content, `${file.name} XML3`);
-    records.push(...readXml3Records(inner, file.name));
+    records.push(...readXml3Records(inner, file.name, patients));
   }
 
   if (!fileNodes.length && outer.getElementsByTagName("CHI_TIET_DVKT").length) {
     tableFiles = 1;
-    records.push(...readXml3Records(outer, file.name));
+    records.push(...readXml3Records(outer, file.name, patients));
   }
   if (!tableFiles) throw new Error(`${file.name}: không tìm thấy FILEHOSO có LOAIHOSO=XML3`);
 
@@ -307,9 +387,18 @@ export async function analyzeXml3Files(files: File[]): Promise<BatchAnalysis> {
   const errors: string[] = [];
   const logs: string[] = [];
   let tableFiles = 0;
+  const sharedPatients = new Map<string, PatientInfo>();
   for (const file of files) {
     try {
-      const analysis = await analyzeXml3File(file);
+      for (const [maLk, patient] of await collectXml1Patients(file))
+        sharedPatients.set(maLk, patient);
+    } catch {
+      // The normal analysis pass below records the user-facing file error.
+    }
+  }
+  for (const file of files) {
+    try {
+      const analysis = await analyzeXml3File(file, sharedPatients);
       allRecords.push(...analysis.records);
       tableFiles += analysis.tableFiles;
       logs.push(...analysis.log);

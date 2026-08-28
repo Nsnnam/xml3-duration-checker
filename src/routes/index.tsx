@@ -21,19 +21,27 @@ export function HomePage() {
   const [busy, setBusy] = useState(false);
   const [onlyWarnings, setOnlyWarnings] = useState(true);
   const [groupCodes, setGroupCodes] = useState<string[]>([...DEFAULT_GROUP_CODES]);
+  const [patientQuery, setPatientQuery] = useState("");
   const [notice, setNotice] = useState("");
 
   const filteredRecords = useMemo(
     () =>
       analysis
-        ? analysis.records.filter(
-            (record) =>
+        ? analysis.records.filter((record) => {
+            const matchesGroup =
               groupCodes.includes(record.MA_NHOM.trim()) ||
               record.hasOrderWarning ||
-              record.hasEqualWarning,
-          )
+              record.hasEqualWarning;
+            const query = patientQuery.trim().toLocaleLowerCase("vi-VN");
+            const matchesPatient =
+              !query ||
+              [record.MA_BN, record.HO_TEN, record.MA_LK].some((value) =>
+                value.toLocaleLowerCase("vi-VN").includes(query),
+              );
+            return matchesGroup && matchesPatient;
+          })
         : [],
-    [analysis, groupCodes],
+    [analysis, groupCodes, patientQuery],
   );
   const filteredWarnings = useMemo(
     () =>
@@ -130,6 +138,7 @@ export function HomePage() {
             filteredRecords={filteredRecords}
             filteredWarnings={filteredWarnings}
             groupCodes={groupCodes}
+            patientQuery={patientQuery}
             onlyWarnings={onlyWarnings}
             busy={busy}
             notice={notice}
@@ -140,6 +149,7 @@ export function HomePage() {
             onClear={clearAll}
             onAnalyze={runAnalysis}
             onGroupCodesChange={setGroupCodes}
+            onPatientQueryChange={setPatientQuery}
             onToggleWarnings={setOnlyWarnings}
             onExport={() => analysis && exportXml3Report(analysis, filteredRecords)}
           />
@@ -166,6 +176,7 @@ function CheckerView({
   filteredRecords,
   filteredWarnings,
   groupCodes,
+  patientQuery,
   onlyWarnings,
   busy,
   notice,
@@ -174,6 +185,7 @@ function CheckerView({
   onClear,
   onAnalyze,
   onGroupCodesChange,
+  onPatientQueryChange,
   onToggleWarnings,
   onExport,
 }: {
@@ -183,6 +195,7 @@ function CheckerView({
   filteredRecords: Xml3Record[];
   filteredWarnings: Xml3Record[];
   groupCodes: string[];
+  patientQuery: string;
   onlyWarnings: boolean;
   busy: boolean;
   notice: string;
@@ -191,6 +204,7 @@ function CheckerView({
   onClear: () => void;
   onAnalyze: () => void;
   onGroupCodesChange: (value: string[]) => void;
+  onPatientQueryChange: (value: string) => void;
   onToggleWarnings: (value: boolean) => void;
   onExport: () => void;
 }) {
@@ -233,7 +247,7 @@ function CheckerView({
             <legend className="px-1 text-xs font-bold uppercase tracking-wide text-slate-500">
               Mã nhóm áp dụng cảnh báo thời lượng (MA_NHOM · cột 6)
             </legend>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {GROUP_OPTIONS.map((option) => (
                 <label
                   key={option.code}
@@ -309,7 +323,7 @@ function CheckerView({
             <h2 className="text-lg font-bold">Quy tắc kiểm tra</h2>
           </div>
           <div className="mt-6 space-y-4 text-sm leading-6 text-slate-300">
-            <Rule label="Mã nhóm" value="2 · 3 · 8 · 18 mặc định" />
+            <Rule label="Mã nhóm" value="18 mã · 2 · 3 · 8 · 18 mặc định" />
             <Rule label="Trình tự" value="NGAY_YL → NGAY_TH_YL → NGAY_KQ" />
             <Rule label="Công thức" value="NGAY_KQ − NGAY_TH_YL" />
             <Rule
@@ -370,6 +384,16 @@ function CheckerView({
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
+                <label className="flex min-w-[260px] items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+                  <span className="font-bold text-teal-700">Tìm bệnh nhân</span>
+                  <input
+                    value={patientQuery}
+                    onChange={(event) => onPatientQueryChange(event.target.value)}
+                    className="min-w-0 flex-1 bg-transparent font-semibold text-slate-800 outline-none"
+                    placeholder="Mã BN, họ tên hoặc MA_LK"
+                    aria-label="Tìm theo mã bệnh nhân, họ tên hoặc mã liên kết"
+                  />
+                </label>
                 <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
                   <input
                     type="checkbox"
@@ -398,6 +422,7 @@ function CheckerView({
                     <tr>
                       {[
                         "Trạng thái",
+                        "MA_BN · HỌ TÊN",
                         "File · MA_LK",
                         "STT",
                         "Dịch vụ / vật tư",
@@ -509,6 +534,14 @@ function WarningRow({ record }: { record: Xml3Record }) {
         </span>
       </td>
       <td className="max-w-[220px] px-4 py-3">
+        <div className="font-mono text-[11px] font-bold text-teal-800">
+          {record.MA_BN || "(chưa nối XML1)"}
+        </div>
+        <div className="mt-1 truncate font-semibold text-slate-800">
+          {record.HO_TEN || "Chưa có họ tên"}
+        </div>
+      </td>
+      <td className="max-w-[220px] px-4 py-3">
         <div className="truncate font-mono text-[11px] text-slate-500">{record.fileName}</div>
         <div className="mt-1 font-semibold text-slate-800">{record.MA_LK || "(trống)"}</div>
       </td>
@@ -567,7 +600,7 @@ function GuideView() {
         <GuideCard
           number="03"
           title="Rà soát cảnh báo"
-          text="Lọc theo MA_NHOM (mặc định 2, 3, 8, 18), cảnh báo NGAY_KQ − NGAY_TH_YL > 70 phút và cảnh báo nếu NGAY_YL → NGAY_TH_YL → NGAY_KQ bị ngược."
+          text="Chọn trong 18 mã MA_NHOM (mặc định 2, 3, 8, 18), tìm theo MA_BN/HO_TEN/MA_LK, xem cảnh báo NGAY_KQ − NGAY_TH_YL > 70 phút và kiểm tra trình tự/trùng mốc trên mọi nhóm."
         />
       </section>
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -583,8 +616,14 @@ function GuideView() {
             </thead>
             <tbody>
               {[
-                ["MA_NHOM", "6", "Mã nhóm dùng để lọc cảnh báo thời lượng; mặc định 2, 3, 8, 18"],
-                ["NGAY_YL", "37", "Thời điểm chỉ định"],
+                [
+                  "MA_NHOM",
+                  "6 · XML3",
+                  "Mã nhóm dùng để lọc cảnh báo thời lượng; có đủ mã 1–18, mặc định 2, 3, 8, 18",
+                ],
+                ["MA_BN", "3 · XML1", "Mã bệnh nhân, nối với XML3 qua MA_LK"],
+                ["HO_TEN", "4 · XML1", "Họ tên bệnh nhân, nối với XML3 qua MA_LK"],
+                ["NGAY_YL", "37 · XML3", "Thời điểm chỉ định"],
                 ["NGAY_TH_YL", "38", "Thời điểm thực hiện / bắt đầu tính"],
                 ["NGAY_KQ", "39", "Thời điểm trả kết quả / kết thúc tính"],
                 ["MA_LK, STT", "1–2", "Định danh hồ sơ và dòng dịch vụ"],

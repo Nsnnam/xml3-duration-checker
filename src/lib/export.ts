@@ -30,11 +30,15 @@ function detailRows(records: Xml3Record[]) {
     File: record.fileName,
     Trạng_thái: record.hasOrderWarning
       ? "SAI THỨ TỰ"
-      : record.status === "warning"
-        ? "CẢNH BÁO"
-        : record.status === "ok"
-          ? "Đạt"
-          : record.status,
+      : record.hasEqualWarning
+        ? "TRÙNG MỐC"
+        : record.status === "warning"
+          ? "CẢNH BÁO"
+          : record.status === "ok"
+            ? "Đạt"
+            : record.status,
+    MA_BN: record.MA_BN,
+    HO_TEN: record.HO_TEN,
     MA_LK: record.MA_LK,
     STT: record.STT,
     MA_DICH_VU: record.MA_DICH_VU,
@@ -74,12 +78,17 @@ export async function exportXml3Report(analysis: BatchAnalysis, records = analys
     { label: "Tổng dòng XML3 theo nhóm", value: records.length },
     {
       label: "Cảnh báo theo nhóm",
-      value: records.filter((record) => record.status === "warning" || record.hasOrderWarning)
-        .length,
+      value: records.filter(
+        (record) => record.status === "warning" || record.hasOrderWarning || record.hasEqualWarning,
+      ).length,
     },
     {
       label: "Cảnh báo sai thứ tự",
       value: records.filter((record) => record.hasOrderWarning).length,
+    },
+    {
+      label: "Cảnh báo trùng mốc",
+      value: records.filter((record) => record.hasEqualWarning).length,
     },
     {
       label: "Dòng thiếu thời gian",
@@ -108,7 +117,7 @@ export async function exportXml3Report(analysis: BatchAnalysis, records = analys
   }
   styleSheet(detail);
   for (const row of detail.getRows(2, detail.rowCount) ?? []) {
-    if (["CẢNH BÁO", "SAI THỨ TỰ"].includes(String(row.getCell(2).value))) {
+    if (["CẢNH BÁO", "SAI THỨ TỰ", "TRÙNG MỐC"].includes(String(row.getCell(2).value))) {
       row.eachCell(
         (cell) =>
           (cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFDE68A" } }),
