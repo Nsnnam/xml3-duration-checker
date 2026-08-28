@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.0] — 2026-08-28
+
+- Thêm tùy chọn lọc `MA_NHOM` với mặc định `2, 3, 8, 18`.
+- Kiểm tra thứ tự `NGAY_YL → NGAY_TH_YL → NGAY_KQ` và cảnh báo từng mốc bị ngược.
+- Hiển thị thời gian `yyyymmddhhmm` thành `MM/DD/YYYY HH:mm` trên bảng và báo cáo XLSX.
+
 ## [1.0.2] — 2026-08-28
 
 - Bổ sung GitHub Actions tự build và xuất bản bản web portable lên GitHub Pages.

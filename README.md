@@ -1,6 +1,6 @@
 # XML3 Duration Checker
 
-Công cụ web độc lập của **Nguyễn Sơn Nam (Nsnnam)** để đọc file XML hồ sơ chứa 15 bảng, giải mã `NOIDUNGFILE` theo Base64, lấy các dòng `CHI_TIET_DVKT` của XML3 và cảnh báo dịch vụ có thời gian từ `NGAY_TH_YL` đến `NGAY_KQ` vượt quá 70 phút.
+Công cụ web độc lập của **Nguyễn Sơn Nam (Nsnnam)** để đọc file XML hồ sơ chứa 15 bảng, giải mã `NOIDUNGFILE` theo Base64, lấy các dòng `CHI_TIET_DVKT` của XML3 và lọc theo `MA_NHOM` và cảnh báo dịch vụ có thời gian từ `NGAY_TH_YL` đến `NGAY_KQ` vượt quá 70 phút hoặc có thứ tự thời gian bất thường.
 
 > Ứng dụng này **không liên quan đến tra cứu hoặc đánh giá mã ICD**. Dữ liệu được xử lý ngay trong trình duyệt và không tải lên máy chủ.
 
@@ -10,8 +10,9 @@ Công cụ web độc lập của **Nguyễn Sơn Nam (Nsnnam)** để đọc fi
 |---|---|
 | Nạp dữ liệu | Chọn một hoặc nhiều file `.xml` XML1–XML15 Base64 |
 | Phân tích | Giải mã `NOIDUNGFILE`, nhận diện XML3 và đọc `CHI_TIET_DVKT` |
-| Nghiệp vụ | Tính `NGAY_KQ − NGAY_TH_YL` theo phút; cảnh báo khi kết quả **lớn hơn 70 phút** |
-| Chi tiết | Hiển thị file, `MA_LK`, `STT`, mã/tên dịch vụ, khoa, hai mốc thời gian, số phút và phần vượt ngưỡng |
+| Nghiệp vụ | Lọc `MA_NHOM` (cột 6), mặc định `2, 3, 8, 18`; tính `NGAY_KQ − NGAY_TH_YL` theo phút và cảnh báo khi **lớn hơn 70 phút** |
+| Trình tự | Kiểm tra `NGAY_YL → NGAY_TH_YL → NGAY_KQ`; cảnh báo nếu mốc sau sớm hơn mốc trước |
+| Chi tiết | Hiển thị mã nhóm, ba mốc thời gian dạng `MM/DD/YYYY HH:mm`, số phút, phần vượt ngưỡng và nguyên nhân cảnh báo |
 | Báo cáo | Xuất XLSX gồm các sheet `Tóm tắt`, `Chi tiết`, `Nhật ký` |
 | Phát hành | Bản web portable và single HTML offline |
 
@@ -39,9 +40,9 @@ Artifact được tạo tại `releases/web/` và `releases/single-page/xml3-dur
 
 ## Hướng dẫn nhanh
 
-Chọn file XML hồ sơ, bấm **Phân tích XML3**, sau đó xem các dòng trong bảng **Cảnh báo chi tiết theo dịch vụ**. Mặc định bảng chỉ hiển thị dòng vượt ngưỡng; bỏ chọn **Chỉ cảnh báo** để xem toàn bộ bản ghi XML3. Dùng **Xuất XLSX** để lưu báo cáo.
+Chọn file XML hồ sơ, nhập danh sách `MA_NHOM` cách nhau bằng dấu phẩy (mặc định `2, 3, 8, 18`), bấm **Phân tích XML3**, sau đó xem các dòng trong bảng **Cảnh báo chi tiết theo dịch vụ**. Mặc định bảng chỉ hiển thị dòng cảnh báo; bỏ chọn **Chỉ cảnh báo** để xem toàn bộ bản ghi thuộc nhóm đã chọn. Dùng **Xuất XLSX** để lưu báo cáo.
 
-Các trường nghiệp vụ lấy theo file mô tả `3176.xls`, sheet `Bang 3_DVKT, VTYT`: `NGAY_TH_YL` là trường 38 và `NGAY_KQ` là trường 39. Đúng 70 phút được xem là đạt; chỉ thời lượng `> 70` phút mới cảnh báo. Dòng thiếu, sai định dạng hoặc có thời lượng âm được thống kê riêng, không tự kết luận đạt.
+Các trường nghiệp vụ lấy theo file mô tả `3176.xls`, sheet `Bang 3_DVKT, VTYT`: `MA_NHOM` là trường 6, `NGAY_YL` là trường 37, `NGAY_TH_YL` là trường 38 và `NGAY_KQ` là trường 39. Đúng 70 phút được xem là đạt; chỉ thời lượng `> 70` phút mới cảnh báo. Chuỗi `yyyymmddhhmm` được hiển thị thành `MM/DD/YYYY HH:mm`. Dòng thiếu, sai định dạng, thời lượng âm hoặc sai trình tự được thống kê riêng, không tự kết luận đạt.
 
 ## Bảo mật dữ liệu
 
@@ -51,7 +52,7 @@ Các trường nghiệp vụ lấy theo file mô tả `3176.xls`, sheet `Bang 3_
 
 | Đường dẫn | Vai trò |
 |---|---|
-| `src/lib/xml3-duration.ts` | Giải mã Base64, phân tích XML3 và tính phút |
+| `src/lib/xml3-duration.ts` | Giải mã Base64, lọc nhóm, kiểm tra trình tự và tính phút |
 | `src/lib/export.ts` | Xuất báo cáo XLSX |
 | `src/routes/index.tsx` | Giao diện upload, dashboard và cảnh báo |
 | `scripts/build-releases.mjs` | Build web portable và single HTML |
@@ -59,7 +60,7 @@ Các trường nghiệp vụ lấy theo file mô tả `3176.xls`, sheet `Bang 3_
 
 ## Phiên bản
 
-Phiên bản hiện tại: **1.0.2** · ngày **2026-08-28** · múi giờ **Asia/Ho_Chi_Minh (GMT+7)**. Xem [CHANGELOG.md](CHANGELOG.md) để biết lịch sử thay đổi.
+Phiên bản hiện tại: **1.1.0** · ngày **2026-08-28** · múi giờ **Asia/Ho_Chi_Minh (GMT+7)**. Xem [CHANGELOG.md](CHANGELOG.md) để biết lịch sử thay đổi.
 
 ## Tác giả và hỗ trợ
 
@@ -67,4 +68,4 @@ Tác giả: **Nguyễn Sơn Nam (Nsnnam)** · [GitHub](https://github.com/Nsnnam
 
 ## Giấy phép
 
-Repo phục vụ nghiệp vụ y tế/nội bộ và được tạo ở chế độ private. Không phát hành hoặc chia sẻ dữ liệu đầu vào thực tế.
+Repo phục vụ nghiệp vụ y tế/nội bộ; bản web công khai chỉ xử lý file trong trình duyệt và không tải dữ liệu lên server. Không phát hành hoặc chia sẻ dữ liệu đầu vào thực tế.

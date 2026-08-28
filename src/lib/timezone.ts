@@ -54,7 +54,7 @@ export function formatTimestampForFilename(date: Date = new Date()): string {
 
 /**
  * Định dạng ngày/giờ XML BHYT (thường YYYYMMDD, YYYYMMDDHHmm hoặc YYYYMMDDHHmmss).
- * Trả về dạng hiển thị vi-VN; nếu không nhận ra thì giữ nguyên chuỗi gốc.
+ * Trả về dạng hiển thị MM/DD/YYYY HH:mm; nếu không nhận ra thì giữ nguyên chuỗi gốc.
  */
 export function formatXmlDateTime(raw: string | undefined | null): string {
   if (!raw) return "";
@@ -72,14 +72,14 @@ export function formatXmlDateTime(raw: string | undefined | null): string {
     const mm = digits.slice(10, 12);
     if (digits.length >= 14) {
       const ss = digits.slice(12, 14);
-      return `${d}/${m}/${y} ${hh}:${mm}:${ss}`;
+      return `${m}/${d}/${y} ${hh}:${mm}:${ss}`;
     }
-    return `${d}/${m}/${y} ${hh}:${mm}`;
+    return `${m}/${d}/${y} ${hh}:${mm}`;
   }
-  return `${d}/${m}/${y}`;
+  return `${m}/${d}/${y}`;
 }
 
-/** Chỉ phần ngày (dd/mm/yyyy) từ chuỗi XML BHYT. */
+/** Chỉ phần ngày (MM/DD/YYYY) từ chuỗi XML BHYT. */
 export function formatXmlDate(raw: string | undefined | null): string {
   const full = formatXmlDateTime(raw);
   if (!full) return "";

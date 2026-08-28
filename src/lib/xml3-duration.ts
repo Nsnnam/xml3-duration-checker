@@ -1,4 +1,5 @@
 export const DURATION_LIMIT_MINUTES = 70;
+export const DEFAULT_GROUP_CODES = ["2", "3", "8", "18"] as const;
 
 export type Xml3Record = {
   fileName: string;
@@ -22,7 +23,9 @@ export type Xml3Record = {
   MA_MAY: string;
   MA_HIEU_SP: string;
   durationMinutes: number | null;
-  status: "warning" | "ok" | "missing" | "invalid" | "negative";
+  hasOrderWarning: boolean;
+  orderIssues: string[];
+  status: "warning" | "order-warning" | "ok" | "missing" | "invalid" | "negative";
   detail: string;
 };
 
@@ -34,6 +37,7 @@ export type Xml3Analysis = {
   missingTimes: number;
   invalidTimes: number;
   negativeTimes: number;
+  orderWarnings: number;
   log: string[];
 };
 
@@ -46,6 +50,7 @@ export type BatchAnalysis = {
   missingTimes: number;
   invalidTimes: number;
   negativeTimes: number;
+  orderWarnings: number;
 };
 
 const XML3_FIELDS = [
@@ -147,28 +152,72 @@ export function minutesBetween(startRaw: string, endRaw: string): number | null 
   return Math.round(((end.getTime() - start.getTime()) / 60000) * 100) / 100;
 }
 
+export function getChronologyIssues(ngayYl: string, ngayThYl: string, ngayKq: string): string[] {
+  const order: Array<[string, string, string, string]> = [
+    ["NGAY_YL", ngayYl, "NGAY_TH_YL", ngayThYl],
+    ["NGAY_TH_YL", ngayThYl, "NGAY_KQ", ngayKq],
+  ];
+  return order
+    .filter(([, startRaw, , endRaw]) => {
+      const start = parseXmlDateTime(startRaw);
+      const end = parseXmlDateTime(endRaw);
+      return Boolean(start && end && end.getTime() < start.getTime());
+    })
+    .map(([startName, , endName]) => `${endName} sớm hơn ${startName}`);
+}
+
+function chronologyIssues(fields: Record<Xml3Field, string>): string[] {
+  return getChronologyIssues(fields.NGAY_YL, fields.NGAY_TH_YL, fields.NGAY_KQ);
+}
+
 function evaluateRecord(fields: Record<Xml3Field, string>, fileName: string): Xml3Record {
   const durationMinutes = minutesBetween(fields.NGAY_TH_YL, fields.NGAY_KQ);
+  const orderIssues = chronologyIssues(fields);
+  const hasOrderWarning = orderIssues.length > 0;
   let status: Xml3Record["status"] = "ok";
-  let detail = `Trong ngưỡng ${DURATION_LIMIT_MINUTES} phút`;
-  if (!fields.NGAY_TH_YL || !fields.NGAY_KQ) {
+  const details: string[] = [];
+
+  if (!fields.NGAY_YL || !fields.NGAY_TH_YL || !fields.NGAY_KQ) {
     status = "missing";
-    detail = "Thiếu NGAY_TH_YL hoặc NGAY_KQ";
+    details.push("Thiếu NGAY_YL, NGAY_TH_YL hoặc NGAY_KQ");
   } else if (durationMinutes === null) {
     status = "invalid";
-    detail = "Không đọc được định dạng thời gian";
+    details.push("Không đọc được định dạng thời gian");
   } else if (durationMinutes < 0) {
     status = "negative";
-    detail = "NGAY_KQ sớm hơn NGAY_TH_YL";
+    details.push("NGAY_KQ sớm hơn NGAY_TH_YL");
   } else if (durationMinutes > DURATION_LIMIT_MINUTES) {
     status = "warning";
-    detail = `Vượt ${formatMinutes(durationMinutes - DURATION_LIMIT_MINUTES)} phút so với ngưỡng`;
+    details.push(
+      `Vượt ${formatMinutes(durationMinutes - DURATION_LIMIT_MINUTES)} phút so với ngưỡng`,
+    );
+  } else {
+    details.push(`Trong ngưỡng ${DURATION_LIMIT_MINUTES} phút`);
   }
-  return { ...fields, fileName, table: "XML3", durationMinutes, status, detail };
+
+  if (hasOrderWarning) {
+    if (status === "ok") status = "order-warning";
+    details.unshift(`Kiểm tra thứ tự: ${orderIssues.join("; ")}`);
+  }
+
+  return {
+    ...fields,
+    fileName,
+    table: "XML3",
+    durationMinutes,
+    hasOrderWarning,
+    orderIssues,
+    status,
+    detail: details.join(" · "),
+  };
 }
 
 function formatMinutes(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
+function isWarning(record: Xml3Record): boolean {
+  return record.status === "warning" || record.hasOrderWarning;
 }
 
 function decodeFileContent(content: string, label: string): Document {
@@ -201,12 +250,13 @@ export async function analyzeXml3File(file: File): Promise<Xml3Analysis> {
   }
   if (!tableFiles) throw new Error(`${file.name}: không tìm thấy FILEHOSO có LOAIHOSO=XML3`);
 
-  const warnings = records.filter((record) => record.status === "warning");
+  const warnings = records.filter(isWarning);
   const missingTimes = records.filter((record) => record.status === "missing").length;
   const invalidTimes = records.filter((record) => record.status === "invalid").length;
   const negativeTimes = records.filter((record) => record.status === "negative").length;
+  const orderWarnings = records.filter((record) => record.hasOrderWarning).length;
   log.push(
-    `XML3: ${records.length} dòng; cảnh báo > ${DURATION_LIMIT_MINUTES} phút: ${warnings.length}; thiếu thời gian: ${missingTimes}; không hợp lệ: ${invalidTimes}; âm: ${negativeTimes}`,
+    `XML3: ${records.length} dòng; cảnh báo nhóm/thời gian: ${warnings.length}; thứ tự thời gian: ${orderWarnings}; thiếu thời gian: ${missingTimes}; không hợp lệ: ${invalidTimes}; âm: ${negativeTimes}`,
   );
   return {
     fileName: file.name,
@@ -216,6 +266,7 @@ export async function analyzeXml3File(file: File): Promise<Xml3Analysis> {
     missingTimes,
     invalidTimes,
     negativeTimes,
+    orderWarnings,
     log,
   };
 }
@@ -237,12 +288,13 @@ export async function analyzeXml3Files(files: File[]): Promise<BatchAnalysis> {
   }
   return {
     records: allRecords,
-    warnings: allRecords.filter((record) => record.status === "warning"),
+    warnings: allRecords.filter(isWarning),
     files: files.map((file) => file.name),
     errors: [...errors, ...logs],
     tableFiles,
     missingTimes: allRecords.filter((record) => record.status === "missing").length,
     invalidTimes: allRecords.filter((record) => record.status === "invalid").length,
     negativeTimes: allRecords.filter((record) => record.status === "negative").length,
+    orderWarnings: allRecords.filter((record) => record.hasOrderWarning).length,
   };
 }

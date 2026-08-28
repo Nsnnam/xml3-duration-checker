@@ -8,17 +8,25 @@
 
 Mở ứng dụng, chọn một hoặc nhiều file XML hồ sơ, sau đó bấm **Phân tích XML3**. Công cụ tìm các phần `FILEHOSO` có `LOAIHOSO=XML3`, giải mã `NOIDUNGFILE` từ Base64 và đọc các phần tử `CHI_TIET_DVKT`.
 
-Với mỗi dòng, công thức là:
+Mặc định ứng dụng lọc các dòng có `MA_NHOM` (cột 6) thuộc nhóm `2, 3, 8, 18`. Người dùng có thể thay đổi danh sách mã nhóm bằng cách nhập các mã cách nhau bởi dấu phẩy.
+
+Quy trình thời gian được kiểm tra theo thứ tự bắt buộc:
+
+```text
+NGAY_YL (chỉ định) → NGAY_TH_YL (thực hiện) → NGAY_KQ (kết quả)
+```
+
+Với mỗi dòng thuộc nhóm đã chọn, công thức là:
 
 ```text
 Số phút = NGAY_KQ - NGAY_TH_YL
 ```
 
-Nếu số phút lớn hơn 70, dòng được đánh dấu **CẢNH BÁO**. Đúng 70 phút không bị cảnh báo. Hai trường được đọc theo mô tả sheet `Bang 3_DVKT, VTYT` trong file `3176.xls`: `NGAY_TH_YL` là vị trí 38 và `NGAY_KQ` là vị trí 39.
+Nếu số phút lớn hơn 70, dòng được đánh dấu **CẢNH BÁO**. Đúng 70 phút không bị cảnh báo. Hai trường được đọc theo mô tả sheet `Bang 3_DVKT, VTYT` trong file `3176.xls`: `MA_NHOM` là vị trí 6, `NGAY_YL` là vị trí 37, `NGAY_TH_YL` là vị trí 38 và `NGAY_KQ` là vị trí 39. Chuỗi XML `yyyymmddhhmm` được hiển thị thành `MM/DD/YYYY HH:mm`.
 
 ## Xử lý ngoại lệ
 
-Dòng thiếu một trong hai mốc được đánh dấu `missing`. Dòng có định dạng ngày giờ không đọc được được đánh dấu `invalid`. Dòng có thời điểm kết quả sớm hơn thời điểm thực hiện được đánh dấu `negative`. Các nhóm này được thống kê riêng và không được xem là đạt.
+Dòng thiếu một trong ba mốc được đánh dấu `missing`. Dòng có định dạng ngày giờ không đọc được được đánh dấu `invalid`. Dòng có thời điểm kết quả sớm hơn thời điểm thực hiện được đánh dấu `negative`. Nếu `NGAY_TH_YL` sớm hơn `NGAY_YL`, hoặc `NGAY_KQ` sớm hơn `NGAY_TH_YL`, dòng được đánh dấu **SAI THỨ TỰ** để kiểm tra. Các nhóm này được thống kê riêng và không được xem là đạt.
 
 ## Báo cáo
 

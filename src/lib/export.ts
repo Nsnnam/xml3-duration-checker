@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
-import { formatTimestampForFilename } from "./timezone";
+import { formatTimestampForFilename, formatXmlDateTime } from "./timezone";
 import type { BatchAnalysis, Xml3Record } from "./xml3-duration";
 
 function styleSheet(sheet: ExcelJS.Worksheet) {
@@ -28,8 +28,13 @@ function fitColumns(sheet: ExcelJS.Worksheet) {
 function detailRows(records: Xml3Record[]) {
   return records.map((record) => ({
     File: record.fileName,
-    Trạng_thái:
-      record.status === "warning" ? "CẢNH BÁO" : record.status === "ok" ? "Đạt" : record.status,
+    Trạng_thái: record.hasOrderWarning
+      ? "SAI THỨ TỰ"
+      : record.status === "warning"
+        ? "CẢNH BÁO"
+        : record.status === "ok"
+          ? "Đạt"
+          : record.status,
     MA_LK: record.MA_LK,
     STT: record.STT,
     MA_DICH_VU: record.MA_DICH_VU,
@@ -41,9 +46,9 @@ function detailRows(records: Xml3Record[]) {
     MA_GIUONG: record.MA_GIUONG,
     MA_BAC_SI: record.MA_BAC_SI,
     NGUOI_THUC_HIEN: record.NGUOI_THUC_HIEN,
-    NGAY_YL: record.NGAY_YL,
-    NGAY_TH_YL: record.NGAY_TH_YL,
-    NGAY_KQ: record.NGAY_KQ,
+    NGAY_YL: formatXmlDateTime(record.NGAY_YL) || record.NGAY_YL,
+    NGAY_TH_YL: formatXmlDateTime(record.NGAY_TH_YL) || record.NGAY_TH_YL,
+    NGAY_KQ: formatXmlDateTime(record.NGAY_KQ) || record.NGAY_KQ,
     So_phut: record.durationMinutes ?? "",
     Vuot_nguong_phut:
       record.durationMinutes !== null && record.durationMinutes > 70
@@ -53,7 +58,7 @@ function detailRows(records: Xml3Record[]) {
   }));
 }
 
-export async function exportXml3Report(analysis: BatchAnalysis) {
+export async function exportXml3Report(analysis: BatchAnalysis, records = analysis.records) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Nguyễn Sơn Nam (Nsnnam)";
   workbook.created = new Date();
@@ -66,18 +71,35 @@ export async function exportXml3Report(analysis: BatchAnalysis) {
   summary.addRows([
     { label: "Số file đã nạp", value: analysis.files.length },
     { label: "Số FILEHOSO XML3", value: analysis.tableFiles },
-    { label: "Tổng dòng XML3", value: analysis.records.length },
-    { label: "Cảnh báo vượt 70 phút", value: analysis.warnings.length },
-    { label: "Dòng thiếu thời gian", value: analysis.missingTimes },
-    { label: "Dòng thời gian không hợp lệ", value: analysis.invalidTimes },
-    { label: "Dòng thời gian âm", value: analysis.negativeTimes },
+    { label: "Tổng dòng XML3 theo nhóm", value: records.length },
+    {
+      label: "Cảnh báo theo nhóm",
+      value: records.filter((record) => record.status === "warning" || record.hasOrderWarning)
+        .length,
+    },
+    {
+      label: "Cảnh báo sai thứ tự",
+      value: records.filter((record) => record.hasOrderWarning).length,
+    },
+    {
+      label: "Dòng thiếu thời gian",
+      value: records.filter((record) => record.status === "missing").length,
+    },
+    {
+      label: "Dòng thời gian không hợp lệ",
+      value: records.filter((record) => record.status === "invalid").length,
+    },
+    {
+      label: "Dòng thời gian âm",
+      value: records.filter((record) => record.status === "negative").length,
+    },
     { label: "Ngưỡng cảnh báo (phút)", value: 70 },
   ]);
   styleSheet(summary);
   fitColumns(summary);
 
   const detail = workbook.addWorksheet("Chi tiết");
-  const rows = detailRows(analysis.records);
+  const rows = detailRows(records);
   if (rows.length) {
     detail.columns = Object.keys(rows[0]).map((key) => ({ header: key, key }));
     detail.addRows(rows);
@@ -86,7 +108,7 @@ export async function exportXml3Report(analysis: BatchAnalysis) {
   }
   styleSheet(detail);
   for (const row of detail.getRows(2, detail.rowCount) ?? []) {
-    if (row.getCell(2).value === "CẢNH BÁO") {
+    if (["CẢNH BÁO", "SAI THỨ TỰ"].includes(String(row.getCell(2).value))) {
       row.eachCell(
         (cell) =>
           (cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFDE68A" } }),
