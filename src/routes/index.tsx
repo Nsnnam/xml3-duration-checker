@@ -210,7 +210,7 @@ function CheckerView({
 }) {
   return (
     <div className="space-y-6">
-      <section className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
+      <section className="space-y-4">
         <div className="rounded-3xl border border-teal-100 bg-white p-6 shadow-sm md:p-8">
           <div className="mb-5 flex items-start gap-4">
             <div className="grid h-12 w-12 shrink-0 place-content-center rounded-2xl bg-teal-50 text-2xl">
@@ -243,11 +243,14 @@ function CheckerView({
               }}
             />
           </label>
-          <fieldset className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <legend className="px-1 text-xs font-bold uppercase tracking-wide text-slate-500">
+          <details className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <summary className="cursor-pointer list-none text-xs font-bold uppercase tracking-wide text-slate-500">
               Mã nhóm áp dụng cảnh báo thời lượng (MA_NHOM · cột 6)
-            </legend>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <span className="ml-2 normal-case font-normal text-teal-700">
+                · bấm để mở danh sách 18 nhóm
+              </span>
+            </summary>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {GROUP_OPTIONS.map((option) => (
                 <label
                   key={option.code}
@@ -276,7 +279,7 @@ function CheckerView({
               Mặc định đã chọn: <b>2, 3, 8, 18</b>. Bộ chọn này chỉ lọc cảnh báo thời lượng và các
               dòng trong bảng/báo cáo; kiểm tra trình tự thời gian áp dụng cho mọi mã nhóm.
             </p>
-          </fieldset>
+          </details>
           {files.length > 0 && (
             <div className="mt-4 space-y-2">
               {files.map((file) => (
@@ -315,14 +318,19 @@ function CheckerView({
           )}
         </div>
 
-        <div className="rounded-3xl bg-slate-900 p-6 text-white shadow-sm md:p-8">
-          <div className="flex items-center gap-3">
-            <div className="grid h-11 w-11 place-content-center rounded-2xl bg-white/10 text-xl">
+        <details className="rounded-3xl bg-slate-900 p-5 text-white shadow-sm md:p-6">
+          <summary className="flex cursor-pointer list-none items-center gap-3">
+            <div className="grid h-10 w-10 place-content-center rounded-2xl bg-white/10 text-xl">
               ⚙
             </div>
-            <h2 className="text-lg font-bold">Quy tắc kiểm tra</h2>
-          </div>
-          <div className="mt-6 space-y-4 text-sm leading-6 text-slate-300">
+            <div>
+              <h2 className="text-lg font-bold">Quy tắc kiểm tra</h2>
+              <p className="mt-1 text-xs text-slate-400">
+                Bấm để xem công thức, trình tự và phạm vi cảnh báo
+              </p>
+            </div>
+          </summary>
+          <div className="mt-5 space-y-4 text-sm leading-6 text-slate-300">
             <Rule label="Mã nhóm" value="18 mã · 2 · 3 · 8 · 18 mặc định" />
             <Rule label="Trình tự" value="NGAY_YL → NGAY_TH_YL → NGAY_KQ" />
             <Rule label="Công thức" value="NGAY_KQ − NGAY_TH_YL" />
@@ -336,7 +344,7 @@ function CheckerView({
             Đúng 70 phút vẫn là đạt. Kiểm tra trùng mốc áp dụng cho mọi nhóm; chỉ cảnh báo thời
             lượng mới phụ thuộc các nhóm được tích.
           </p>
-        </div>
+        </details>
       </section>
 
       {analysis && (
