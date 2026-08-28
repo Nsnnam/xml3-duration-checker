@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.1] — 2026-08-28
+
+- Tinh giản dependency và loại bỏ toàn bộ scaffold ICD không dùng.
+- Sửa bản build offline và cập nhật metadata phát hành.
+
 ## [1.0.0] — 2026-08-28
 
 - Khởi tạo repo riêng `xml3-duration-checker`, tách khỏi `remix-icd-check`.

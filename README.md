@@ -55,7 +55,7 @@ Các trường nghiệp vụ lấy theo file mô tả `3176.xls`, sheet `Bang 3_
 
 ## Phiên bản
 
-Phiên bản hiện tại: **1.0.0** · ngày **2026-08-28** · múi giờ **Asia/Ho_Chi_Minh (GMT+7)**. Xem [CHANGELOG.md](CHANGELOG.md) để biết lịch sử thay đổi.
+Phiên bản hiện tại: **1.0.1** · ngày **2026-08-28** · múi giờ **Asia/Ho_Chi_Minh (GMT+7)**. Xem [CHANGELOG.md](CHANGELOG.md) để biết lịch sử thay đổi.
 
 ## Tác giả và hỗ trợ
 

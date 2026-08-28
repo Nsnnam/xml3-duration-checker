@@ -3,19 +3,19 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-// Client-only SPA build for portable web + desktop EXE packaging.
+// Client-only SPA build for portable web and single HTML offline.
 export default defineConfig({
-  root: path.resolve(__dirname, "spa"),
+  root: path.resolve(import.meta.dirname, "spa"),
   base: "./",
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "src"),
+      "@": path.resolve(import.meta.dirname, "src"),
     },
   },
-  publicDir: path.resolve(__dirname, "public"),
+  publicDir: path.resolve(import.meta.dirname, "public"),
   build: {
-    outDir: path.resolve(__dirname, "dist-web"),
+    outDir: path.resolve(import.meta.dirname, "dist-web"),
     emptyOutDir: true,
     chunkSizeWarningLimit: 2500,
   },
