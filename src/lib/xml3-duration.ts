@@ -47,9 +47,39 @@ export type Xml3Record = {
   durationMinutes: number | null;
   hasOrderWarning: boolean;
   hasEqualWarning: boolean;
+  hasBedWarning: boolean;
   orderIssues: string[];
-  status: "warning" | "order-warning" | "equal-warning" | "ok" | "missing" | "invalid" | "negative";
+  status:
+    | "warning"
+    | "order-warning"
+    | "equal-warning"
+    | "bed-warning"
+    | "ok"
+    | "missing"
+    | "invalid"
+    | "negative";
   detail: string;
+};
+
+export type WarningSource = "XML1" | "XML3" | "XML4";
+
+export type ValidationWarning = {
+  source: WarningSource;
+  detailIndex: number;
+  MA_LK: string;
+  HO_TEN: string;
+  MA_BN: string;
+  message: string;
+  record?: Xml3Record;
+};
+
+export type Xml4Record = {
+  fileName: string;
+  MA_LK: string;
+  STT: string;
+  MA_DICH_VU: string;
+  NGAY_KQ: string;
+  KET_LUAN: string;
 };
 
 export type Xml3Analysis = {
@@ -57,16 +87,23 @@ export type Xml3Analysis = {
   tableFiles: number;
   records: Xml3Record[];
   warnings: Xml3Record[];
+  xml1Warnings: ValidationWarning[];
+  xml3Warnings: ValidationWarning[];
+  xml4Warnings: ValidationWarning[];
   missingTimes: number;
   invalidTimes: number;
   negativeTimes: number;
   orderWarnings: number;
+  bedWarnings: number;
   log: string[];
 };
 
 export type BatchAnalysis = {
   records: Xml3Record[];
   warnings: Xml3Record[];
+  xml1Warnings: ValidationWarning[];
+  xml3Warnings: ValidationWarning[];
+  xml4Warnings: ValidationWarning[];
   files: string[];
   errors: string[];
   tableFiles: number;
@@ -74,6 +111,7 @@ export type BatchAnalysis = {
   invalidTimes: number;
   negativeTimes: number;
   orderWarnings: number;
+  bedWarnings: number;
 };
 
 const XML3_FIELDS = [
@@ -150,6 +188,77 @@ function readXml1Patients(doc: Document): Map<string, PatientInfo> {
     if (patient.MA_LK && (patient.MA_BN || patient.HO_TEN)) patients.set(patient.MA_LK, patient);
   }
   return patients;
+}
+
+function ancestorValue(node: Element, tag: string): string {
+  let current: Element | null = node;
+  while (current) {
+    const value = directTextOf(current, tag);
+    if (value) return value;
+    current = current.parentElement;
+  }
+  return "";
+}
+
+function readXml1Warnings(doc: Document): ValidationWarning[] {
+  return Array.from(doc.getElementsByTagName("SO_CCCD"))
+    .map((node, index) => {
+      const value = node.textContent?.trim() ?? "";
+      return {
+        value,
+        warning: {
+          source: "XML1" as const,
+          detailIndex: index + 1,
+          MA_LK: ancestorValue(node, "MA_LK"),
+          HO_TEN: ancestorValue(node, "HO_TEN"),
+          MA_BN: ancestorValue(node, "MA_BN"),
+          message: `XML 1. Chi tiết thứ ${index + 1}: SO_CCCD không đúng định dạng. Giá trị sai: ${value}`,
+        },
+      };
+    })
+    .filter(({ value }) => !/^\d{9,12}$/.test(value))
+    .map(({ warning }) => warning);
+}
+
+function readXml4Records(doc: Document, fileName: string): Xml4Record[] {
+  return Array.from(doc.getElementsByTagName("*"))
+    .filter((item) => directTextOf(item, "MA_DICH_VU") || directTextOf(item, "NGAY_KQ"))
+    .map((item) => ({
+      fileName,
+      MA_LK: directTextOf(item, "MA_LK"),
+      STT: directTextOf(item, "STT"),
+      MA_DICH_VU: directTextOf(item, "MA_DICH_VU"),
+      NGAY_KQ: directTextOf(item, "NGAY_KQ"),
+      KET_LUAN: directTextOf(item, "KET_LUAN"),
+    }));
+}
+
+function createXml4Warnings(
+  xml3Records: Xml3Record[],
+  xml4Records: Xml4Record[],
+  patients: ReadonlyMap<string, PatientInfo>,
+): ValidationWarning[] {
+  return xml4Records.flatMap((xml4, index) => {
+    if (xml4.NGAY_KQ.trim() && xml4.KET_LUAN.trim()) return [];
+    const match = xml3Records.find(
+      (xml3) =>
+        xml3.MA_NHOM.trim() === "2" &&
+        xml3.MA_LK === xml4.MA_LK &&
+        xml3.MA_DICH_VU === xml4.MA_DICH_VU,
+    );
+    if (!match) return [];
+    const patient = patients.get(match.MA_LK);
+    return [
+      {
+        source: "XML4" as const,
+        detailIndex: index + 1,
+        MA_LK: match.MA_LK,
+        HO_TEN: match.HO_TEN || patient?.HO_TEN || "",
+        MA_BN: match.MA_BN || patient?.MA_BN || "",
+        message: `XML 4. Chi tiết thứ ${index + 1}: Thiếu thông tin KET_LUAN khi XML3 MA_NHOM = 2`,
+      },
+    ];
+  });
 }
 
 function readXml3Records(
@@ -239,6 +348,34 @@ export function getChronologyIssues(ngayYl: string, ngayThYl: string, ngayKq: st
     );
 }
 
+function addBedWarnings(records: Xml3Record[]): Xml3Record[] {
+  const groups = new Map<string, Xml3Record[]>();
+  for (const record of records) {
+    if (!record.MA_GIUONG) continue;
+    const date = parseXmlDateTime(record.NGAY_TH_YL) ?? parseXmlDateTime(record.NGAY_KQ);
+    if (!date) continue;
+    const day = date.toISOString().slice(0, 10);
+    const key = `${record.MA_LK}|${record.MA_BN}|${day}`;
+    groups.set(key, [...(groups.get(key) ?? []), record]);
+  }
+  const flagged = new Set<Xml3Record>();
+  for (const rows of groups.values()) {
+    if (rows.length <= 1) continue;
+    for (const row of rows) flagged.add(row);
+  }
+  return records.map((record) => {
+    if (!flagged.has(record)) return record;
+    const detailIndex = record.STT || "xx";
+    const message = `XML3. Chi tiết thứ ${detailIndex}: Số lượng giường trong ngày lớn hơn 01.`;
+    return {
+      ...record,
+      hasBedWarning: true,
+      status: record.status === "ok" ? "bed-warning" : record.status,
+      detail: `${record.detail} · ${message}`,
+    };
+  });
+}
+
 function chronologyIssues(fields: Record<Xml3Field, string>): string[] {
   return getChronologyIssues(fields.NGAY_YL, fields.NGAY_TH_YL, fields.NGAY_KQ);
 }
@@ -291,6 +428,7 @@ function evaluateRecord(fields: Record<Xml3Field, string>, fileName: string): Xm
     durationMinutes,
     hasOrderWarning,
     hasEqualWarning,
+    hasBedWarning: false,
     orderIssues,
     status,
     detail: details.join(" · "),
@@ -302,7 +440,24 @@ function formatMinutes(value: number): string {
 }
 
 function isWarning(record: Xml3Record): boolean {
-  return record.status === "warning" || record.hasOrderWarning || record.hasEqualWarning;
+  return (
+    record.status === "warning" ||
+    record.hasOrderWarning ||
+    record.hasEqualWarning ||
+    record.hasBedWarning
+  );
+}
+
+function toXml3Warning(record: Xml3Record, index: number): ValidationWarning {
+  return {
+    source: "XML3",
+    detailIndex: Number(record.STT) || index + 1,
+    MA_LK: record.MA_LK,
+    HO_TEN: record.HO_TEN,
+    MA_BN: record.MA_BN,
+    message: record.detail,
+    record,
+  };
 }
 
 function decodeFileContent(content: string, label: string): Document {
@@ -310,6 +465,18 @@ function decodeFileContent(content: string, label: string): Document {
   if (!value) throw new Error(`${label}: thiếu NOIDUNGFILE`);
   const decoded = value.startsWith("<") ? value : base64ToUtf8(value);
   return parseXml(decoded, label);
+}
+
+async function collectXml4Records(file: File): Promise<Xml4Record[]> {
+  const outer = parseXml(await file.text(), file.name);
+  const records: Xml4Record[] = [];
+  for (const fileNode of Array.from(outer.getElementsByTagName("FILEHOSO"))) {
+    const type = fileNode.getElementsByTagName("LOAIHOSO")[0]?.textContent?.trim() ?? "";
+    if (type !== "XML4") continue;
+    const content = fileNode.getElementsByTagName("NOIDUNGFILE")[0]?.textContent ?? "";
+    records.push(...readXml4Records(decodeFileContent(content, `${file.name} XML4`), file.name));
+  }
+  return records;
 }
 
 async function collectXml1Patients(file: File): Promise<Map<string, PatientInfo>> {
@@ -331,7 +498,9 @@ export async function analyzeXml3File(
 ): Promise<Xml3Analysis> {
   const text = await file.text();
   const outer = parseXml(text, file.name);
-  const records: Xml3Record[] = [];
+  const rawRecords: Xml3Record[] = [];
+  const xml1Warnings: ValidationWarning[] = [];
+  const xml4Records: Xml4Record[] = [];
   let tableFiles = 0;
   const log: string[] = [`[${file.name}] Bắt đầu đọc XML chứa 15 bảng`];
   const fileNodes = Array.from(outer.getElementsByTagName("FILEHOSO"));
@@ -343,6 +512,11 @@ export async function analyzeXml3File(
     if (type === "XML1") {
       const inner = decodeFileContent(content, `${file.name} XML1`);
       for (const [maLk, patient] of readXml1Patients(inner)) patients.set(maLk, patient);
+      xml1Warnings.push(...readXml1Warnings(inner));
+    }
+    if (type === "XML4") {
+      const inner = decodeFileContent(content, `${file.name} XML4`);
+      xml4Records.push(...readXml4Records(inner, file.name));
     }
   }
 
@@ -352,32 +526,45 @@ export async function analyzeXml3File(
     tableFiles++;
     const content = fileNode.getElementsByTagName("NOIDUNGFILE")[0]?.textContent ?? "";
     const inner = decodeFileContent(content, `${file.name} XML3`);
-    records.push(...readXml3Records(inner, file.name, patients));
+    rawRecords.push(...readXml3Records(inner, file.name, patients));
   }
 
   if (!fileNodes.length && outer.getElementsByTagName("CHI_TIET_DVKT").length) {
     tableFiles = 1;
-    records.push(...readXml3Records(outer, file.name, patients));
+    rawRecords.push(...readXml3Records(outer, file.name, patients));
   }
-  if (!tableFiles) throw new Error(`${file.name}: không tìm thấy FILEHOSO có LOAIHOSO=XML3`);
+  const hasXml1OrXml4 = fileNodes.some((fileNode) => {
+    const type = fileNode.getElementsByTagName("LOAIHOSO")[0]?.textContent?.trim() ?? "";
+    return type === "XML1" || type === "XML4";
+  });
+  if (!tableFiles && !hasXml1OrXml4)
+    throw new Error(`${file.name}: không tìm thấy FILEHOSO có LOAIHOSO=XML3`);
 
+  const records = addBedWarnings(rawRecords);
   const warnings = records.filter(isWarning);
+  const xml3Warnings = warnings.map(toXml3Warning);
+  const xml4Warnings = createXml4Warnings(records, xml4Records, patients);
   const missingTimes = records.filter((record) => record.status === "missing").length;
   const invalidTimes = records.filter((record) => record.status === "invalid").length;
   const negativeTimes = records.filter((record) => record.status === "negative").length;
   const orderWarnings = records.filter((record) => record.hasOrderWarning).length;
+  const bedWarnings = records.filter((record) => record.hasBedWarning).length;
   log.push(
-    `XML3: ${records.length} dòng; cảnh báo nhóm/thời gian: ${warnings.length}; thứ tự thời gian: ${orderWarnings}; thiếu thời gian: ${missingTimes}; không hợp lệ: ${invalidTimes}; âm: ${negativeTimes}`,
+    `XML3: ${records.length} dòng; cảnh báo: ${warnings.length}; thứ tự: ${orderWarnings}; giường: ${bedWarnings}; XML1: ${xml1Warnings.length}; XML4: ${xml4Warnings.length}; thiếu thời gian: ${missingTimes}; không hợp lệ: ${invalidTimes}; âm: ${negativeTimes}`,
   );
   return {
     fileName: file.name,
     tableFiles,
     records,
     warnings,
+    xml1Warnings,
+    xml3Warnings,
+    xml4Warnings,
     missingTimes,
     invalidTimes,
     negativeTimes,
     orderWarnings,
+    bedWarnings,
     log,
   };
 }
@@ -388,10 +575,14 @@ export async function analyzeXml3Files(files: File[]): Promise<BatchAnalysis> {
   const logs: string[] = [];
   let tableFiles = 0;
   const sharedPatients = new Map<string, PatientInfo>();
+  const xml1Warnings: ValidationWarning[] = [];
+  const xml3Warnings: ValidationWarning[] = [];
+  const xml4Records: Xml4Record[] = [];
   for (const file of files) {
     try {
       for (const [maLk, patient] of await collectXml1Patients(file))
         sharedPatients.set(maLk, patient);
+      xml4Records.push(...(await collectXml4Records(file)));
     } catch {
       // The normal analysis pass below records the user-facing file error.
     }
@@ -401,6 +592,8 @@ export async function analyzeXml3Files(files: File[]): Promise<BatchAnalysis> {
       const analysis = await analyzeXml3File(file, sharedPatients);
       allRecords.push(...analysis.records);
       tableFiles += analysis.tableFiles;
+      xml1Warnings.push(...analysis.xml1Warnings);
+      xml3Warnings.push(...analysis.xml3Warnings);
       logs.push(...analysis.log);
     } catch (error) {
       errors.push(`[${file.name}] ${(error as Error).message}`);
@@ -409,6 +602,9 @@ export async function analyzeXml3Files(files: File[]): Promise<BatchAnalysis> {
   return {
     records: allRecords,
     warnings: allRecords.filter(isWarning),
+    xml1Warnings,
+    xml3Warnings,
+    xml4Warnings: createXml4Warnings(allRecords, xml4Records, sharedPatients),
     files: files.map((file) => file.name),
     errors: [...errors, ...logs],
     tableFiles,
@@ -416,5 +612,6 @@ export async function analyzeXml3Files(files: File[]): Promise<BatchAnalysis> {
     invalidTimes: allRecords.filter((record) => record.status === "invalid").length,
     negativeTimes: allRecords.filter((record) => record.status === "negative").length,
     orderWarnings: allRecords.filter((record) => record.hasOrderWarning).length,
+    bedWarnings: allRecords.filter((record) => record.hasBedWarning).length,
   };
 }

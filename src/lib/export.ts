@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import { formatTimestampForFilename, formatXmlDateTime } from "./timezone";
-import type { BatchAnalysis, Xml3Record } from "./xml3-duration";
+import type { BatchAnalysis, ValidationWarning, Xml3Record } from "./xml3-duration";
 
 function styleSheet(sheet: ExcelJS.Worksheet) {
   sheet.views = [{ state: "frozen", ySplit: 1 }];
@@ -27,19 +27,21 @@ function fitColumns(sheet: ExcelJS.Worksheet) {
 
 function detailRows(records: Xml3Record[]) {
   return records.map((record) => ({
+    MA_LK: record.MA_LK,
+    HO_TEN: record.HO_TEN,
+    MA_BN: record.MA_BN,
     File: record.fileName,
     Trạng_thái: record.hasOrderWarning
       ? "SAI THỨ TỰ"
       : record.hasEqualWarning
         ? "TRÙNG MỐC"
-        : record.status === "warning"
-          ? "CẢNH BÁO"
-          : record.status === "ok"
-            ? "Đạt"
-            : record.status,
-    MA_BN: record.MA_BN,
-    HO_TEN: record.HO_TEN,
-    MA_LK: record.MA_LK,
+        : record.hasBedWarning
+          ? "GIƯỜNG"
+          : record.status === "warning"
+            ? "CẢNH BÁO"
+            : record.status === "ok"
+              ? "Đạt"
+              : record.status,
     STT: record.STT,
     MA_DICH_VU: record.MA_DICH_VU,
     MA_VAT_TU: record.MA_VAT_TU,
@@ -79,7 +81,11 @@ export async function exportXml3Report(analysis: BatchAnalysis, records = analys
     {
       label: "Cảnh báo theo nhóm",
       value: records.filter(
-        (record) => record.status === "warning" || record.hasOrderWarning || record.hasEqualWarning,
+        (record) =>
+          record.status === "warning" ||
+          record.hasOrderWarning ||
+          record.hasEqualWarning ||
+          record.hasBedWarning,
       ).length,
     },
     {
@@ -89,6 +95,10 @@ export async function exportXml3Report(analysis: BatchAnalysis, records = analys
     {
       label: "Cảnh báo trùng mốc",
       value: records.filter((record) => record.hasEqualWarning).length,
+    },
+    {
+      label: "Cảnh báo số lượng giường",
+      value: records.filter((record) => record.hasBedWarning).length,
     },
     {
       label: "Dòng thiếu thời gian",
@@ -117,7 +127,7 @@ export async function exportXml3Report(analysis: BatchAnalysis, records = analys
   }
   styleSheet(detail);
   for (const row of detail.getRows(2, detail.rowCount) ?? []) {
-    if (["CẢNH BÁO", "SAI THỨ TỰ", "TRÙNG MỐC"].includes(String(row.getCell(2).value))) {
+    if (["CẢNH BÁO", "SAI THỨ TỰ", "TRÙNG MỐC", "GIƯỜNG"].includes(String(row.getCell(2).value))) {
       row.eachCell(
         (cell) =>
           (cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFDE68A" } }),
@@ -138,5 +148,40 @@ export async function exportXml3Report(analysis: BatchAnalysis, records = analys
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     }),
     `${formatTimestampForFilename()}_XML3_duration.xlsx`,
+  );
+}
+
+export async function exportWarningList(
+  source: ValidationWarning["source"],
+  warnings: ValidationWarning[],
+) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "Nguyễn Sơn Nam (Nsnnam)";
+  workbook.created = new Date();
+  const sheet = workbook.addWorksheet(`Cảnh báo ${source}`);
+  const rows = warnings.map((warning) => ({
+    Chi_tiet: warning.detailIndex,
+    MA_LK: warning.MA_LK,
+    HO_TEN: warning.HO_TEN,
+    MA_BN: warning.MA_BN,
+    Canh_bao: warning.message,
+  }));
+  sheet.columns = [
+    { header: "Chi tiết thứ", key: "Chi_tiet" },
+    { header: "MA_LK", key: "MA_LK" },
+    { header: "HO_TEN", key: "HO_TEN" },
+    { header: "MA_BN", key: "MA_BN" },
+    { header: "Cảnh báo", key: "Canh_bao" },
+  ];
+  if (rows.length) sheet.addRows(rows);
+  else sheet.addRow({ Canh_bao: `Không có cảnh báo ${source}` });
+  styleSheet(sheet);
+  fitColumns(sheet);
+  const buffer = await workbook.xlsx.writeBuffer();
+  saveAs(
+    new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }),
+    `${formatTimestampForFilename()}_${source}_warnings.xlsx`,
   );
 }

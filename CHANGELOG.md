@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.0] — 2026-08-30
+
+- Thêm kiểm tra XML1: `SO_CCCD` phải là chuỗi chỉ gồm 9–12 chữ số; cảnh báo hiển thị giá trị sai và thông tin `MA_LK`, `HO_TEN`, `MA_BN`.
+- Thêm kiểm tra XML4: với XML3 `MA_NHOM=2`, đối chiếu `MA_DICH_VU` và `NGAY_KQ`, cảnh báo khi thiếu `KET_LUAN` hoặc `NGAY_KQ` theo đúng dòng XML4.
+- Thêm cảnh báo XML3 khi một bệnh nhân có nhiều hơn một `MA_GIUONG` trong cùng ngày, xét theo `MA_LK`, `MA_BN` và ngày thực hiện/trả kết quả.
+- Tách khu vực chi tiết thành các tab XML1, XML3 và XML4; thẻ thống kê có thể bấm để nhảy đến đúng tab/bộ lọc.
+- Xuất XLSX riêng cho danh sách cảnh báo XML1/XML4; báo cáo XML3 tiếp tục có Tóm tắt, Chi tiết và Nhật ký.
+
 ## [1.3.0] — 2026-08-28
 
 - Thu gọn đầy đủ 18 ô tích MA_NHOM theo Phụ lục 3 QĐ 5937; mặc định tích 2, 3, 8 và 18.

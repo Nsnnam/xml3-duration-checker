@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { exportXml3Report } from "../lib/export";
+import { exportWarningList, exportXml3Report } from "../lib/export";
 import { APP_META } from "../lib/meta";
 import { formatTimestampForFilename, formatXmlDateTime } from "../lib/timezone";
 import {
@@ -9,10 +9,25 @@ import {
   analyzeXml3Files,
   type BatchAnalysis,
   type Xml3Record,
+  type ValidationWarning,
 } from "../lib/xml3-duration";
 import coffeeQr from "../assets/coffee-qr.jpg";
 
 type View = "checker" | "guide" | "about" | "support";
+type AlertTab = "XML1" | "XML3" | "XML4";
+type SummaryFocus =
+  | "files"
+  | "xml3"
+  | "rows"
+  | "warnings"
+  | "order"
+  | "equal"
+  | "bed"
+  | "missing"
+  | "invalid"
+  | "negative"
+  | "xml1"
+  | "xml4";
 
 export function HomePage() {
   const [view, setView] = useState<View>("checker");
@@ -22,6 +37,8 @@ export function HomePage() {
   const [onlyWarnings, setOnlyWarnings] = useState(true);
   const [groupCodes, setGroupCodes] = useState<string[]>([...DEFAULT_GROUP_CODES]);
   const [patientQuery, setPatientQuery] = useState("");
+  const [alertTab, setAlertTab] = useState<AlertTab>("XML3");
+  const [summaryFocus, setSummaryFocus] = useState<SummaryFocus>("warnings");
   const [notice, setNotice] = useState("");
 
   const filteredRecords = useMemo(
@@ -31,7 +48,8 @@ export function HomePage() {
             const matchesGroup =
               groupCodes.includes(record.MA_NHOM.trim()) ||
               record.hasOrderWarning ||
-              record.hasEqualWarning;
+              record.hasEqualWarning ||
+              record.hasBedWarning;
             const query = patientQuery.trim().toLocaleLowerCase("vi-VN");
             const matchesPatient =
               !query ||
@@ -46,11 +64,42 @@ export function HomePage() {
   const filteredWarnings = useMemo(
     () =>
       filteredRecords.filter(
-        (record) => record.status === "warning" || record.hasOrderWarning || record.hasEqualWarning,
+        (record) =>
+          record.status === "warning" ||
+          record.hasOrderWarning ||
+          record.hasEqualWarning ||
+          record.hasBedWarning,
       ),
     [filteredRecords],
   );
-  const records = onlyWarnings ? filteredWarnings : filteredRecords;
+  const records = useMemo(() => {
+    const source = onlyWarnings ? filteredWarnings : filteredRecords;
+    if (summaryFocus === "order") return source.filter((record) => record.hasOrderWarning);
+    if (summaryFocus === "equal") return source.filter((record) => record.hasEqualWarning);
+    if (summaryFocus === "bed") return source.filter((record) => record.hasBedWarning);
+    if (summaryFocus === "missing") return source.filter((record) => record.status === "missing");
+    if (summaryFocus === "invalid") return source.filter((record) => record.status === "invalid");
+    if (summaryFocus === "negative") return source.filter((record) => record.status === "negative");
+    return source;
+  }, [filteredRecords, filteredWarnings, onlyWarnings, summaryFocus]);
+
+  function focusSummary(focus: SummaryFocus) {
+    setSummaryFocus(focus);
+    if (focus === "xml1") setAlertTab("XML1");
+    else if (focus === "xml4") setAlertTab("XML4");
+    else setAlertTab("XML3");
+    requestAnimationFrame(() =>
+      document
+        .getElementById("alert-detail")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    );
+  }
+
+  const xmlWarnings: Record<AlertTab, ValidationWarning[]> = {
+    XML1: analysis?.xml1Warnings ?? [],
+    XML3: analysis?.xml3Warnings ?? [],
+    XML4: analysis?.xml4Warnings ?? [],
+  };
 
   async function runAnalysis() {
     if (!files.length) {
@@ -139,6 +188,8 @@ export function HomePage() {
             filteredWarnings={filteredWarnings}
             groupCodes={groupCodes}
             patientQuery={patientQuery}
+            alertTab={alertTab}
+            xmlWarnings={xmlWarnings}
             onlyWarnings={onlyWarnings}
             busy={busy}
             notice={notice}
@@ -150,6 +201,9 @@ export function HomePage() {
             onAnalyze={runAnalysis}
             onGroupCodesChange={setGroupCodes}
             onPatientQueryChange={setPatientQuery}
+            onAlertTabChange={setAlertTab}
+            onSummaryFocus={focusSummary}
+            onExportWarnings={(source, warnings) => exportWarningList(source, warnings)}
             onToggleWarnings={setOnlyWarnings}
             onExport={() => analysis && exportXml3Report(analysis, filteredRecords)}
           />
@@ -177,6 +231,8 @@ function CheckerView({
   filteredWarnings,
   groupCodes,
   patientQuery,
+  alertTab,
+  xmlWarnings,
   onlyWarnings,
   busy,
   notice,
@@ -186,6 +242,9 @@ function CheckerView({
   onAnalyze,
   onGroupCodesChange,
   onPatientQueryChange,
+  onAlertTabChange,
+  onSummaryFocus,
+  onExportWarnings,
   onToggleWarnings,
   onExport,
 }: {
@@ -196,6 +255,8 @@ function CheckerView({
   filteredWarnings: Xml3Record[];
   groupCodes: string[];
   patientQuery: string;
+  alertTab: AlertTab;
+  xmlWarnings: Record<AlertTab, ValidationWarning[]>;
   onlyWarnings: boolean;
   busy: boolean;
   notice: string;
@@ -205,6 +266,9 @@ function CheckerView({
   onAnalyze: () => void;
   onGroupCodesChange: (value: string[]) => void;
   onPatientQueryChange: (value: string) => void;
+  onAlertTabChange: (value: AlertTab) => void;
+  onSummaryFocus: (value: SummaryFocus) => void;
+  onExportWarnings: (source: AlertTab, warnings: ValidationWarning[]) => void;
   onToggleWarnings: (value: boolean) => void;
   onExport: () => void;
 }) {
@@ -349,35 +413,77 @@ function CheckerView({
 
       {analysis && (
         <>
-          <section className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
-            <Metric label="File đã nạp" value={analysis.files.length} />
-            <Metric label="FILEHOSO XML3" value={analysis.tableFiles} tone="teal" />
-            <Metric label="Dòng theo bộ lọc" value={filteredRecords.length} tone="teal" />
-            <Metric label="Cảnh báo đang lọc" value={filteredWarnings.length} tone="rose" />
+          <section className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
+            <Metric
+              label="File đã nạp"
+              value={analysis.files.length}
+              onClick={() => onSummaryFocus("files")}
+            />
+            <Metric
+              label="FILEHOSO XML3"
+              value={analysis.tableFiles}
+              tone="teal"
+              onClick={() => onSummaryFocus("xml3")}
+            />
+            <Metric
+              label="Dòng theo bộ lọc"
+              value={filteredRecords.length}
+              tone="teal"
+              onClick={() => onSummaryFocus("rows")}
+            />
+            <Metric
+              label="Cảnh báo đang lọc"
+              value={filteredWarnings.length}
+              tone="rose"
+              onClick={() => onSummaryFocus("warnings")}
+            />
+            <Metric
+              label="XML1 · SO_CCCD"
+              value={analysis.xml1Warnings.length}
+              tone="amber"
+              onClick={() => onSummaryFocus("xml1")}
+            />
+            <Metric
+              label="XML4 · KET_LUAN"
+              value={analysis.xml4Warnings.length}
+              tone="amber"
+              onClick={() => onSummaryFocus("xml4")}
+            />
             <Metric
               label="Sai thứ tự"
               value={filteredRecords.filter((record) => record.hasOrderWarning).length}
               tone="rose"
+              onClick={() => onSummaryFocus("order")}
             />
             <Metric
               label="Trùng mốc"
               value={filteredRecords.filter((record) => record.hasEqualWarning).length}
               tone="rose"
+              onClick={() => onSummaryFocus("equal")}
+            />
+            <Metric
+              label="Giường trong ngày"
+              value={filteredRecords.filter((record) => record.hasBedWarning).length}
+              tone="rose"
+              onClick={() => onSummaryFocus("bed")}
             />
             <Metric
               label="Thiếu thời gian"
               value={filteredRecords.filter((record) => record.status === "missing").length}
               tone="amber"
+              onClick={() => onSummaryFocus("missing")}
             />
             <Metric
               label="Thời gian lỗi"
               value={filteredRecords.filter((record) => record.status === "invalid").length}
               tone="amber"
+              onClick={() => onSummaryFocus("invalid")}
             />
             <Metric
               label="Thời gian âm"
               value={filteredRecords.filter((record) => record.status === "negative").length}
               tone="slate"
+              onClick={() => onSummaryFocus("negative")}
             />
           </section>
 
@@ -411,54 +517,81 @@ function CheckerView({
                   Chỉ cảnh báo
                 </label>
                 <button
-                  disabled={!analysis.records.length}
-                  onClick={onExport}
+                  disabled={
+                    alertTab === "XML3" ? !analysis.records.length : !xmlWarnings[alertTab].length
+                  }
+                  onClick={
+                    alertTab === "XML3"
+                      ? onExport
+                      : () => onExportWarnings(alertTab, xmlWarnings[alertTab])
+                  }
                   className="rounded-lg bg-teal-700 px-3 py-2 text-xs font-bold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  Xuất XLSX
+                  Xuất {alertTab} XLSX
                 </button>
               </div>
             </div>
-            {records.length === 0 ? (
-              <div className="px-6 py-12 text-center text-sm text-slate-500">
-                Không có dòng phù hợp với bộ lọc hiện tại.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-[1180px] w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
-                    <tr>
-                      {[
-                        "Trạng thái",
-                        "MA_BN · HỌ TÊN",
-                        "File · MA_LK",
-                        "STT",
-                        "Dịch vụ / vật tư",
-                        "Mã nhóm",
-                        "Khoa",
-                        "NGAY_YL",
-                        "NGAY_TH_YL",
-                        "NGAY_KQ",
-                        "Số phút",
-                        "Vượt ngưỡng",
-                        "Chi tiết",
-                      ].map((heading) => (
-                        <th key={heading} className="whitespace-nowrap px-4 py-3 font-bold">
-                          {heading}
-                        </th>
+            <div className="flex gap-2 overflow-x-auto border-b border-slate-100 px-5 pt-3 md:px-6">
+              {(["XML1", "XML3", "XML4"] as AlertTab[]).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => onAlertTabChange(tab)}
+                  className={`whitespace-nowrap rounded-t-lg border-b-2 px-3 py-2 text-xs font-black ${alertTab === tab ? "border-teal-700 text-teal-700" : "border-transparent text-slate-400 hover:text-slate-700"}`}
+                >
+                  {tab} · {xmlWarnings[tab].length.toLocaleString("vi-VN")}
+                </button>
+              ))}
+            </div>
+            {alertTab === "XML3" ? (
+              records.length === 0 ? (
+                <div className="px-6 py-12 text-center text-sm text-slate-500">
+                  Không có dòng phù hợp với bộ lọc hiện tại.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-[1180px] w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+                      <tr>
+                        {[
+                          "Trạng thái",
+                          "MA_LK",
+                          "HO_TEN",
+                          "MA_BN",
+                          "File",
+                          "STT",
+                          "Dịch vụ / vật tư",
+                          "Mã nhóm",
+                          "Khoa",
+                          "NGAY_YL",
+                          "NGAY_TH_YL",
+                          "NGAY_KQ",
+                          "Số phút",
+                          "Vượt ngưỡng",
+                          "Chi tiết",
+                        ].map((heading) => (
+                          <th key={heading} className="whitespace-nowrap px-4 py-3 font-bold">
+                            {heading}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {records.map((record, index) => (
+                        <WarningRow
+                          key={`${record.fileName}-${record.MA_LK}-${record.STT}-${index}`}
+                          record={record}
+                        />
                       ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {records.map((record, index) => (
-                      <WarningRow
-                        key={`${record.fileName}-${record.MA_LK}-${record.STT}-${index}`}
-                        record={record}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </tbody>
+                  </table>
+                </div>
+              )
+            ) : (
+              <ValidationTable
+                source={alertTab}
+                warnings={xmlWarnings[alertTab]}
+                onExport={() => onExportWarnings(alertTab, xmlWarnings[alertTab])}
+              />
             )}
           </section>
 
@@ -499,10 +632,12 @@ function Metric({
   label,
   value,
   tone = "blue",
+  onClick,
 }: {
   label: string;
   value: number;
   tone?: "blue" | "teal" | "rose" | "amber" | "slate";
+  onClick?: () => void;
 }) {
   const colors = {
     blue: "border-sky-200",
@@ -511,25 +646,45 @@ function Metric({
     amber: "border-amber-300",
     slate: "border-slate-300",
   };
-  return (
-    <div className={`rounded-2xl border-t-4 ${colors[tone]} bg-white px-4 py-3 shadow-sm`}>
+  const content = (
+    <>
       <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{label}</div>
       <div className="mt-1 text-2xl font-black text-slate-800">{value.toLocaleString("vi-VN")}</div>
+    </>
+  );
+  return onClick ? (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-2xl border-t-4 ${colors[tone]} bg-white px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-500`}
+      title="Bấm để xem chi tiết"
+    >
+      {content}
+    </button>
+  ) : (
+    <div className={`rounded-2xl border-t-4 ${colors[tone]} bg-white px-4 py-3 shadow-sm`}>
+      {content}
     </div>
   );
 }
 
 function WarningRow({ record }: { record: Xml3Record }) {
-  const isWarning = record.status === "warning" || record.hasOrderWarning || record.hasEqualWarning;
+  const isWarning =
+    record.status === "warning" ||
+    record.hasOrderWarning ||
+    record.hasEqualWarning ||
+    record.hasBedWarning;
   const label = record.hasOrderWarning
     ? "SAI THỨ TỰ"
     : record.hasEqualWarning
       ? "TRÙNG MỐC"
-      : record.status === "warning"
-        ? "CẢNH BÁO"
-        : record.status === "ok"
-          ? "ĐẠT"
-          : record.status.toUpperCase();
+      : record.hasBedWarning
+        ? "GIƯỜNG"
+        : record.status === "warning"
+          ? "CẢNH BÁO"
+          : record.status === "ok"
+            ? "ĐẠT"
+            : record.status.toUpperCase();
   return (
     <tr
       className={`border-t border-slate-100 align-top ${isWarning ? "bg-rose-50/60" : "hover:bg-slate-50"}`}
@@ -541,17 +696,19 @@ function WarningRow({ record }: { record: Xml3Record }) {
           {label}
         </span>
       </td>
+      <td className="max-w-[220px] px-4 py-3 font-mono font-bold text-teal-800">
+        {record.MA_LK || "(trống)"}
+      </td>
       <td className="max-w-[220px] px-4 py-3">
-        <div className="font-mono text-[11px] font-bold text-teal-800">
-          {record.MA_BN || "(chưa nối XML1)"}
-        </div>
-        <div className="mt-1 truncate font-semibold text-slate-800">
+        <div className="truncate font-semibold text-slate-800">
           {record.HO_TEN || "Chưa có họ tên"}
         </div>
       </td>
-      <td className="max-w-[220px] px-4 py-3">
+      <td className="max-w-[180px] px-4 py-3 font-mono font-bold">
+        {record.MA_BN || "(chưa nối XML1)"}
+      </td>
+      <td className="max-w-[180px] px-4 py-3">
         <div className="truncate font-mono text-[11px] text-slate-500">{record.fileName}</div>
-        <div className="mt-1 font-semibold text-slate-800">{record.MA_LK || "(trống)"}</div>
       </td>
       <td className="px-4 py-3 font-mono">{record.STT || "—"}</td>
       <td className="max-w-[260px] px-4 py-3">
@@ -583,6 +740,71 @@ function WarningRow({ record }: { record: Xml3Record }) {
       </td>
       <td className="max-w-[210px] px-4 py-3 text-slate-600">{record.detail}</td>
     </tr>
+  );
+}
+
+function ValidationTable({
+  source,
+  warnings,
+  onExport,
+}: {
+  source: AlertTab;
+  warnings: ValidationWarning[];
+  onExport: () => void;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-3 md:px-6">
+        <p className="text-xs text-slate-500">
+          {warnings.length.toLocaleString("vi-VN")} cảnh báo {source}; ưu tiên đối chiếu theo MA_LK,
+          HO_TEN, MA_BN.
+        </p>
+        <button
+          disabled={!warnings.length}
+          onClick={onExport}
+          className="rounded-lg bg-teal-700 px-3 py-2 text-xs font-bold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Xuất {source} XLSX
+        </button>
+      </div>
+      {warnings.length === 0 ? (
+        <div className="px-6 py-12 text-center text-sm text-slate-500">
+          Không có cảnh báo {source}.
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-[980px] w-full text-left text-xs">
+            <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+              <tr>
+                {["Chi tiết", "MA_LK", "HO_TEN", "MA_BN", "Nội dung cảnh báo"].map((heading) => (
+                  <th key={heading} className="whitespace-nowrap px-4 py-3 font-bold">
+                    {heading}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {warnings.map((warning, index) => (
+                <tr
+                  key={`${source}-${warning.MA_LK}-${warning.detailIndex}-${index}`}
+                  className="border-t border-slate-100 bg-rose-50/60 align-top"
+                >
+                  <td className="px-4 py-3 font-mono">{warning.detailIndex}</td>
+                  <td className="px-4 py-3 font-mono font-bold text-teal-800">
+                    {warning.MA_LK || "—"}
+                  </td>
+                  <td className="px-4 py-3 font-semibold text-slate-800">
+                    {warning.HO_TEN || "Chưa có họ tên"}
+                  </td>
+                  <td className="px-4 py-3 font-mono font-bold">{warning.MA_BN || "—"}</td>
+                  <td className="max-w-[520px] px-4 py-3 text-slate-700">{warning.message}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 

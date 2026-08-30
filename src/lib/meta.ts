@@ -1,11 +1,20 @@
 export const APP_META = {
   name: "XML3 Duration Checker",
-  version: "1.3.0",
-  date: "2026-08-28",
+  version: "1.4.0",
+  date: "2026-08-30",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "1.4.0",
+      date: "2026-08-30",
+      changes: [
+        "Thêm kiểm tra SO_CCCD XML1 từ 9–12 chữ số và cảnh báo thiếu KET_LUAN/NGAY_KQ XML4 khi XML3 MA_NHOM=2.",
+        "Thêm cảnh báo quá một MA_GIUONG trong cùng ngày theo MA_LK và MA_BN; giao diện tab XML1/XML3/XML4 và thẻ thống kê có thể bấm để lọc.",
+        "Xuất XLSX riêng theo từng tab cảnh báo, đồng thời giữ báo cáo XML3 đầy đủ và bản single HTML offline.",
+      ],
+    },
     {
       version: "1.3.0",
       date: "2026-08-28",
