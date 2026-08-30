@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.4.1] — 2026-08-30
+
+- Bỏ qua cảnh báo XML1 khi `SO_CCCD` rỗng hoặc null; chỉ kiểm tra giá trị có nội dung và không đúng 9–12 chữ số.
+- Bổ sung mã dịch vụ và tên dịch vụ vào bảng, nội dung cảnh báo và file XLSX của XML4.
+
 ## [1.4.0] — 2026-08-30
 
 - Thêm kiểm tra XML1: `SO_CCCD` phải là chuỗi chỉ gồm 9–12 chữ số; cảnh báo hiển thị giá trị sai và thông tin `MA_LK`, `HO_TEN`, `MA_BN`.

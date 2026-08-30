@@ -12,8 +12,8 @@ Công cụ web độc lập của **Nguyễn Sơn Nam (Nsnnam)** để đọc fi
 | Phân tích | Giải mã `NOIDUNGFILE`, nhận diện XML3 và đọc `CHI_TIET_DVKT` |
 | Nghiệp vụ | Chọn `MA_NHOM` (cột 6) bằng ô tích, mặc định `2, 3, 8, 18`; tính `NGAY_KQ − NGAY_TH_YL` theo phút và cảnh báo khi **lớn hơn 70 phút** |
 | Trình tự | Kiểm tra `NGAY_YL → NGAY_TH_YL → NGAY_KQ` trên mọi mã nhóm; cảnh báo mốc ngược hoặc trùng |
-| XML1 | Kiểm tra `SO_CCCD` phải gồm 9–12 chữ số và hiển thị giá trị sai theo từng chi tiết |
-| XML4 | Với XML3 `MA_NHOM=2`, đối chiếu `MA_DICH_VU`/`NGAY_KQ` và cảnh báo thiếu `KET_LUAN` hoặc `NGAY_KQ` |
+| XML1 | Kiểm tra `SO_CCCD` có nội dung phải gồm 9–12 chữ số; giá trị rỗng/null được bỏ qua |
+| XML4 | Với XML3 `MA_NHOM=2`, đối chiếu `MA_DICH_VU`/`NGAY_KQ`, cảnh báo thiếu `KET_LUAN`/`NGAY_KQ`, kèm mã và tên dịch vụ |
 | Giường | Cảnh báo khi cùng `MA_LK`, `MA_BN` có nhiều hơn một `MA_GIUONG` trong một ngày |
 | Nhãn nhóm | Đủ mã 1–18 theo Phụ lục 3 QĐ 5937; mặc định tích 2, 3, 8, 18 |
 | Bệnh nhân | Nối XML1 và XML3 bằng `MA_LK`; cố định ưu tiên `MA_LK`, `HO_TEN`, `MA_BN` trong các dòng cảnh báo |
@@ -47,7 +47,7 @@ Artifact được tạo tại `releases/web/` và `releases/single-page/xml3-dur
 
 Chọn file XML hồ sơ, tích các nhóm `MA_NHOM` muốn lọc cảnh báo thời lượng (mặc định `2, 3, 8, 18`), bấm **Phân tích XML3**, sau đó tìm theo `MA_BN`, `HO_TEN` hoặc `MA_LK` trong bảng **Cảnh báo chi tiết theo dịch vụ**. Mặc định bảng chỉ hiển thị dòng cảnh báo; bỏ chọn **Chỉ cảnh báo** để xem toàn bộ bản ghi thuộc nhóm đã chọn và mọi dòng có cảnh báo trình tự/trùng mốc. Dùng **Xuất XLSX** để lưu báo cáo XML3 hoặc danh sách cảnh báo của tab XML1/XML4 đang mở.
 
-Các trường nghiệp vụ lấy theo file mô tả `3176.xls`, sheet `Bang 3_DVKT, VTYT`: `MA_NHOM` là trường 6, `NGAY_YL` là trường 37, `NGAY_TH_YL` là trường 38 và `NGAY_KQ` là trường 39. XML1 cung cấp `MA_BN` ở cột 3 và `HO_TEN` ở cột 4; hai bảng được nối bằng `MA_LK`. Đúng 70 phút được xem là đạt; chỉ thời lượng `> 70` phút mới cảnh báo. Chuỗi `yyyymmddhhmm` được hiển thị thành `MM/DD/YYYY HH:mm`. Dòng thiếu, sai định dạng, thời lượng âm, sai trình tự, trùng mốc hoặc trùng giường được thống kê riêng, không tự kết luận đạt. Các tab XML1 và XML4 hiển thị cảnh báo theo từng chi tiết; có thể xuất riêng danh sách cảnh báo của tab đang mở.
+Các trường nghiệp vụ lấy theo file mô tả `3176.xls`, sheet `Bang 3_DVKT, VTYT`: `MA_NHOM` là trường 6, `NGAY_YL` là trường 37, `NGAY_TH_YL` là trường 38 và `NGAY_KQ` là trường 39. XML1 cung cấp `MA_BN` ở cột 3 và `HO_TEN` ở cột 4; hai bảng được nối bằng `MA_LK`. Đúng 70 phút được xem là đạt; chỉ thời lượng `> 70` phút mới cảnh báo. Chuỗi `yyyymmddhhmm` được hiển thị thành `MM/DD/YYYY HH:mm`. `SO_CCCD` rỗng/null được bỏ qua; giá trị có nội dung nhưng sai định dạng sẽ cảnh báo. Dòng thiếu, sai định dạng, thời lượng âm, sai trình tự, trùng mốc hoặc trùng giường được thống kê riêng, không tự kết luận đạt. Các tab XML1 và XML4 hiển thị cảnh báo theo từng chi tiết; XML4 kèm mã dịch vụ và tên dịch vụ; có thể xuất riêng danh sách cảnh báo của tab đang mở.
 
 ## Bảo mật dữ liệu
 
@@ -65,7 +65,7 @@ Các trường nghiệp vụ lấy theo file mô tả `3176.xls`, sheet `Bang 3_
 
 ## Phiên bản
 
-Phiên bản hiện tại: **1.4.0** · ngày **2026-08-30** · múi giờ **Asia/Ho_Chi_Minh (GMT+7)**. Xem [CHANGELOG.md](CHANGELOG.md) để biết lịch sử thay đổi.
+Phiên bản hiện tại: **1.4.1** · ngày **2026-08-30** · múi giờ **Asia/Ho_Chi_Minh (GMT+7)**. Xem [CHANGELOG.md](CHANGELOG.md) để biết lịch sử thay đổi.
 
 ## Tác giả và hỗ trợ
 

@@ -69,6 +69,8 @@ export type ValidationWarning = {
   MA_LK: string;
   HO_TEN: string;
   MA_BN: string;
+  MA_DICH_VU: string;
+  TEN_DICH_VU: string;
   message: string;
   record?: Xml3Record;
 };
@@ -212,11 +214,13 @@ function readXml1Warnings(doc: Document): ValidationWarning[] {
           MA_LK: ancestorValue(node, "MA_LK"),
           HO_TEN: ancestorValue(node, "HO_TEN"),
           MA_BN: ancestorValue(node, "MA_BN"),
+          MA_DICH_VU: "",
+          TEN_DICH_VU: "",
           message: `XML 1. Chi tiết thứ ${index + 1}: SO_CCCD không đúng định dạng. Giá trị sai: ${value}`,
         },
       };
     })
-    .filter(({ value }) => !/^\d{9,12}$/.test(value))
+    .filter(({ value }) => value !== "" && !/^\d{9,12}$/.test(value))
     .map(({ warning }) => warning);
 }
 
@@ -255,7 +259,9 @@ function createXml4Warnings(
         MA_LK: match.MA_LK,
         HO_TEN: match.HO_TEN || patient?.HO_TEN || "",
         MA_BN: match.MA_BN || patient?.MA_BN || "",
-        message: `XML 4. Chi tiết thứ ${index + 1}: Thiếu thông tin KET_LUAN khi XML3 MA_NHOM = 2`,
+        MA_DICH_VU: match.MA_DICH_VU,
+        TEN_DICH_VU: match.TEN_DICH_VU || match.TEN_VAT_TU || "",
+        message: `XML 4. Chi tiết thứ ${index + 1}: Thiếu thông tin KET_LUAN khi XML3 MA_NHOM = 2. Mã dịch vụ: ${match.MA_DICH_VU || "—"}. Tên dịch vụ: ${match.TEN_DICH_VU || match.TEN_VAT_TU || "—"}`,
       },
     ];
   });
@@ -455,6 +461,8 @@ function toXml3Warning(record: Xml3Record, index: number): ValidationWarning {
     MA_LK: record.MA_LK,
     HO_TEN: record.HO_TEN,
     MA_BN: record.MA_BN,
+    MA_DICH_VU: record.MA_DICH_VU,
+    TEN_DICH_VU: record.TEN_DICH_VU || record.TEN_VAT_TU,
     message: record.detail,
     record,
   };

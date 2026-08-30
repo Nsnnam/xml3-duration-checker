@@ -1,11 +1,18 @@
 export const APP_META = {
   name: "XML3 Duration Checker",
-  version: "1.4.0",
+  version: "1.4.1",
   date: "2026-08-30",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "1.4.1",
+      date: "2026-08-30",
+      changes: [
+        "Bỏ qua SO_CCCD rỗng/null; bổ sung mã dịch vụ và tên dịch vụ trong bảng, nội dung và XLSX cảnh báo XML4.",
+      ],
+    },
     {
       version: "1.4.0",
       date: "2026-08-30",

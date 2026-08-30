@@ -164,6 +164,8 @@ export async function exportWarningList(
     MA_LK: warning.MA_LK,
     HO_TEN: warning.HO_TEN,
     MA_BN: warning.MA_BN,
+    MA_DICH_VU: warning.MA_DICH_VU,
+    TEN_DICH_VU: warning.TEN_DICH_VU,
     Canh_bao: warning.message,
   }));
   sheet.columns = [
@@ -171,6 +173,8 @@ export async function exportWarningList(
     { header: "MA_LK", key: "MA_LK" },
     { header: "HO_TEN", key: "HO_TEN" },
     { header: "MA_BN", key: "MA_BN" },
+    { header: "Mã dịch vụ", key: "MA_DICH_VU" },
+    { header: "Tên dịch vụ", key: "TEN_DICH_VU" },
     { header: "Cảnh báo", key: "Canh_bao" },
   ];
   if (rows.length) sheet.addRows(rows);

@@ -776,7 +776,15 @@ function ValidationTable({
           <table className="min-w-[980px] w-full text-left text-xs">
             <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
               <tr>
-                {["Chi tiết", "MA_LK", "HO_TEN", "MA_BN", "Nội dung cảnh báo"].map((heading) => (
+                {[
+                  "Chi tiết",
+                  "MA_LK",
+                  "HO_TEN",
+                  "MA_BN",
+                  "Mã dịch vụ",
+                  "Tên dịch vụ",
+                  "Nội dung cảnh báo",
+                ].map((heading) => (
                   <th key={heading} className="whitespace-nowrap px-4 py-3 font-bold">
                     {heading}
                   </th>
@@ -797,6 +805,8 @@ function ValidationTable({
                     {warning.HO_TEN || "Chưa có họ tên"}
                   </td>
                   <td className="px-4 py-3 font-mono font-bold">{warning.MA_BN || "—"}</td>
+                  <td className="px-4 py-3 font-mono">{warning.MA_DICH_VU || "—"}</td>
+                  <td className="max-w-[260px] px-4 py-3">{warning.TEN_DICH_VU || "—"}</td>
                   <td className="max-w-[520px] px-4 py-3 text-slate-700">{warning.message}</td>
                 </tr>
               ))}

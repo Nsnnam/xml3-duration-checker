@@ -30,9 +30,9 @@ Dòng thiếu một trong ba mốc được đánh dấu `missing`. Dòng có đ
 
 ## Kiểm lỗi XML1, XML4 và giường
 
-XML1 được kiểm tra ở trường `SO_CCCD`: giá trị hợp lệ phải chỉ gồm 9–12 chữ số. Khi sai, tab XML1 hiển thị thông báo theo dạng `XML 1. Chi tiết thứ 1: SO_CCCD không đúng định dạng. Giá trị sai: ...`.
+XML1 được kiểm tra ở trường `SO_CCCD`: giá trị có nội dung phải chỉ gồm 9–12 chữ số. Giá trị rỗng hoặc null được bỏ qua, không tạo cảnh báo. Khi sai, tab XML1 hiển thị thông báo theo dạng `XML 1. Chi tiết thứ 1: SO_CCCD không đúng định dạng. Giá trị sai: ...`.
 
-Với mỗi dòng XML3 có `MA_NHOM=2`, công cụ đối chiếu `MA_DICH_VU` và `NGAY_KQ` với XML4. Nếu bản ghi XML4 tương ứng thiếu `KET_LUAN` hoặc `NGAY_KQ`, tab XML4 hiển thị cảnh báo theo đúng số chi tiết XML4. Ngoài ra, nếu cùng `MA_LK`, `MA_BN` có hơn một `MA_GIUONG` trong cùng ngày của khoảng thực hiện–trả kết quả, dòng XML3 được cảnh báo `XML3. Chi tiết thứ [xx]: Số lượng giường trong ngày lớn hơn 01.`.
+Với mỗi dòng XML3 có `MA_NHOM=2`, công cụ đối chiếu `MA_DICH_VU` và `NGAY_KQ` với XML4. Nếu bản ghi XML4 tương ứng thiếu `KET_LUAN` hoặc `NGAY_KQ`, tab XML4 hiển thị cảnh báo theo đúng số chi tiết XML4, kèm mã dịch vụ và tên dịch vụ lấy từ XML3. Ngoài ra, nếu cùng `MA_LK`, `MA_BN` có hơn một `MA_GIUONG` trong cùng ngày của khoảng thực hiện–trả kết quả, dòng XML3 được cảnh báo `XML3. Chi tiết thứ [xx]: Số lượng giường trong ngày lớn hơn 01.`.
 
 ## Báo cáo
 
