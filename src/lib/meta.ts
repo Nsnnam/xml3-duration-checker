@@ -1,11 +1,19 @@
 export const APP_META = {
-  name: "XML3 Duration Checker",
-  version: "1.4.1",
-  date: "2026-08-30",
+  name: "NsN_XMLcheck",
+  version: "1.5.0",
+  date: "2026-08-31",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "1.5.0",
+      date: "2026-08-31",
+      changes: [
+        "Bắt buộc giữ cảnh báo thời lượng >70 phút cho MA_NHOM 2, 3, 8, 18; không phụ thuộc việc bỏ chọn bộ lọc nhóm.",
+        "Thêm cảnh báo XML1 khi MA_DKBD = MA_CSKCB nhưng MA_DOITUONG_KCB khác 1.1; thu gọn vùng điều khiển sau phân tích.",
+      ],
+    },
     {
       version: "1.4.1",
       date: "2026-08-30",

@@ -203,25 +203,39 @@ function ancestorValue(node: Element, tag: string): string {
 }
 
 function readXml1Warnings(doc: Document): ValidationWarning[] {
-  return Array.from(doc.getElementsByTagName("SO_CCCD"))
-    .map((node, index) => {
-      const value = node.textContent?.trim() ?? "";
-      return {
-        value,
-        warning: {
-          source: "XML1" as const,
-          detailIndex: index + 1,
-          MA_LK: ancestorValue(node, "MA_LK"),
-          HO_TEN: ancestorValue(node, "HO_TEN"),
-          MA_BN: ancestorValue(node, "MA_BN"),
-          MA_DICH_VU: "",
-          TEN_DICH_VU: "",
-          message: `XML 1. Chi tiết thứ ${index + 1}: SO_CCCD không đúng định dạng. Giá trị sai: ${value}`,
-        },
-      };
-    })
-    .filter(({ value }) => value !== "" && !/^\d{9,12}$/.test(value))
-    .map(({ warning }) => warning);
+  const warnings: ValidationWarning[] = [];
+  const rows = Array.from(doc.getElementsByTagName("*"))
+    .filter((node) => directTextOf(node, "MA_LK"))
+    .map((node, index) => ({ node, detailIndex: index + 1 }));
+
+  rows.forEach(({ node, detailIndex }) => {
+    const value = directTextOf(node, "SO_CCCD");
+    const maDkbd = directTextOf(node, "MA_DKBD");
+    const maCskcb = directTextOf(node, "MA_CSKCB");
+    const maDoiTuong = directTextOf(node, "MA_DOITUONG_KCB");
+    const base = {
+      source: "XML1" as const,
+      detailIndex,
+      MA_LK: directTextOf(node, "MA_LK"),
+      HO_TEN: directTextOf(node, "HO_TEN"),
+      MA_BN: directTextOf(node, "MA_BN"),
+      MA_DICH_VU: "",
+      TEN_DICH_VU: "",
+    };
+    if (value && !/^\d{9,12}$/.test(value)) {
+      warnings.push({
+        ...base,
+        message: `XML 1. Chi tiết thứ ${detailIndex}: SO_CCCD không đúng định dạng. Giá trị sai: ${value}`,
+      });
+    }
+    if (maDkbd && maCskcb && maDkbd === maCskcb && maDoiTuong !== "1.1") {
+      warnings.push({
+        ...base,
+        message: `XML 1. Chi tiết thứ ${detailIndex}: MA_DKBD phải khác MA_CSKCB cho đối tượng khác 1.1`,
+      });
+    }
+  });
+  return warnings;
 }
 
 function readXml4Records(doc: Document, fileName: string): Xml4Record[] {
@@ -394,12 +408,12 @@ function evaluateRecord(fields: Record<Xml3Field, string>, fileName: string): Xm
   let status: Xml3Record["status"] = "ok";
   const details: string[] = [];
 
-  if (!fields.NGAY_YL || !fields.NGAY_TH_YL || !fields.NGAY_KQ) {
+  if (!fields.NGAY_TH_YL || !fields.NGAY_KQ) {
     status = "missing";
-    details.push("Thiếu NGAY_YL, NGAY_TH_YL hoặc NGAY_KQ");
+    details.push("Thiếu NGAY_TH_YL hoặc NGAY_KQ");
   } else if (durationMinutes === null) {
     status = "invalid";
-    details.push("Không đọc được định dạng thời gian");
+    details.push("Không đọc được định dạng NGAY_TH_YL hoặc NGAY_KQ");
   } else if (durationMinutes < 0) {
     status = "negative";
     details.push("NGAY_KQ sớm hơn NGAY_TH_YL");
@@ -410,6 +424,10 @@ function evaluateRecord(fields: Record<Xml3Field, string>, fileName: string): Xm
     );
   } else {
     details.push(`Trong ngưỡng ${DURATION_LIMIT_MINUTES} phút`);
+  }
+
+  if (!fields.NGAY_YL) {
+    details.push("Thiếu NGAY_YL; không ảnh hưởng phép tính NGAY_KQ − NGAY_TH_YL");
   }
 
   if (hasOrderWarning) {

@@ -45,7 +45,12 @@ export function HomePage() {
     () =>
       analysis
         ? analysis.records.filter((record) => {
+            const isMandatoryDurationWarning =
+              DEFAULT_GROUP_CODES.includes(
+                record.MA_NHOM.trim() as (typeof DEFAULT_GROUP_CODES)[number],
+              ) && record.status === "warning";
             const matchesGroup =
+              isMandatoryDurationWarning ||
               groupCodes.includes(record.MA_NHOM.trim()) ||
               record.hasOrderWarning ||
               record.hasEqualWarning ||
@@ -142,7 +147,7 @@ export function HomePage() {
             </div>
             <div>
               <h1 className="text-xl font-bold tracking-tight md:text-2xl">
-                XML3 Duration Checker
+                {APP_META.name} · v{APP_META.version}
               </h1>
               <p className="mt-1 text-xs text-teal-50 md:text-sm">
                 Kiểm tra thời gian thực hiện dịch vụ đến khi trả kết quả
@@ -275,139 +280,147 @@ function CheckerView({
   return (
     <div className="space-y-6">
       <section className="space-y-4">
-        <div className="rounded-3xl border border-teal-100 bg-white p-6 shadow-sm md:p-8">
-          <div className="mb-5 flex items-start gap-4">
-            <div className="grid h-12 w-12 shrink-0 place-content-center rounded-2xl bg-teal-50 text-2xl">
-              📤
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">Nạp file XML chứa 15 bảng</h2>
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
-                Công cụ giải mã nội dung <b>NOIDUNGFILE</b> theo Base64, lấy riêng <b>XML3</b> và
-                đọc các dòng <b>CHI_TIET_DVKT</b>. Dữ liệu chỉ xử lý trong trình duyệt.
-              </p>
-            </div>
-          </div>
-          <label className="flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-teal-200 bg-teal-50/50 px-4 text-center transition hover:border-teal-500 hover:bg-teal-50">
-            <span className="text-3xl">＋</span>
-            <span className="mt-2 text-sm font-semibold text-teal-800">
-              Chọn hoặc thêm nhiều file XML
-            </span>
-            <span className="mt-1 text-xs text-slate-500">
-              XML1–XML15 Base64 · không tải dữ liệu lên máy chủ
-            </span>
-            <input
-              type="file"
-              accept=".xml"
-              multiple
-              className="hidden"
-              onChange={(event) => {
-                onAddFiles(event.target.files);
-                event.currentTarget.value = "";
-              }}
-            />
-          </label>
-          <details className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <summary className="cursor-pointer list-none text-xs font-bold uppercase tracking-wide text-slate-500">
-              Mã nhóm áp dụng cảnh báo thời lượng (MA_NHOM · cột 6)
-              <span className="ml-2 normal-case font-normal text-teal-700">
-                · bấm để mở danh sách 18 nhóm
-              </span>
-            </summary>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {GROUP_OPTIONS.map((option) => (
-                <label
-                  key={option.code}
-                  className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm transition hover:border-teal-300 hover:bg-teal-50"
-                >
-                  <input
-                    type="checkbox"
-                    checked={groupCodes.includes(option.code)}
-                    onChange={(event) =>
-                      onGroupCodesChange(
-                        event.target.checked
-                          ? [...groupCodes, option.code]
-                          : groupCodes.filter((code) => code !== option.code),
-                      )
-                    }
-                    className="mt-0.5 accent-teal-700"
-                  />
-                  <span>
-                    <b className="text-teal-800">Nhóm {option.code}</b>
-                    <span className="block text-xs leading-5 text-slate-500">{option.title}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-            <p className="mt-2 text-xs text-slate-500">
-              Mặc định đã chọn: <b>2, 3, 8, 18</b>. Bộ chọn này chỉ lọc cảnh báo thời lượng và các
-              dòng trong bảng/báo cáo; kiểm tra trình tự thời gian áp dụng cho mọi mã nhóm.
-            </p>
-          </details>
-          {files.length > 0 && (
-            <div className="mt-4 space-y-2">
-              {files.map((file) => (
-                <div
-                  key={file.name}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
-                >
-                  <span className="min-w-0 truncate font-mono text-xs">{file.name}</span>
-                  <button
-                    className="shrink-0 text-xs font-semibold text-rose-600 hover:underline"
-                    onClick={() => onRemoveFile(file.name)}
-                  >
-                    Gỡ
-                  </button>
-                </div>
-              ))}
-              <div className="flex flex-wrap gap-2 pt-2">
-                <button
-                  className="rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={busy}
-                  onClick={onAnalyze}
-                >
-                  {busy ? "Đang phân tích…" : "Phân tích XML3"}
-                </button>
-                <button
-                  className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-                  onClick={onClear}
-                >
-                  Xóa dữ liệu
-                </button>
+        <details open={!analysis} className="group space-y-4">
+          <summary className="cursor-pointer list-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-teal-800 shadow-sm">
+            Cấu hình import, mã nhóm và quy tắc kiểm tra
+            <span className="ml-2 text-xs font-normal text-slate-500">(bấm để mở/thu gọn)</span>
+          </summary>
+          <div className="rounded-3xl border border-teal-100 bg-white p-6 shadow-sm md:p-8">
+            <div className="mb-5 flex items-start gap-4">
+              <div className="grid h-12 w-12 shrink-0 place-content-center rounded-2xl bg-teal-50 text-2xl">
+                📤
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Nạp file XML chứa 15 bảng</h2>
+                <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
+                  Công cụ giải mã nội dung <b>NOIDUNGFILE</b> theo Base64, lấy riêng <b>XML3</b> và
+                  đọc các dòng <b>CHI_TIET_DVKT</b>. Dữ liệu chỉ xử lý trong trình duyệt.
+                </p>
               </div>
             </div>
-          )}
-          {notice && (
-            <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">{notice}</p>
-          )}
-        </div>
-
-        <details className="rounded-3xl bg-slate-900 p-5 text-white shadow-sm md:p-6">
-          <summary className="flex cursor-pointer list-none items-center gap-3">
-            <div className="grid h-10 w-10 place-content-center rounded-2xl bg-white/10 text-xl">
-              ⚙
-            </div>
-            <div>
-              <h2 className="text-lg font-bold">Quy tắc kiểm tra</h2>
-              <p className="mt-1 text-xs text-slate-400">
-                Bấm để xem công thức, trình tự và phạm vi cảnh báo
+            <label className="flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-teal-200 bg-teal-50/50 px-4 text-center transition hover:border-teal-500 hover:bg-teal-50">
+              <span className="text-3xl">＋</span>
+              <span className="mt-2 text-sm font-semibold text-teal-800">
+                Chọn hoặc thêm nhiều file XML
+              </span>
+              <span className="mt-1 text-xs text-slate-500">
+                XML1–XML15 Base64 · không tải dữ liệu lên máy chủ
+              </span>
+              <input
+                type="file"
+                accept=".xml"
+                multiple
+                className="hidden"
+                onChange={(event) => {
+                  onAddFiles(event.target.files);
+                  event.currentTarget.value = "";
+                }}
+              />
+            </label>
+            <details className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <summary className="cursor-pointer list-none text-xs font-bold uppercase tracking-wide text-slate-500">
+                Mã nhóm áp dụng cảnh báo thời lượng (MA_NHOM · cột 6)
+                <span className="ml-2 normal-case font-normal text-teal-700">
+                  · bấm để mở danh sách 18 nhóm
+                </span>
+              </summary>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {GROUP_OPTIONS.map((option) => (
+                  <label
+                    key={option.code}
+                    className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm transition hover:border-teal-300 hover:bg-teal-50"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={groupCodes.includes(option.code)}
+                      onChange={(event) =>
+                        onGroupCodesChange(
+                          event.target.checked
+                            ? [...groupCodes, option.code]
+                            : groupCodes.filter((code) => code !== option.code),
+                        )
+                      }
+                      className="mt-0.5 accent-teal-700"
+                    />
+                    <span>
+                      <b className="text-teal-800">Nhóm {option.code}</b>
+                      <span className="block text-xs leading-5 text-slate-500">{option.title}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-slate-500">
+                Nhóm 2, 3, 8, 18 luôn được kiểm tra thời lượng; bộ chọn này dùng để mở rộng thêm các
+                nhóm khác trong bảng/báo cáo. Kiểm tra trình tự thời gian áp dụng cho mọi mã nhóm.
               </p>
-            </div>
-          </summary>
-          <div className="mt-5 space-y-4 text-sm leading-6 text-slate-300">
-            <Rule label="Mã nhóm" value="18 mã · 2 · 3 · 8 · 18 mặc định" />
-            <Rule label="Trình tự" value="NGAY_YL → NGAY_TH_YL → NGAY_KQ" />
-            <Rule label="Công thức" value="NGAY_KQ − NGAY_TH_YL" />
-            <Rule
-              label="Cảnh báo"
-              value={`Nhóm đã chọn, > ${DURATION_LIMIT_MINUTES} phút hoặc trùng mốc`}
-              danger
-            />
+            </details>
+            {files.length > 0 && (
+              <div className="mt-4 space-y-2">
+                {files.map((file) => (
+                  <div
+                    key={file.name}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+                  >
+                    <span className="min-w-0 truncate font-mono text-xs">{file.name}</span>
+                    <button
+                      className="shrink-0 text-xs font-semibold text-rose-600 hover:underline"
+                      onClick={() => onRemoveFile(file.name)}
+                    >
+                      Gỡ
+                    </button>
+                  </div>
+                ))}
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <button
+                    className="rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={busy}
+                    onClick={onAnalyze}
+                  >
+                    {busy ? "Đang phân tích…" : "Phân tích XML3"}
+                  </button>
+                  <button
+                    className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                    onClick={onClear}
+                  >
+                    Xóa dữ liệu
+                  </button>
+                </div>
+              </div>
+            )}
+            {notice && (
+              <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                {notice}
+              </p>
+            )}
           </div>
-          <p className="mt-7 border-t border-white/10 pt-5 text-xs leading-5 text-slate-400">
-            Đúng 70 phút vẫn là đạt. Kiểm tra trùng mốc áp dụng cho mọi nhóm; chỉ cảnh báo thời
-            lượng mới phụ thuộc các nhóm được tích.
-          </p>
+
+          <details className="rounded-3xl bg-slate-900 p-5 text-white shadow-sm md:p-6">
+            <summary className="flex cursor-pointer list-none items-center gap-3">
+              <div className="grid h-10 w-10 place-content-center rounded-2xl bg-white/10 text-xl">
+                ⚙
+              </div>
+              <div>
+                <h2 className="text-lg font-bold">Quy tắc kiểm tra</h2>
+                <p className="mt-1 text-xs text-slate-400">
+                  Bấm để xem công thức, trình tự và phạm vi cảnh báo
+                </p>
+              </div>
+            </summary>
+            <div className="mt-5 space-y-4 text-sm leading-6 text-slate-300">
+              <Rule label="Mã nhóm" value="18 mã · 2 · 3 · 8 · 18 mặc định" />
+              <Rule label="Trình tự" value="NGAY_YL → NGAY_TH_YL → NGAY_KQ" />
+              <Rule label="Công thức" value="NGAY_KQ − NGAY_TH_YL" />
+              <Rule
+                label="Cảnh báo"
+                value={`Nhóm 2, 3, 8, 18 bắt buộc; > ${DURATION_LIMIT_MINUTES} phút hoặc trùng mốc`}
+                danger
+              />
+            </div>
+            <p className="mt-7 border-t border-white/10 pt-5 text-xs leading-5 text-slate-400">
+              Đúng 70 phút vẫn là đạt. Kiểm tra trùng mốc áp dụng cho mọi nhóm; chỉ cảnh báo thời
+              lượng mới phụ thuộc các nhóm được tích.
+            </p>
+          </details>
         </details>
       </section>
 
@@ -438,7 +451,7 @@ function CheckerView({
               onClick={() => onSummaryFocus("warnings")}
             />
             <Metric
-              label="XML1 · SO_CCCD"
+              label="XML1 · Cảnh báo"
               value={analysis.xml1Warnings.length}
               tone="amber"
               onClick={() => onSummaryFocus("xml1")}
@@ -492,9 +505,10 @@ function CheckerView({
               <div>
                 <h2 className="font-bold text-rose-900">Cảnh báo chi tiết theo dịch vụ</h2>
                 <p className="mt-1 text-xs text-slate-500">
-                  Lọc thời lượng theo MA_NHOM:{" "}
-                  {groupCodes.length ? groupCodes.join(", ") : "(không chọn nhóm)"}. Cảnh báo trình
-                  tự/trùng mốc áp dụng mọi nhóm; thời gian hiển thị MM/DD/YYYY HH:mm.
+                  Cảnh báo thời lượng bắt buộc cho MA_NHOM 2, 3, 8, 18; bộ chọn mở rộng thêm nhóm
+                  khác. Đang chọn: {groupCodes.length ? groupCodes.join(", ") : "(không chọn nhóm)"}
+                  . Cảnh báo trình tự/trùng mốc áp dụng mọi nhóm; thời gian hiển thị MM/DD/YYYY
+                  HH:mm.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">

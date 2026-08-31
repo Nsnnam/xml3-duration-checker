@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0] — 2026-08-31
+
+- Bắt buộc giữ cảnh báo `NGAY_KQ − NGAY_TH_YL > 70` cho `MA_NHOM` 2, 3, 8 và 18, kể cả khi người dùng bỏ chọn nhóm trong bộ lọc mở rộng.
+- Tách phép tính thời lượng khỏi `NGAY_YL`; thiếu `NGAY_YL` không còn làm mất cảnh báo khi `NGAY_TH_YL` và `NGAY_KQ` hợp lệ.
+- Thêm cảnh báo XML1 khi `MA_DKBD = MA_CSKCB` nhưng `MA_DOITUONG_KCB` khác `1.1`, đồng thời thu gọn khu vực cấu hình sau khi phân tích.
+- Đổi tên hiển thị ứng dụng thành `NsN_XMLcheck · v1.5.0`.
+
 ## [1.4.1] — 2026-08-30
 
 - Bỏ qua cảnh báo XML1 khi `SO_CCCD` rỗng hoặc null; chỉ kiểm tra giá trị có nội dung và không đúng 9–12 chữ số.

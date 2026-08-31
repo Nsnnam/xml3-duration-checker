@@ -19,7 +19,7 @@ const web = path.join(root, "releases", "web");
 copyDir(path.join(root, "dist-web"), web);
 fs.writeFileSync(
   path.join(web, "README.txt"),
-  "XML3 Duration Checker\n\nChạy: python -m http.server 5173 rồi mở http://localhost:5173\n",
+  "NsN_XMLcheck\n\nChạy: python -m http.server 5173 rồi mở http://localhost:5173\n",
 );
 
 const singleDir = path.join(root, "releases", "single-page");
