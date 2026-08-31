@@ -1,11 +1,18 @@
 export const APP_META = {
   name: "NsN_XMLcheck",
-  version: "1.5.0",
+  version: "1.5.1",
   date: "2026-08-31",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "1.5.1",
+      date: "2026-08-31",
+      changes: [
+        "Đưa Số phút và Vượt ngưỡng lên ngay sau MA_BN trong bảng cảnh báo XML3 và báo cáo XLSX.",
+      ],
+    },
     {
       version: "1.5.0",
       date: "2026-08-31",

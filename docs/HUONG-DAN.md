@@ -36,7 +36,7 @@ Với mỗi dòng XML3 có `MA_NHOM=2`, công cụ đối chiếu `MA_DICH_VU` v
 
 ## Báo cáo
 
-Sau khi bấm **Phân tích XML3**, khu vực import, mã nhóm và quy tắc tự thu gọn để ưu tiên nội dung kết quả. Khu vực chi tiết được chia thành ba tab XML1, XML3 và XML4. Các thẻ thống kê có thể bấm để tự động chuyển đến tab hoặc bộ lọc tương ứng. Ba trường cố định ưu tiên trong dòng cảnh báo là `MA_LK`, `HO_TEN`, `MA_BN`, lấy thông tin bệnh nhân từ XML1.
+Sau khi bấm **Phân tích XML3**, khu vực import, mã nhóm và quy tắc tự thu gọn để ưu tiên nội dung kết quả. Khu vực chi tiết được chia thành ba tab XML1, XML3 và XML4. Các thẻ thống kê có thể bấm để tự động chuyển đến tab hoặc bộ lọc tương ứng. Trong dòng cảnh báo XML3, thứ tự ưu tiên cố định là `MA_LK`, `HO_TEN`, `MA_BN`; ngay sau `MA_BN` hiển thị `Số phút` và `Vượt ngưỡng`. Thông tin bệnh nhân lấy từ XML1.
 
 Nút **Xuất XLSX** ở tab XML3 tạo ba sheet: `Tóm tắt` cho chỉ số tổng hợp, `Chi tiết` cho các dòng XML3 theo bộ lọc hiện tại và `Nhật ký` cho thông tin giải mã/phân tích. Ở tab XML1 hoặc XML4, nút này xuất riêng danh sách cảnh báo của tab đang mở. Tên file theo múi giờ `Asia/Ho_Chi_Minh`.
 

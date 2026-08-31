@@ -571,6 +571,8 @@ function CheckerView({
                           "MA_LK",
                           "HO_TEN",
                           "MA_BN",
+                          "Số phút",
+                          "Vượt ngưỡng",
                           "File",
                           "STT",
                           "Dịch vụ / vật tư",
@@ -579,8 +581,6 @@ function CheckerView({
                           "NGAY_YL",
                           "NGAY_TH_YL",
                           "NGAY_KQ",
-                          "Số phút",
-                          "Vượt ngưỡng",
                           "Chi tiết",
                         ].map((heading) => (
                           <th key={heading} className="whitespace-nowrap px-4 py-3 font-bold">
@@ -721,6 +721,14 @@ function WarningRow({ record }: { record: Xml3Record }) {
       <td className="max-w-[180px] px-4 py-3 font-mono font-bold">
         {record.MA_BN || "(chưa nối XML1)"}
       </td>
+      <td className="px-4 py-3 text-right font-black text-slate-800">
+        {record.durationMinutes === null ? "—" : record.durationMinutes.toLocaleString("vi-VN")}
+      </td>
+      <td className="px-4 py-3 text-right font-bold text-rose-700">
+        {isWarning && record.durationMinutes !== null
+          ? `${(record.durationMinutes - DURATION_LIMIT_MINUTES).toLocaleString("vi-VN")} phút`
+          : "—"}
+      </td>
       <td className="max-w-[180px] px-4 py-3">
         <div className="truncate font-mono text-[11px] text-slate-500">{record.fileName}</div>
       </td>
@@ -743,14 +751,6 @@ function WarningRow({ record }: { record: Xml3Record }) {
       </td>
       <td className="whitespace-nowrap px-4 py-3 font-mono">
         {formatXmlDateTime(record.NGAY_KQ) || record.NGAY_KQ || "—"}
-      </td>
-      <td className="px-4 py-3 text-right font-black text-slate-800">
-        {record.durationMinutes === null ? "—" : record.durationMinutes.toLocaleString("vi-VN")}
-      </td>
-      <td className="px-4 py-3 text-right font-bold text-rose-700">
-        {isWarning && record.durationMinutes !== null
-          ? `${(record.durationMinutes - DURATION_LIMIT_MINUTES).toLocaleString("vi-VN")} phút`
-          : "—"}
       </td>
       <td className="max-w-[210px] px-4 py-3 text-slate-600">{record.detail}</td>
     </tr>

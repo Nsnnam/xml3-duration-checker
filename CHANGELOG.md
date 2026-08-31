@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.5.1] — 2026-08-31
+
+- Đưa `Số phút` và `Vượt ngưỡng` lên ngay sau `MA_BN` trong bảng cảnh báo XML3 và báo cáo XLSX.
+
 ## [1.5.0] — 2026-08-31
 
 - Bắt buộc giữ cảnh báo `NGAY_KQ − NGAY_TH_YL > 70` cho `MA_NHOM` 2, 3, 8 và 18, kể cả khi người dùng bỏ chọn nhóm trong bộ lọc mở rộng.

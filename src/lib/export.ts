@@ -30,6 +30,11 @@ function detailRows(records: Xml3Record[]) {
     MA_LK: record.MA_LK,
     HO_TEN: record.HO_TEN,
     MA_BN: record.MA_BN,
+    So_phut: record.durationMinutes ?? "",
+    Vuot_nguong_phut:
+      record.durationMinutes !== null && record.durationMinutes > 70
+        ? Math.round((record.durationMinutes - 70) * 100) / 100
+        : "",
     File: record.fileName,
     Trạng_thái: record.hasOrderWarning
       ? "SAI THỨ TỰ"
@@ -55,11 +60,6 @@ function detailRows(records: Xml3Record[]) {
     NGAY_YL: formatXmlDateTime(record.NGAY_YL) || record.NGAY_YL,
     NGAY_TH_YL: formatXmlDateTime(record.NGAY_TH_YL) || record.NGAY_TH_YL,
     NGAY_KQ: formatXmlDateTime(record.NGAY_KQ) || record.NGAY_KQ,
-    So_phut: record.durationMinutes ?? "",
-    Vuot_nguong_phut:
-      record.durationMinutes !== null && record.durationMinutes > 70
-        ? Math.round((record.durationMinutes - 70) * 100) / 100
-        : "",
     Chi_tiet: record.detail,
   }));
 }
