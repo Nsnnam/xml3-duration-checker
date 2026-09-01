@@ -1,7 +1,12 @@
 import ExcelJS from "exceljs";
-import { saveAs } from "file-saver";
-import { formatTimestampForFilename, formatXmlDateTime } from "./timezone";
-import type { BatchAnalysis, ValidationWarning, Xml3Record } from "./xml3-duration";
+import fileSaver from "file-saver";
+import { formatTimestampForFilename, formatXmlDateTime } from "./timezone.ts";
+import type { BatchAnalysis, ValidationWarning, Xml3Record } from "./xml3-duration.ts";
+
+const saveAs =
+  typeof fileSaver === "function"
+    ? fileSaver
+    : (fileSaver as unknown as { saveAs: typeof fileSaver }).saveAs || fileSaver;
 
 function styleSheet(sheet: ExcelJS.Worksheet) {
   sheet.views = [{ state: "frozen", ySplit: 1 }];
@@ -21,7 +26,7 @@ function fitColumns(sheet: ExcelJS.Worksheet) {
     column.eachCell?.((cell) => {
       width = Math.max(width, String(cell.value ?? "").length + 2);
     });
-    column.width = Math.min(width, 42);
+    column.width = Math.min(width, 48);
   }
 }
 
@@ -33,11 +38,13 @@ function detailRows(records: Xml3Record[]) {
         ? "TRÙNG MỐC"
         : record.hasBedWarning
           ? "GIƯỜNG"
-          : record.status === "warning"
-            ? "CB"
-            : record.status === "ok"
-              ? "Đạt"
-              : record.status,
+          : record.hasTtThauWarning
+            ? "TT_THAU"
+            : record.status === "warning"
+              ? "CB"
+              : record.status === "ok"
+                ? "Đạt"
+                : record.status,
     MA_LK: record.MA_LK,
     HO_TEN: record.HO_TEN,
     MA_BN: record.MA_BN,
@@ -52,6 +59,7 @@ function detailRows(records: Xml3Record[]) {
     TEN_DICH_VU: record.TEN_DICH_VU,
     TEN_VAT_TU: record.TEN_VAT_TU,
     MA_NHOM: record.MA_NHOM,
+    TT_THAU: record.TT_THAU || "",
     MA_KHOA: record.MA_KHOA,
     MA_GIUONG: record.MA_GIUONG,
     MA_BAC_SI: record.MA_BAC_SI,
@@ -64,7 +72,10 @@ function detailRows(records: Xml3Record[]) {
   }));
 }
 
-export async function exportXml3Report(analysis: BatchAnalysis, records = analysis.records) {
+export async function createXml3ReportWorkbook(
+  analysis: BatchAnalysis,
+  records = analysis.records,
+): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Nguyễn Sơn Nam (Nsnnam)";
   workbook.created = new Date();
@@ -85,7 +96,8 @@ export async function exportXml3Report(analysis: BatchAnalysis, records = analys
           record.status === "warning" ||
           record.hasOrderWarning ||
           record.hasEqualWarning ||
-          record.hasBedWarning,
+          record.hasBedWarning ||
+          record.hasTtThauWarning,
       ).length,
     },
     {
@@ -101,6 +113,22 @@ export async function exportXml3Report(analysis: BatchAnalysis, records = analys
       value: records.filter((record) => record.hasBedWarning).length,
     },
     {
+      label: "Cảnh báo XML3 thiếu TT_THAU (nhóm 10/11)",
+      value: records.filter((record) => record.hasTtThauWarning).length,
+    },
+    {
+      label: "Cảnh báo XML1",
+      value: analysis.xml1Warnings.length,
+    },
+    {
+      label: "Cảnh báo XML2 thiếu TT_THAU",
+      value: analysis.xml2Warnings.length,
+    },
+    {
+      label: "Cảnh báo XML4 thiếu KET_LUAN",
+      value: analysis.xml4Warnings.length,
+    },
+    {
       label: "Dòng thiếu thời gian",
       value: records.filter((record) => record.status === "missing").length,
     },
@@ -112,7 +140,7 @@ export async function exportXml3Report(analysis: BatchAnalysis, records = analys
       label: "Dòng thời gian âm",
       value: records.filter((record) => record.status === "negative").length,
     },
-    { label: "Ngưỡng cảnh báo (phút)", value: 70 },
+    { label: "Ngưỡng cảnh báo mặc định (phút)", value: 70 },
   ]);
   styleSheet(summary);
   fitColumns(summary);
@@ -127,7 +155,8 @@ export async function exportXml3Report(analysis: BatchAnalysis, records = analys
   }
   styleSheet(detail);
   for (const row of detail.getRows(2, detail.rowCount) ?? []) {
-    if (["CẢNH BÁO", "SAI THỨ TỰ", "TRÙNG MỐC", "GIƯỜNG"].includes(String(row.getCell(2).value))) {
+    const statusVal = String(row.getCell(1).value);
+    if (["CB", "SAI THỨ TỰ", "TRÙNG MỐC", "GIƯỜNG", "TT_THAU"].includes(statusVal)) {
       row.eachCell(
         (cell) =>
           (cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFDE68A" } }),
@@ -142,19 +171,25 @@ export async function exportXml3Report(analysis: BatchAnalysis, records = analys
   styleSheet(log);
   fitColumns(log);
 
+  return workbook;
+}
+
+export async function exportXml3Report(analysis: BatchAnalysis, records = analysis.records) {
+  const workbook = await createXml3ReportWorkbook(analysis, records);
   const buffer = await workbook.xlsx.writeBuffer();
+  const filename = `${formatTimestampForFilename()}_XML3_duration.xlsx`;
   saveAs(
     new Blob([buffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     }),
-    `${formatTimestampForFilename()}_XML3_duration.xlsx`,
+    filename,
   );
 }
 
-export async function exportWarningList(
+export async function createWarningWorkbook(
   source: ValidationWarning["source"],
   warnings: ValidationWarning[],
-) {
+): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Nguyễn Sơn Nam (Nsnnam)";
   workbook.created = new Date();
@@ -164,28 +199,37 @@ export async function exportWarningList(
     MA_LK: warning.MA_LK,
     HO_TEN: warning.HO_TEN,
     MA_BN: warning.MA_BN,
-    MA_DICH_VU: warning.MA_DICH_VU,
-    TEN_DICH_VU: warning.TEN_DICH_VU,
-    Canh_bao: warning.message,
+    Mã_DV_hoặc_Thuốc: warning.MA_DICH_VU,
+    Tên_DV_hoặc_Thuốc: warning.TEN_DICH_VU,
+    Cảnh_báo: warning.message,
   }));
   sheet.columns = [
     { header: "Chi tiết thứ", key: "Chi_tiet" },
     { header: "MA_LK", key: "MA_LK" },
     { header: "HO_TEN", key: "HO_TEN" },
     { header: "MA_BN", key: "MA_BN" },
-    { header: "Mã dịch vụ", key: "MA_DICH_VU" },
-    { header: "Tên dịch vụ", key: "TEN_DICH_VU" },
-    { header: "Cảnh báo", key: "Canh_bao" },
+    { header: source === "XML2" ? "Mã thuốc" : "Mã dịch vụ", key: "Mã_DV_hoặc_Thuốc" },
+    { header: source === "XML2" ? "Tên thuốc" : "Tên dịch vụ", key: "Tên_DV_hoặc_Thuốc" },
+    { header: "Cảnh báo", key: "Cảnh_báo" },
   ];
   if (rows.length) sheet.addRows(rows);
-  else sheet.addRow({ Canh_bao: `Không có cảnh báo ${source}` });
+  else sheet.addRow({ Cảnh_báo: `Không có cảnh báo ${source}` });
   styleSheet(sheet);
   fitColumns(sheet);
+  return workbook;
+}
+
+export async function exportWarningList(
+  source: ValidationWarning["source"],
+  warnings: ValidationWarning[],
+) {
+  const workbook = await createWarningWorkbook(source, warnings);
   const buffer = await workbook.xlsx.writeBuffer();
+  const filename = `${formatTimestampForFilename()}_${source}_warnings.xlsx`;
   saveAs(
     new Blob([buffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     }),
-    `${formatTimestampForFilename()}_${source}_warnings.xlsx`,
+    filename,
   );
 }

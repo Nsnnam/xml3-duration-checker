@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.7.0] — 2026-09-01
+
+- Chuyển Thư viện dịch vụ sang một tab riêng độc lập: cho phép thêm mới, chỉnh sửa trực tiếp (tên dịch vụ, loại trừ/ngưỡng số phút), tìm kiếm/lọc và có bộ công cụ kiểm tra thử quy tắc (Simulator).
+- Thêm kiểm tra XML2: cột 15 `TT_THAU` bắt buộc không được để rỗng (null), nếu rỗng đưa ra cảnh báo `XML2. Chi tiết thứ xxx: Thiếu thông tin TT_THAU` kèm tab cảnh báo XML2 và xuất file Excel riêng.
+- Thêm kiểm tra XML3: với trường hợp mã nhóm ở cột 6 `MA_NHOM` bằng `10` hoặc `11` thì bắt buộc cột `TT_THAU` không được rỗng (null), nếu rỗng đưa ra cảnh báo `XML3: TT_THAU không được để trống khi mã nhóm bằng 10 hoặc 11`.
+- Tối ưu giao diện bảng cảnh báo XML3: thu ngắn cột Chi tiết, mở rộng cột Dịch vụ/Vật tư, bổ sung cột TT_THAU, hỗ trợ kéo thả viền cột (resizable columns) và tự động lưu cấu hình độ rộng vào localStorage.
+- Thêm tính năng Sao lưu & Khôi phục: tạo file backup Thư viện dịch vụ (.json) hoặc file backup Cấu hình toàn trang (.json), hỗ trợ nạp lại file backup (Restore) trực tiếp.
+- Tích hợp gửi báo cáo qua Telegram: hỗ trợ cấu hình Bot Token, Chat ID, nút kiểm tra kết nối, gửi file báo cáo Excel và gửi file backup trực tiếp về kênh Telegram.
+
+## [1.6.1] — 2026-08-31
+
+- Tối ưu bảng cảnh báo XML3: trạng thái CẢNH BÁO rút gọn thành CB, Chi tiết đứng cạnh Vượt ngưỡng, Dịch vụ/Vật tư mở rộng và File/STT chuyển về cuối.
+
 ## [1.6.0] — 2026-08-31
 
 - Thêm thư viện dịch vụ lưu trong trình duyệt: loại trừ hoàn toàn hoặc đặt ngưỡng thời gian riêng.

@@ -1,11 +1,23 @@
 export const APP_META = {
   name: "NsN_XMLcheck",
-  version: "1.6.1",
-  date: "2026-08-31",
+  version: "1.7.0",
+  date: "2026-09-01",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "1.7.0",
+      date: "2026-09-01",
+      changes: [
+        "Chuyển Thư viện dịch vụ sang tab riêng độc lập: cho phép thêm, chỉnh sửa trực tiếp, tìm kiếm và kiểm tra thử quy tắc thời lượng.",
+        "Thêm kiểm tra XML2 cột 15 TT_THAU bắt buộc không để trống: cảnh báo 'XML2. Chi tiết thứ xxx: Thiếu thông tin TT_THAU' kèm tab hiển thị và xuất Excel riêng.",
+        "Thêm kiểm tra XML3 với MA_NHOM 10 và 11 bắt buộc cột TT_THAU không để trống: cảnh báo 'XML3: TT_THAU không được để trống khi mã nhóm bằng 10 hoặc 11'.",
+        "Tối ưu độ rộng cột bảng XML3: thu gọn cột Chi tiết, mở rộng cột Dịch vụ/Vật tư, hỗ trợ kéo thả chỉnh độ rộng cột và tự động lưu cấu hình.",
+        "Thêm chức năng tạo file backup Thư viện và backup Cấu hình toàn trang, khôi phục từ file backup JSON.",
+        "Tích hợp cấu hình Telegram: gửi tin nhắn kiểm tra, gửi báo cáo Excel và file backup trực tiếp về kênh Telegram.",
+      ],
+    },
     {
       version: "1.6.1",
       date: "2026-08-31",

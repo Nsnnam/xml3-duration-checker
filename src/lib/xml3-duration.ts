@@ -50,17 +50,20 @@ export type Xml3Record = {
   NGAY_KQ: string;
   MA_MAY: string;
   MA_HIEU_SP: string;
+  TT_THAU: string;
   durationMinutes: number | null;
   serviceRule?: ServiceRule;
   hasOrderWarning: boolean;
   hasEqualWarning: boolean;
   hasBedWarning: boolean;
+  hasTtThauWarning: boolean;
   orderIssues: string[];
   status:
     | "warning"
     | "order-warning"
     | "equal-warning"
     | "bed-warning"
+    | "tt-thau-warning"
     | "ok"
     | "missing"
     | "invalid"
@@ -68,7 +71,7 @@ export type Xml3Record = {
   detail: string;
 };
 
-export type WarningSource = "XML1" | "XML3" | "XML4";
+export type WarningSource = "XML1" | "XML2" | "XML3" | "XML4";
 
 export type ValidationWarning = {
   source: WarningSource;
@@ -97,6 +100,7 @@ export type Xml3Analysis = {
   records: Xml3Record[];
   warnings: Xml3Record[];
   xml1Warnings: ValidationWarning[];
+  xml2Warnings: ValidationWarning[];
   xml3Warnings: ValidationWarning[];
   xml4Warnings: ValidationWarning[];
   missingTimes: number;
@@ -104,6 +108,7 @@ export type Xml3Analysis = {
   negativeTimes: number;
   orderWarnings: number;
   bedWarnings: number;
+  ttThauWarnings: number;
   log: string[];
 };
 
@@ -111,6 +116,7 @@ export type BatchAnalysis = {
   records: Xml3Record[];
   warnings: Xml3Record[];
   xml1Warnings: ValidationWarning[];
+  xml2Warnings: ValidationWarning[];
   xml3Warnings: ValidationWarning[];
   xml4Warnings: ValidationWarning[];
   files: string[];
@@ -121,9 +127,10 @@ export type BatchAnalysis = {
   negativeTimes: number;
   orderWarnings: number;
   bedWarnings: number;
+  ttThauWarnings: number;
 };
 
-const XML3_FIELDS = [
+export const XML3_FIELDS = [
   "MA_LK",
   "STT",
   "MA_DICH_VU",
@@ -142,6 +149,7 @@ const XML3_FIELDS = [
   "NGAY_KQ",
   "MA_MAY",
   "MA_HIEU_SP",
+  "TT_THAU",
 ] as const;
 
 type Xml3Field = (typeof XML3_FIELDS)[number];
@@ -168,6 +176,10 @@ function textOf(parent: Element, tag: Xml3Field): string {
   return parent.getElementsByTagName(tag)[0]?.textContent?.trim() ?? "";
 }
 
+function textOfGeneral(parent: Element, tag: string): string {
+  return parent.getElementsByTagName(tag)[0]?.textContent?.trim() ?? "";
+}
+
 export type PatientInfo = { MA_LK: string; MA_BN: string; HO_TEN: string };
 
 export function withPatientInfo(
@@ -181,7 +193,7 @@ export function withPatientInfo(
 function directTextOf(parent: Element, tag: string): string {
   return (
     Array.from(parent.children)
-      .find((child) => child.tagName.toUpperCase() === tag)
+      .find((child) => child.tagName.toUpperCase() === tag.toUpperCase())
       ?.textContent?.trim() ?? ""
   );
 }
@@ -190,23 +202,13 @@ function readXml1Patients(doc: Document): Map<string, PatientInfo> {
   const patients = new Map<string, PatientInfo>();
   for (const node of Array.from(doc.getElementsByTagName("*"))) {
     const patient = {
-      MA_LK: directTextOf(node, "MA_LK"),
-      MA_BN: directTextOf(node, "MA_BN"),
-      HO_TEN: directTextOf(node, "HO_TEN"),
+      MA_LK: directTextOf(node, "MA_LK") || textOfGeneral(node, "MA_LK"),
+      MA_BN: directTextOf(node, "MA_BN") || textOfGeneral(node, "MA_BN"),
+      HO_TEN: directTextOf(node, "HO_TEN") || textOfGeneral(node, "HO_TEN"),
     };
     if (patient.MA_LK && (patient.MA_BN || patient.HO_TEN)) patients.set(patient.MA_LK, patient);
   }
   return patients;
-}
-
-function ancestorValue(node: Element, tag: string): string {
-  let current: Element | null = node;
-  while (current) {
-    const value = directTextOf(current, tag);
-    if (value) return value;
-    current = current.parentElement;
-  }
-  return "";
 }
 
 function readXml1Warnings(doc: Document): ValidationWarning[] {
@@ -216,16 +218,21 @@ function readXml1Warnings(doc: Document): ValidationWarning[] {
     .map((node, index) => ({ node, detailIndex: index + 1 }));
 
   rows.forEach(({ node, detailIndex }) => {
-    const value = directTextOf(node, "SO_CCCD");
-    const maDkbd = directTextOf(node, "MA_DKBD");
-    const maCskcb = directTextOf(node, "MA_CSKCB");
-    const maDoiTuong = directTextOf(node, "MA_DOITUONG_KCB");
+    const value = directTextOf(node, "SO_CCCD") || textOfGeneral(node, "SO_CCCD");
+    const maDkbd = directTextOf(node, "MA_DKBD") || textOfGeneral(node, "MA_DKBD");
+    const maCskcb = directTextOf(node, "MA_CSKCB") || textOfGeneral(node, "MA_CSKCB");
+    const maDoiTuong =
+      directTextOf(node, "MA_DOITUONG_KCB") || textOfGeneral(node, "MA_DOITUONG_KCB");
+    const maLk = directTextOf(node, "MA_LK") || textOfGeneral(node, "MA_LK");
+    const hoTen = directTextOf(node, "HO_TEN") || textOfGeneral(node, "HO_TEN");
+    const maBn = directTextOf(node, "MA_BN") || textOfGeneral(node, "MA_BN");
+
     const base = {
       source: "XML1" as const,
       detailIndex,
-      MA_LK: directTextOf(node, "MA_LK"),
-      HO_TEN: directTextOf(node, "HO_TEN"),
-      MA_BN: directTextOf(node, "MA_BN"),
+      MA_LK: maLk,
+      HO_TEN: hoTen,
+      MA_BN: maBn,
       MA_DICH_VU: "",
       TEN_DICH_VU: "",
     };
@@ -245,16 +252,77 @@ function readXml1Warnings(doc: Document): ValidationWarning[] {
   return warnings;
 }
 
+export function readXml2Warnings(
+  doc: Document,
+  patients: ReadonlyMap<string, PatientInfo> = new Map(),
+): ValidationWarning[] {
+  const warnings: ValidationWarning[] = [];
+  const candidateTags = ["CHI_TIET_THUOC", "CHI_TIET"];
+  let rows: Element[] = [];
+  for (const tag of candidateTags) {
+    const list = Array.from(doc.getElementsByTagName(tag));
+    if (list.length > 0) {
+      rows = list;
+      break;
+    }
+  }
+  if (rows.length === 0) {
+    rows = Array.from(doc.getElementsByTagName("*")).filter(
+      (node) =>
+        (directTextOf(node, "MA_LK") || textOfGeneral(node, "MA_LK")) &&
+        (directTextOf(node, "MA_THUOC") ||
+          textOfGeneral(node, "MA_THUOC") ||
+          directTextOf(node, "MA_DICH_VU") ||
+          textOfGeneral(node, "MA_DICH_VU") ||
+          directTextOf(node, "STT")),
+    );
+  }
+
+  rows.forEach((node, index) => {
+    const stt = directTextOf(node, "STT") || textOfGeneral(node, "STT");
+    const detailIndex = Number(stt) || index + 1;
+    const ttThau = directTextOf(node, "TT_THAU") || textOfGeneral(node, "TT_THAU");
+    const maLk = directTextOf(node, "MA_LK") || textOfGeneral(node, "MA_LK");
+    const maThuoc =
+      directTextOf(node, "MA_THUOC") ||
+      textOfGeneral(node, "MA_THUOC") ||
+      directTextOf(node, "MA_DICH_VU") ||
+      textOfGeneral(node, "MA_DICH_VU");
+    const tenThuoc =
+      directTextOf(node, "TEN_THUOC") ||
+      textOfGeneral(node, "TEN_THUOC") ||
+      directTextOf(node, "TEN_DICH_VU") ||
+      textOfGeneral(node, "TEN_DICH_VU");
+    const patient = patients.get(maLk);
+
+    // Kiểm tra XML2 cột 15 TT_THAU bắt buộc không được để rỗng (null)
+    if (!ttThau || !ttThau.trim()) {
+      warnings.push({
+        source: "XML2",
+        detailIndex,
+        MA_LK: maLk,
+        HO_TEN: patient?.HO_TEN || "",
+        MA_BN: patient?.MA_BN || "",
+        MA_DICH_VU: maThuoc,
+        TEN_DICH_VU: tenThuoc,
+        message: `XML2. Chi tiết thứ ${detailIndex}: Thiếu thông tin TT_THAU`,
+      });
+    }
+  });
+
+  return warnings;
+}
+
 function readXml4Records(doc: Document, fileName: string): Xml4Record[] {
   return Array.from(doc.getElementsByTagName("*"))
     .filter((item) => directTextOf(item, "MA_DICH_VU") || directTextOf(item, "NGAY_KQ"))
     .map((item) => ({
       fileName,
-      MA_LK: directTextOf(item, "MA_LK"),
-      STT: directTextOf(item, "STT"),
-      MA_DICH_VU: directTextOf(item, "MA_DICH_VU"),
-      NGAY_KQ: directTextOf(item, "NGAY_KQ"),
-      KET_LUAN: directTextOf(item, "KET_LUAN"),
+      MA_LK: directTextOf(item, "MA_LK") || textOfGeneral(item, "MA_LK"),
+      STT: directTextOf(item, "STT") || textOfGeneral(item, "STT"),
+      MA_DICH_VU: directTextOf(item, "MA_DICH_VU") || textOfGeneral(item, "MA_DICH_VU"),
+      NGAY_KQ: directTextOf(item, "NGAY_KQ") || textOfGeneral(item, "NGAY_KQ"),
+      KET_LUAN: directTextOf(item, "KET_LUAN") || textOfGeneral(item, "KET_LUAN"),
     }));
 }
 
@@ -294,9 +362,28 @@ function readXml3Records(
   patients: Map<string, PatientInfo>,
   serviceRules: ReadonlyMap<string, ServiceRule>,
 ): Xml3Record[] {
-  return Array.from(doc.getElementsByTagName("CHI_TIET_DVKT"), (item) => {
+  const detailTagCandidates = ["CHI_TIET_DVKT", "CHI_TIET_VTYT", "CHI_TIET"];
+  let detailElements: Element[] = [];
+
+  for (const tag of detailTagCandidates) {
+    const list = Array.from(doc.getElementsByTagName(tag));
+    if (list.length > 0) {
+      detailElements = list;
+      break;
+    }
+  }
+
+  if (detailElements.length === 0) {
+    detailElements = Array.from(doc.getElementsByTagName("*")).filter(
+      (el) =>
+        (directTextOf(el, "MA_DICH_VU") || textOfGeneral(el, "MA_DICH_VU")) &&
+        (directTextOf(el, "NGAY_TH_YL") || textOfGeneral(el, "NGAY_TH_YL")),
+    );
+  }
+
+  return detailElements.map((item) => {
     const fields = Object.fromEntries(
-      XML3_FIELDS.map((field) => [field, textOf(item, field)]),
+      XML3_FIELDS.map((field) => [field, textOf(item, field) || directTextOf(item, field)]),
     ) as Record<Xml3Field, string>;
     const record = evaluateRecord(fields, fileName, serviceRules);
     return withPatientInfo(record, patients);
@@ -399,7 +486,7 @@ function addBedWarnings(records: Xml3Record[]): Xml3Record[] {
       ...record,
       hasBedWarning: true,
       status: record.status === "ok" ? "bed-warning" : record.status,
-      detail: `${record.detail} · ${message}`,
+      detail: record.detail ? `${record.detail} · ${message}` : message,
     };
   });
 }
@@ -408,10 +495,10 @@ function chronologyIssues(fields: Record<Xml3Field, string>): string[] {
   return getChronologyIssues(fields.NGAY_YL, fields.NGAY_TH_YL, fields.NGAY_KQ);
 }
 
-function evaluateRecord(
+export function evaluateRecord(
   fields: Record<Xml3Field, string>,
   fileName: string,
-  serviceRules: ReadonlyMap<string, ServiceRule>,
+  serviceRules: ReadonlyMap<string, ServiceRule> = new Map(),
 ): Xml3Record {
   const durationMinutes = minutesBetween(fields.NGAY_TH_YL, fields.NGAY_KQ);
   const serviceRule = serviceRules.get(fields.MA_DICH_VU.trim());
@@ -419,6 +506,11 @@ function evaluateRecord(
   const orderIssues = chronologyIssues(fields);
   const hasOrderWarning = orderIssues.some((issue) => issue.includes("sớm hơn"));
   const hasEqualWarning = orderIssues.some((issue) => issue.includes("="));
+
+  const groupCode = fields.MA_NHOM.trim();
+  const isGroup10Or11 = groupCode === "10" || groupCode === "11";
+  const hasTtThauWarning = isGroup10Or11 && (!fields.TT_THAU || !fields.TT_THAU.trim());
+
   let status: Xml3Record["status"] = "ok";
   const details: string[] = [];
 
@@ -458,6 +550,10 @@ function evaluateRecord(
       `Kiểm tra trùng mốc: ${orderIssues.filter((issue) => issue.includes("=")).join("; ")}`,
     );
   }
+  if (hasTtThauWarning) {
+    if (status === "ok") status = "tt-thau-warning";
+    details.unshift("XML3: TT_THAU không được để trống khi mã nhóm bằng 10 hoặc 11");
+  }
 
   return {
     ...fields,
@@ -470,6 +566,7 @@ function evaluateRecord(
     hasOrderWarning,
     hasEqualWarning,
     hasBedWarning: false,
+    hasTtThauWarning,
     orderIssues,
     status,
     detail: details.join(" · "),
@@ -480,12 +577,14 @@ function formatMinutes(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
 
-function isWarning(record: Xml3Record): boolean {
+export function isWarning(record: Xml3Record): boolean {
   return (
     record.status === "warning" ||
+    record.status === "tt-thau-warning" ||
     record.hasOrderWarning ||
     record.hasEqualWarning ||
-    record.hasBedWarning
+    record.hasBedWarning ||
+    record.hasTtThauWarning
   );
 }
 
@@ -496,7 +595,7 @@ function toXml3Warning(record: Xml3Record, index: number): ValidationWarning {
     MA_LK: record.MA_LK,
     HO_TEN: record.HO_TEN,
     MA_BN: record.MA_BN,
-    MA_DICH_VU: record.MA_DICH_VU,
+    MA_DICH_VU: record.MA_DICH_VU || record.MA_VAT_TU,
     TEN_DICH_VU: record.TEN_DICH_VU || record.TEN_VAT_TU,
     message: record.detail,
     record,
@@ -544,6 +643,7 @@ export async function analyzeXml3File(
   const outer = parseXml(text, file.name);
   const rawRecords: Xml3Record[] = [];
   const xml1Warnings: ValidationWarning[] = [];
+  const xml2Warnings: ValidationWarning[] = [];
   const xml4Records: Xml4Record[] = [];
   let tableFiles = 0;
   const log: string[] = [`[${file.name}] Bắt đầu đọc XML chứa 15 bảng`];
@@ -557,6 +657,10 @@ export async function analyzeXml3File(
       const inner = decodeFileContent(content, `${file.name} XML1`);
       for (const [maLk, patient] of readXml1Patients(inner)) patients.set(maLk, patient);
       xml1Warnings.push(...readXml1Warnings(inner));
+    }
+    if (type === "XML2") {
+      const inner = decodeFileContent(content, `${file.name} XML2`);
+      xml2Warnings.push(...readXml2Warnings(inner, patients));
     }
     if (type === "XML4") {
       const inner = decodeFileContent(content, `${file.name} XML4`);
@@ -577,11 +681,15 @@ export async function analyzeXml3File(
     tableFiles = 1;
     rawRecords.push(...readXml3Records(outer, file.name, patients, serviceRules));
   }
-  const hasXml1OrXml4 = fileNodes.some((fileNode) => {
+  if (!fileNodes.length && outer.getElementsByTagName("CHI_TIET_THUOC").length) {
+    xml2Warnings.push(...readXml2Warnings(outer, patients));
+  }
+
+  const hasOtherXml = fileNodes.some((fileNode) => {
     const type = fileNode.getElementsByTagName("LOAIHOSO")[0]?.textContent?.trim() ?? "";
-    return type === "XML1" || type === "XML4";
+    return type === "XML1" || type === "XML2" || type === "XML4";
   });
-  if (!tableFiles && !hasXml1OrXml4)
+  if (!tableFiles && !hasOtherXml)
     throw new Error(`${file.name}: không tìm thấy FILEHOSO có LOAIHOSO=XML3`);
 
   const records = addBedWarnings(rawRecords);
@@ -593,8 +701,10 @@ export async function analyzeXml3File(
   const negativeTimes = records.filter((record) => record.status === "negative").length;
   const orderWarnings = records.filter((record) => record.hasOrderWarning).length;
   const bedWarnings = records.filter((record) => record.hasBedWarning).length;
+  const ttThauWarnings = records.filter((record) => record.hasTtThauWarning).length;
+
   log.push(
-    `XML3: ${records.length} dòng; cảnh báo: ${warnings.length}; thứ tự: ${orderWarnings}; giường: ${bedWarnings}; XML1: ${xml1Warnings.length}; XML4: ${xml4Warnings.length}; thiếu thời gian: ${missingTimes}; không hợp lệ: ${invalidTimes}; âm: ${negativeTimes}`,
+    `XML3: ${records.length} dòng; cảnh báo: ${warnings.length}; thứ tự: ${orderWarnings}; giường: ${bedWarnings}; TT_THAU (nhóm 10/11): ${ttThauWarnings}; XML1: ${xml1Warnings.length}; XML2: ${xml2Warnings.length}; XML4: ${xml4Warnings.length}; thiếu thời gian: ${missingTimes}; không hợp lệ: ${invalidTimes}; âm: ${negativeTimes}`,
   );
   return {
     fileName: file.name,
@@ -602,6 +712,7 @@ export async function analyzeXml3File(
     records,
     warnings,
     xml1Warnings,
+    xml2Warnings,
     xml3Warnings,
     xml4Warnings,
     missingTimes,
@@ -609,6 +720,7 @@ export async function analyzeXml3File(
     negativeTimes,
     orderWarnings,
     bedWarnings,
+    ttThauWarnings,
     log,
   };
 }
@@ -624,8 +736,10 @@ export async function analyzeXml3Files(
   const sharedPatients = new Map<string, PatientInfo>();
   const serviceRuleMap = new Map(serviceRules.map((rule) => [rule.MA_DICH_VU.trim(), rule]));
   const xml1Warnings: ValidationWarning[] = [];
+  const xml2Warnings: ValidationWarning[] = [];
   const xml3Warnings: ValidationWarning[] = [];
   const xml4Records: Xml4Record[] = [];
+
   for (const file of files) {
     try {
       for (const [maLk, patient] of await collectXml1Patients(file))
@@ -635,22 +749,26 @@ export async function analyzeXml3Files(
       // The normal analysis pass below records the user-facing file error.
     }
   }
+
   for (const file of files) {
     try {
       const analysis = await analyzeXml3File(file, sharedPatients, serviceRuleMap);
       allRecords.push(...analysis.records);
       tableFiles += analysis.tableFiles;
       xml1Warnings.push(...analysis.xml1Warnings);
+      xml2Warnings.push(...analysis.xml2Warnings);
       xml3Warnings.push(...analysis.xml3Warnings);
       logs.push(...analysis.log);
     } catch (error) {
       errors.push(`[${file.name}] ${(error as Error).message}`);
     }
   }
+
   return {
     records: allRecords,
     warnings: allRecords.filter(isWarning),
     xml1Warnings,
+    xml2Warnings,
     xml3Warnings,
     xml4Warnings: createXml4Warnings(allRecords, xml4Records, sharedPatients),
     files: files.map((file) => file.name),
@@ -661,5 +779,6 @@ export async function analyzeXml3Files(
     negativeTimes: allRecords.filter((record) => record.status === "negative").length,
     orderWarnings: allRecords.filter((record) => record.hasOrderWarning).length,
     bedWarnings: allRecords.filter((record) => record.hasBedWarning).length,
+    ttThauWarnings: allRecords.filter((record) => record.hasTtThauWarning).length,
   };
 }

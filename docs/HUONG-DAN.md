@@ -2,48 +2,40 @@
 
 ## Phạm vi
 
-**NsN_XMLcheck** chỉ kiểm tra thời gian của dịch vụ kỹ thuật và vật tư y tế trong **Bảng XML3**. Ứng dụng không tra cứu ICD, không sửa file nguồn và không gửi dữ liệu lên máy chủ.
+**NsN_XMLcheck** là công cụ kiểm tra thời gian thực hiện–kết quả của dịch vụ kỹ thuật và vật tư y tế trong **Bảng XML3**, đồng thời kiểm tra thông tin thầu `TT_THAU` trong **XML2** và **XML3**, định dạng CCCD trong **XML1** và kết luận trong **XML4**. Ứng dụng không tra cứu ICD, không sửa file nguồn và không gửi dữ liệu lên máy chủ.
 
 ## Cách thực hiện
 
-Mở ứng dụng, chọn một hoặc nhiều file XML hồ sơ có XML1, XML3 và/hoặc XML4, sau đó bấm **Phân tích XML3**. Công cụ nối thông tin bệnh nhân giữa XML1 và XML3 bằng `MA_LK`. Công cụ tìm các phần `FILEHOSO` có `LOAIHOSO=XML3`, giải mã `NOIDUNGFILE` từ Base64 và đọc các phần tử `CHI_TIET_DVKT`.
+1. Mở ứng dụng, chọn một hoặc nhiều file XML hồ sơ có XML1, XML2, XML3 và/hoặc XML4, sau đó bấm **Bắt đầu Phân tích XML**.
+2. Công cụ tự động nối thông tin bệnh nhân giữa XML1 và XML3 bằng `MA_LK`.
+3. Công cụ tìm các phần `FILEHOSO`, giải mã `NOIDUNGFILE` từ Base64 và thực hiện kiểm tra toàn bộ tiêu chí.
 
-Giao diện hiển thị gọn 18 ô tích theo Phụ lục 3 QĐ 5937: `1 Xét nghiệm`, `2 Chẩn đoán hình ảnh`, `3 Thăm dò chức năng`, `4 Thuốc`, `5–6 chưa có mô tả`, `7 Máu`, `8 Phẫu thuật`, `9 chưa có mô tả`, `10 Vật tư y tế`, `11 chưa có mô tả`, `12 Vận chuyển`, `13 Khám bệnh`, `14 Ngày giường bệnh ban ngày`, `15 Ngày giường bệnh điều trị nội trú`, `16 Ngày giường lưu`, `17 Chế phẩm máu`, `18 Thủ thuật`. Nhóm `2, 3, 8, 18` luôn bắt buộc kiểm tra thời lượng; các ô tích dùng để mở rộng thêm nhóm hiển thị. Cảnh báo trình tự và trùng mốc vẫn kiểm tra trên mọi `MA_NHOM`.
+## Quy tắc kiểm tra thời lượng XML3
 
-Quy trình thời gian được kiểm tra theo thứ tự bắt buộc:
+- Giao diện hỗ trợ 18 mã nhóm theo Phụ lục 3 QĐ 5937. Nhóm `2, 3, 8, 18` luôn bắt buộc kiểm tra thời lượng; các ô tích dùng để mở rộng thêm nhóm hiển thị.
+- Trình tự bắt buộc: `NGAY_YL (chỉ định) → NGAY_TH_YL (thực hiện) → NGAY_KQ (kết quả)`.
+- Công thức: `Số phút = NGAY_KQ - NGAY_TH_YL`.
+- Cảnh báo khi số phút **lớn hơn 70 phút** (hoặc vượt ngưỡng riêng được cấu hình trong Thư viện). Đúng 70 phút không bị cảnh báo.
+- Cảnh báo **SAI THỨ TỰ** khi mốc thời gian bị ngược và **TRÙNG MỐC** khi các mốc trùng nhau.
 
-```text
-NGAY_YL (chỉ định) → NGAY_TH_YL (thực hiện) → NGAY_KQ (kết quả)
-```
+## Quy tắc kiểm tra thông tin thầu TT_THAU
 
-Với mỗi dòng thuộc nhóm bắt buộc `2, 3, 8, 18` hoặc nhóm được chọn mở rộng, công thức là:
+- **XML2 (Thuốc)**: Cột 15 `TT_THAU` bắt buộc không được để rỗng (null). Nếu để trống, hệ thống đưa ra cảnh báo: `XML2. Chi tiết thứ xxx: Thiếu thông tin TT_THAU` (với `xxx` là số thứ tự chi tiết).
+- **XML3 (DVKT & VTYT)**: Với trường hợp mã nhóm ở cột 6 `MA_NHOM` bằng `10` hoặc `11` (Vật tư y tế), bắt buộc cột `TT_THAU` không được để rỗng (null). Nếu để trống, hệ thống đưa ra cảnh báo: `XML3: TT_THAU không được để trống khi mã nhóm bằng 10 hoặc 11`.
 
-```text
-Số phút = NGAY_KQ - NGAY_TH_YL
-```
+## Tối ưu giao diện & Kéo thả cột
 
-Nếu số phút lớn hơn 70, dòng được đánh dấu **CẢNH BÁO**. Đúng 70 phút không bị cảnh báo. Hai trường được đọc theo mô tả sheet `Bang 3_DVKT, VTYT` trong file `3176.xls`: `MA_NHOM` là vị trí 6, `NGAY_YL` là vị trí 37, `NGAY_TH_YL` là vị trí 38 và `NGAY_KQ` là vị trí 39. Chuỗi XML `yyyymmddhhmm` được hiển thị thành `MM/DD/YYYY HH:mm`.
+- Cột Chi tiết được thu ngắn gọn gàng và cột Dịch vụ/Vật tư được kéo dài thêm giúp giao diện hiển thị thoáng đãng và dễ đọc.
+- Bảng hiển thị hỗ trợ kéo thả trực tiếp tại đường viền tiêu đề cột để thay đổi độ rộng theo ý muốn. Kích thước tùy chỉnh được tự động lưu vào trình duyệt. Có nút `↺ Cột mặc định` để khôi phục nhanh.
 
-## Xử lý ngoại lệ
+## Thư viện dịch vụ (Tab riêng)
 
-Dòng thiếu `NGAY_TH_YL` hoặc `NGAY_KQ` được đánh dấu `missing`; thiếu `NGAY_YL` không làm mất phép tính thời lượng. Dòng có định dạng ngày giờ không đọc được được đánh dấu `invalid`. Dòng có thời điểm kết quả sớm hơn thời điểm thực hiện được đánh dấu `negative`. Nếu `NGAY_TH_YL` sớm hơn `NGAY_YL`, hoặc `NGAY_KQ` sớm hơn `NGAY_TH_YL`, dòng được đánh dấu **SAI THỨ TỰ**. Nếu `NGAY_YL = NGAY_TH_YL = NGAY_KQ` hoặc `NGAY_TH_YL = NGAY_KQ`, dòng được đánh dấu **TRÙNG MỐC**. Các cảnh báo này không phụ thuộc mã nhóm.
+- Quản lý danh mục dịch vụ loại trừ khỏi cảnh báo hoặc đặt số phút tối đa riêng.
+- Hỗ trợ thêm mới, tìm kiếm, lọc và chỉnh sửa trực tiếp (inline edit) tên dịch vụ cũng như quy tắc.
+- Tích hợp bộ công cụ **Simulator** giúp kiểm tra thử ngay lập tức một mã dịch vụ với số phút bất kỳ.
 
-## Kiểm lỗi XML1, XML4 và giường
+## Sao lưu (Backup) & Gửi Telegram
 
-XML1 được kiểm tra ở trường `SO_CCCD`: giá trị có nội dung phải chỉ gồm 9–12 chữ số. Giá trị rỗng hoặc null được bỏ qua, không tạo cảnh báo. Khi sai, tab XML1 hiển thị thông báo theo dạng `XML 1. Chi tiết thứ 1: SO_CCCD không đúng định dạng. Giá trị sai: ...`. Ngoài ra, nếu `MA_DKBD = MA_CSKCB` và `MA_DOITUONG_KCB` khác `1.1`, hiển thị cảnh báo `XML 1. Chi tiết thứ 1: MA_DKBD phải khác MA_CSKCB cho đối tượng khác 1.1`.
-
-Với mỗi dòng XML3 có `MA_NHOM=2`, công cụ đối chiếu `MA_DICH_VU` và `NGAY_KQ` với XML4. Nếu bản ghi XML4 tương ứng thiếu `KET_LUAN` hoặc `NGAY_KQ`, tab XML4 hiển thị cảnh báo theo đúng số chi tiết XML4, kèm mã dịch vụ và tên dịch vụ lấy từ XML3. Ngoài ra, nếu cùng `MA_LK`, `MA_BN` có hơn một `MA_GIUONG` trong cùng ngày của khoảng thực hiện–trả kết quả, dòng XML3 được cảnh báo `XML3. Chi tiết thứ [xx]: Số lượng giường trong ngày lớn hơn 01.`.
-
-## Thư viện dịch vụ
-
-Trong mỗi dòng cảnh báo XML3, bấm **Loại trừ DV** để mã dịch vụ đó không còn tạo cảnh báo thời lượng. Bấm **Đặt ngưỡng** để nhập số phút tối đa riêng cho dịch vụ; khi đó chỉ các dòng cùng `MA_DICH_VU` có thời lượng vượt ngưỡng riêng mới cảnh báo. Sau khi lưu, công cụ tự phân tích lại toàn bộ file và cập nhật tất cả dòng cùng mã dịch vụ. Danh mục được lưu trong localStorage của trình duyệt hiện tại; nút **Xóa** trong thư viện xóa cấu hình và phân tích lại theo ngưỡng mặc định 70 phút.
-
-## Báo cáo
-
-Sau khi bấm **Phân tích XML3**, khu vực import, mã nhóm và quy tắc tự thu gọn để ưu tiên nội dung kết quả. Khu vực chi tiết được chia thành ba tab XML1, XML3 và XML4. Các thẻ thống kê có thể bấm để tự động chuyển đến tab hoặc bộ lọc tương ứng. Trong dòng cảnh báo XML3, thứ tự ưu tiên cố định là `MA_LK`, `HO_TEN`, `MA_BN`; ngay sau `MA_BN` hiển thị `Số phút` và `Vượt ngưỡng`. Thông tin bệnh nhân lấy từ XML1.
-
-Nút **Xuất XLSX** ở tab XML3 tạo ba sheet: `Tóm tắt` cho chỉ số tổng hợp, `Chi tiết` cho các dòng XML3 theo bộ lọc hiện tại và `Nhật ký` cho thông tin giải mã/phân tích. Ở tab XML1 hoặc XML4, nút này xuất riêng danh sách cảnh báo của tab đang mở. Tên file theo múi giờ `Asia/Ho_Chi_Minh`.
-
-## An toàn
-
-Chỉ mở file từ nguồn tin cậy. Không lưu file XML có dữ liệu bệnh án thật trong repo, issue, log công khai hoặc thư mục release.
+- Cho phép tải file backup JSON riêng cho Thư viện dịch vụ hoặc toàn bộ cấu hình trang.
+- Cho phép khôi phục (Restore) lại dữ liệu từ file backup JSON bất cứ lúc nào.
+- Cấu hình Telegram với Bot Token và Chat ID để nhận file báo cáo Excel phân tích và file backup cấu hình trực tiếp qua Telegram.
