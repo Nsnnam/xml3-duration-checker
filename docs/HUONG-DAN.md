@@ -34,6 +34,10 @@ XML1 được kiểm tra ở trường `SO_CCCD`: giá trị có nội dung ph�
 
 Với mỗi dòng XML3 có `MA_NHOM=2`, công cụ đối chiếu `MA_DICH_VU` và `NGAY_KQ` với XML4. Nếu bản ghi XML4 tương ứng thiếu `KET_LUAN` hoặc `NGAY_KQ`, tab XML4 hiển thị cảnh báo theo đúng số chi tiết XML4, kèm mã dịch vụ và tên dịch vụ lấy từ XML3. Ngoài ra, nếu cùng `MA_LK`, `MA_BN` có hơn một `MA_GIUONG` trong cùng ngày của khoảng thực hiện–trả kết quả, dòng XML3 được cảnh báo `XML3. Chi tiết thứ [xx]: Số lượng giường trong ngày lớn hơn 01.`.
 
+## Thư viện dịch vụ
+
+Trong mỗi dòng cảnh báo XML3, bấm **Loại trừ DV** để mã dịch vụ đó không còn tạo cảnh báo thời lượng. Bấm **Đặt ngưỡng** để nhập số phút tối đa riêng cho dịch vụ; khi đó chỉ các dòng cùng `MA_DICH_VU` có thời lượng vượt ngưỡng riêng mới cảnh báo. Sau khi lưu, công cụ tự phân tích lại toàn bộ file và cập nhật tất cả dòng cùng mã dịch vụ. Danh mục được lưu trong localStorage của trình duyệt hiện tại; nút **Xóa** trong thư viện xóa cấu hình và phân tích lại theo ngưỡng mặc định 70 phút.
+
 ## Báo cáo
 
 Sau khi bấm **Phân tích XML3**, khu vực import, mã nhóm và quy tắc tự thu gọn để ưu tiên nội dung kết quả. Khu vực chi tiết được chia thành ba tab XML1, XML3 và XML4. Các thẻ thống kê có thể bấm để tự động chuyển đến tab hoặc bộ lọc tương ứng. Trong dòng cảnh báo XML3, thứ tự ưu tiên cố định là `MA_LK`, `HO_TEN`, `MA_BN`; ngay sau `MA_BN` hiển thị `Số phút` và `Vượt ngưỡng`. Thông tin bệnh nhân lấy từ XML1.

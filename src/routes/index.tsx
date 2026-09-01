@@ -9,12 +9,34 @@ import {
   analyzeXml3Files,
   type BatchAnalysis,
   type Xml3Record,
+  type ServiceRule,
   type ValidationWarning,
 } from "../lib/xml3-duration";
 import coffeeQr from "../assets/coffee-qr.jpg";
 
 type View = "checker" | "guide" | "about" | "support";
 type AlertTab = "XML1" | "XML3" | "XML4";
+const SERVICE_RULES_KEY = "nsn-xmlcheck-service-rules";
+
+function loadServiceRules(): ServiceRule[] {
+  try {
+    const value = JSON.parse(localStorage.getItem(SERVICE_RULES_KEY) ?? "[]");
+    return Array.isArray(value)
+      ? value.filter(
+          (rule): rule is ServiceRule =>
+            typeof rule?.MA_DICH_VU === "string" &&
+            typeof rule?.TEN_DICH_VU === "string" &&
+            (rule.maxMinutes === null ||
+              (typeof rule.maxMinutes === "number" &&
+                Number.isFinite(rule.maxMinutes) &&
+                rule.maxMinutes >= 0)),
+        )
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 type SummaryFocus =
   | "files"
   | "xml3"
@@ -40,6 +62,7 @@ export function HomePage() {
   const [alertTab, setAlertTab] = useState<AlertTab>("XML3");
   const [summaryFocus, setSummaryFocus] = useState<SummaryFocus>("warnings");
   const [notice, setNotice] = useState("");
+  const [serviceRules, setServiceRules] = useState<ServiceRule[]>(loadServiceRules);
 
   const filteredRecords = useMemo(
     () =>
@@ -114,13 +137,50 @@ export function HomePage() {
     setBusy(true);
     setNotice("");
     try {
-      const nextAnalysis = await analyzeXml3Files(files);
+      const nextAnalysis = await analyzeXml3Files(files, serviceRules);
       setSummaryFocus("warnings");
       setAlertTab("XML3");
       setAnalysis(nextAnalysis);
     } finally {
       setBusy(false);
     }
+  }
+
+  async function reanalyzeWithRules(nextRules: ServiceRule[]) {
+    if (!files.length) return;
+    setBusy(true);
+    try {
+      setSummaryFocus("warnings");
+      setAlertTab("XML3");
+      setAnalysis(await analyzeXml3Files(files, nextRules));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function updateServiceRule(record: Xml3Record, maxMinutes: number | null) {
+    const code = record.MA_DICH_VU.trim();
+    if (!code) {
+      setNotice("Dòng này chưa có MA_DICH_VU nên không thể lưu vào thư viện.");
+      return;
+    }
+    const rule: ServiceRule = {
+      MA_DICH_VU: code,
+      TEN_DICH_VU: record.TEN_DICH_VU || record.TEN_VAT_TU || "",
+      maxMinutes,
+    };
+    const nextRules = [...serviceRules.filter((item) => item.MA_DICH_VU !== code), rule];
+    setServiceRules(nextRules);
+    localStorage.setItem(SERVICE_RULES_KEY, JSON.stringify(nextRules));
+    await reanalyzeWithRules(nextRules);
+    setNotice(`Đã cập nhật thư viện cho dịch vụ ${code} và phân tích lại toàn bộ cảnh báo.`);
+  }
+
+  async function removeServiceRule(code: string) {
+    const nextRules = serviceRules.filter((rule) => rule.MA_DICH_VU !== code);
+    setServiceRules(nextRules);
+    localStorage.setItem(SERVICE_RULES_KEY, JSON.stringify(nextRules));
+    await reanalyzeWithRules(nextRules);
   }
 
   function addFiles(list: FileList | null) {
@@ -212,6 +272,9 @@ export function HomePage() {
             onAlertTabChange={setAlertTab}
             onSummaryFocus={focusSummary}
             onExportWarnings={(source, warnings) => exportWarningList(source, warnings)}
+            onAddServiceRule={updateServiceRule}
+            serviceRules={serviceRules}
+            onRemoveServiceRule={removeServiceRule}
             onToggleWarnings={setOnlyWarnings}
             onExport={() => analysis && exportXml3Report(analysis, filteredRecords)}
           />
@@ -253,6 +316,9 @@ function CheckerView({
   onAlertTabChange,
   onSummaryFocus,
   onExportWarnings,
+  onAddServiceRule,
+  serviceRules,
+  onRemoveServiceRule,
   onToggleWarnings,
   onExport,
 }: {
@@ -277,6 +343,9 @@ function CheckerView({
   onAlertTabChange: (value: AlertTab) => void;
   onSummaryFocus: (value: SummaryFocus) => void;
   onExportWarnings: (source: AlertTab, warnings: ValidationWarning[]) => void;
+  onAddServiceRule: (record: Xml3Record, maxMinutes: number | null) => void;
+  serviceRules: ServiceRule[];
+  onRemoveServiceRule: (code: string) => void;
   onToggleWarnings: (value: boolean) => void;
   onExport: () => void;
 }) {
@@ -357,6 +426,7 @@ function CheckerView({
                 nhóm khác trong bảng/báo cáo. Kiểm tra trình tự thời gian áp dụng cho mọi mã nhóm.
               </p>
             </details>
+            <ServiceRuleLibrary rules={serviceRules} onRemove={onRemoveServiceRule} />
             {files.length > 0 && (
               <div className="mt-4 space-y-2">
                 {files.map((file) => (
@@ -597,6 +667,7 @@ function CheckerView({
                         <WarningRow
                           key={`${record.fileName}-${record.MA_LK}-${record.STT}-${index}`}
                           record={record}
+                          onAddServiceRule={onAddServiceRule}
                         />
                       ))}
                     </tbody>
@@ -685,7 +756,66 @@ function Metric({
   );
 }
 
-function WarningRow({ record }: { record: Xml3Record }) {
+function ServiceRuleLibrary({
+  rules,
+  onRemove,
+}: {
+  rules: ServiceRule[];
+  onRemove: (code: string) => void;
+}) {
+  return (
+    <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/60 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <b className="text-xs font-black uppercase tracking-wide text-amber-900">
+          Thư viện dịch vụ ({rules.length})
+        </b>
+        <span className="text-[11px] text-amber-800">Lưu trên trình duyệt này</span>
+      </div>
+      {rules.length === 0 ? (
+        <p className="mt-2 text-xs text-slate-500">
+          Chưa có cấu hình. Thêm trực tiếp bằng nút <b>Loại trừ DV</b> hoặc <b>Đặt ngưỡng</b> trong
+          cảnh báo XML3.
+        </p>
+      ) : (
+        <div className="mt-2 space-y-1.5">
+          {rules.map((rule) => (
+            <div
+              key={rule.MA_DICH_VU}
+              className="flex items-center justify-between gap-2 rounded-lg bg-white px-2.5 py-2 text-xs"
+            >
+              <div className="min-w-0">
+                <b className="font-mono text-teal-800">{rule.MA_DICH_VU}</b>
+                <span className="ml-2 truncate text-slate-600">
+                  {rule.TEN_DICH_VU || "Chưa có tên dịch vụ"}
+                </span>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="font-bold text-amber-800">
+                  {rule.maxMinutes === null ? "Loại trừ" : `≤ ${rule.maxMinutes} phút`}
+                </span>
+                <button
+                  type="button"
+                  className="font-bold text-rose-600 hover:underline"
+                  onClick={() => onRemove(rule.MA_DICH_VU)}
+                >
+                  Xóa
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WarningRow({
+  record,
+  onAddServiceRule,
+}: {
+  record: Xml3Record;
+  onAddServiceRule: (record: Xml3Record, maxMinutes: number | null) => void;
+}) {
   const isWarning =
     record.status === "warning" ||
     record.hasOrderWarning ||
@@ -728,8 +858,8 @@ function WarningRow({ record }: { record: Xml3Record }) {
         {record.durationMinutes === null ? "—" : record.durationMinutes.toLocaleString("vi-VN")}
       </td>
       <td className="px-4 py-3 text-right font-bold text-rose-700">
-        {isWarning && record.durationMinutes !== null
-          ? `${(record.durationMinutes - DURATION_LIMIT_MINUTES).toLocaleString("vi-VN")} phút`
+        {record.status === "warning" && record.durationMinutes !== null
+          ? `${(record.durationMinutes - (record.serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES)).toLocaleString("vi-VN")} phút`
           : "—"}
       </td>
       <td className="max-w-[180px] px-4 py-3">
@@ -755,7 +885,37 @@ function WarningRow({ record }: { record: Xml3Record }) {
       <td className="whitespace-nowrap px-4 py-3 font-mono">
         {formatXmlDateTime(record.NGAY_KQ) || record.NGAY_KQ || "—"}
       </td>
-      <td className="max-w-[210px] px-4 py-3 text-slate-600">{record.detail}</td>
+      <td className="max-w-[260px] px-4 py-3 text-slate-600">
+        <div>{record.detail}</div>
+        {record.MA_DICH_VU && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              className="rounded-md border border-rose-200 bg-white px-2 py-1 text-[10px] font-bold text-rose-700 hover:bg-rose-50"
+              onClick={() => onAddServiceRule(record, null)}
+            >
+              Loại trừ DV
+            </button>
+            <button
+              type="button"
+              className="rounded-md border border-teal-200 bg-white px-2 py-1 text-[10px] font-bold text-teal-700 hover:bg-teal-50"
+              onClick={() => {
+                const value = window.prompt(
+                  `Ngưỡng tối đa cho ${record.MA_DICH_VU} (phút):`,
+                  String(record.serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES),
+                );
+                if (value === null) return;
+                const maxMinutes = Number(value);
+                if (Number.isFinite(maxMinutes) && maxMinutes >= 0) {
+                  onAddServiceRule(record, maxMinutes);
+                }
+              }}
+            >
+              Đặt ngưỡng
+            </button>
+          </div>
+        )}
+      </td>
     </tr>
   );
 }

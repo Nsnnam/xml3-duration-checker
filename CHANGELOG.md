@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.6.0] — 2026-08-31
+
+- Thêm thư viện dịch vụ lưu trong trình duyệt: loại trừ hoàn toàn hoặc đặt ngưỡng thời gian riêng.
+- Thêm nút `Loại trừ DV` và `Đặt ngưỡng` trực tiếp trong từng cảnh báo XML3; sau khi lưu tự phân tích lại toàn bộ dòng cùng `MA_DICH_VU`.
+
 ## [1.5.1] — 2026-08-31
 
 - Đưa `Số phút` và `Vượt ngưỡng` lên ngay sau `MA_BN` trong bảng cảnh báo XML3 và báo cáo XLSX.

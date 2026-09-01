@@ -21,6 +21,12 @@ export const GROUP_OPTIONS = [
   { code: "18", title: "Thủ thuật" },
 ] as const;
 
+export type ServiceRule = {
+  MA_DICH_VU: string;
+  TEN_DICH_VU: string;
+  maxMinutes: number | null;
+};
+
 export type Xml3Record = {
   fileName: string;
   table: "XML3";
@@ -45,6 +51,7 @@ export type Xml3Record = {
   MA_MAY: string;
   MA_HIEU_SP: string;
   durationMinutes: number | null;
+  serviceRule?: ServiceRule;
   hasOrderWarning: boolean;
   hasEqualWarning: boolean;
   hasBedWarning: boolean;
@@ -285,12 +292,13 @@ function readXml3Records(
   doc: Document,
   fileName: string,
   patients: Map<string, PatientInfo>,
+  serviceRules: ReadonlyMap<string, ServiceRule>,
 ): Xml3Record[] {
   return Array.from(doc.getElementsByTagName("CHI_TIET_DVKT"), (item) => {
     const fields = Object.fromEntries(
       XML3_FIELDS.map((field) => [field, textOf(item, field)]),
     ) as Record<Xml3Field, string>;
-    const record = evaluateRecord(fields, fileName);
+    const record = evaluateRecord(fields, fileName, serviceRules);
     return withPatientInfo(record, patients);
   });
 }
@@ -400,8 +408,14 @@ function chronologyIssues(fields: Record<Xml3Field, string>): string[] {
   return getChronologyIssues(fields.NGAY_YL, fields.NGAY_TH_YL, fields.NGAY_KQ);
 }
 
-function evaluateRecord(fields: Record<Xml3Field, string>, fileName: string): Xml3Record {
+function evaluateRecord(
+  fields: Record<Xml3Field, string>,
+  fileName: string,
+  serviceRules: ReadonlyMap<string, ServiceRule>,
+): Xml3Record {
   const durationMinutes = minutesBetween(fields.NGAY_TH_YL, fields.NGAY_KQ);
+  const serviceRule = serviceRules.get(fields.MA_DICH_VU.trim());
+  const durationLimit = serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES;
   const orderIssues = chronologyIssues(fields);
   const hasOrderWarning = orderIssues.some((issue) => issue.includes("sớm hơn"));
   const hasEqualWarning = orderIssues.some((issue) => issue.includes("="));
@@ -417,13 +431,15 @@ function evaluateRecord(fields: Record<Xml3Field, string>, fileName: string): Xm
   } else if (durationMinutes < 0) {
     status = "negative";
     details.push("NGAY_KQ sớm hơn NGAY_TH_YL");
-  } else if (durationMinutes > DURATION_LIMIT_MINUTES) {
+  } else if (serviceRule?.maxMinutes === null) {
+    details.push("Dịch vụ được loại trừ khỏi cảnh báo thời lượng");
+  } else if (durationMinutes > durationLimit) {
     status = "warning";
     details.push(
-      `Vượt ${formatMinutes(durationMinutes - DURATION_LIMIT_MINUTES)} phút so với ngưỡng`,
+      `Vượt ${formatMinutes(durationMinutes - durationLimit)} phút so với ngưỡng ${durationLimit} phút`,
     );
   } else {
-    details.push(`Trong ngưỡng ${DURATION_LIMIT_MINUTES} phút`);
+    details.push(`Trong ngưỡng ${durationLimit} phút`);
   }
 
   if (!fields.NGAY_YL) {
@@ -450,6 +466,7 @@ function evaluateRecord(fields: Record<Xml3Field, string>, fileName: string): Xm
     fileName,
     table: "XML3",
     durationMinutes,
+    serviceRule,
     hasOrderWarning,
     hasEqualWarning,
     hasBedWarning: false,
@@ -521,6 +538,7 @@ async function collectXml1Patients(file: File): Promise<Map<string, PatientInfo>
 export async function analyzeXml3File(
   file: File,
   sharedPatients = new Map<string, PatientInfo>(),
+  serviceRules: ReadonlyMap<string, ServiceRule> = new Map(),
 ): Promise<Xml3Analysis> {
   const text = await file.text();
   const outer = parseXml(text, file.name);
@@ -552,12 +570,12 @@ export async function analyzeXml3File(
     tableFiles++;
     const content = fileNode.getElementsByTagName("NOIDUNGFILE")[0]?.textContent ?? "";
     const inner = decodeFileContent(content, `${file.name} XML3`);
-    rawRecords.push(...readXml3Records(inner, file.name, patients));
+    rawRecords.push(...readXml3Records(inner, file.name, patients, serviceRules));
   }
 
   if (!fileNodes.length && outer.getElementsByTagName("CHI_TIET_DVKT").length) {
     tableFiles = 1;
-    rawRecords.push(...readXml3Records(outer, file.name, patients));
+    rawRecords.push(...readXml3Records(outer, file.name, patients, serviceRules));
   }
   const hasXml1OrXml4 = fileNodes.some((fileNode) => {
     const type = fileNode.getElementsByTagName("LOAIHOSO")[0]?.textContent?.trim() ?? "";
@@ -595,12 +613,16 @@ export async function analyzeXml3File(
   };
 }
 
-export async function analyzeXml3Files(files: File[]): Promise<BatchAnalysis> {
+export async function analyzeXml3Files(
+  files: File[],
+  serviceRules: ReadonlyArray<ServiceRule> = [],
+): Promise<BatchAnalysis> {
   const allRecords: Xml3Record[] = [];
   const errors: string[] = [];
   const logs: string[] = [];
   let tableFiles = 0;
   const sharedPatients = new Map<string, PatientInfo>();
+  const serviceRuleMap = new Map(serviceRules.map((rule) => [rule.MA_DICH_VU.trim(), rule]));
   const xml1Warnings: ValidationWarning[] = [];
   const xml3Warnings: ValidationWarning[] = [];
   const xml4Records: Xml4Record[] = [];
@@ -615,7 +637,7 @@ export async function analyzeXml3Files(files: File[]): Promise<BatchAnalysis> {
   }
   for (const file of files) {
     try {
-      const analysis = await analyzeXml3File(file, sharedPatients);
+      const analysis = await analyzeXml3File(file, sharedPatients, serviceRuleMap);
       allRecords.push(...analysis.records);
       tableFiles += analysis.tableFiles;
       xml1Warnings.push(...analysis.xml1Warnings);

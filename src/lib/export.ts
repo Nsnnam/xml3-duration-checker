@@ -32,8 +32,8 @@ function detailRows(records: Xml3Record[]) {
     MA_BN: record.MA_BN,
     So_phut: record.durationMinutes ?? "",
     Vuot_nguong_phut:
-      record.durationMinutes !== null && record.durationMinutes > 70
-        ? Math.round((record.durationMinutes - 70) * 100) / 100
+      record.status === "warning" && record.durationMinutes !== null
+        ? Math.round((record.durationMinutes - (record.serviceRule?.maxMinutes ?? 70)) * 100) / 100
         : "",
     File: record.fileName,
     Trạng_thái: record.hasOrderWarning

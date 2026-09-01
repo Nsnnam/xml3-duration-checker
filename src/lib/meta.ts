@@ -1,11 +1,18 @@
 export const APP_META = {
   name: "NsN_XMLcheck",
-  version: "1.5.2",
+  version: "1.6.0",
   date: "2026-08-31",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "1.6.0",
+      date: "2026-08-31",
+      changes: [
+        "Thêm thư viện dịch vụ lưu cục bộ: loại trừ dịch vụ hoặc đặt ngưỡng thời gian riêng; có thể thêm trực tiếp từ từng cảnh báo và tự phân tích lại toàn bộ dòng cùng mã dịch vụ.",
+      ],
+    },
     {
       version: "1.5.2",
       date: "2026-08-31",
