@@ -10,6 +10,7 @@ import {
   type BatchAnalysis,
   type Xml3Record,
   type ServiceRule,
+  type DrugRule,
   type ValidationWarning,
 } from "../lib/xml3-duration.ts";
 import {
@@ -26,7 +27,8 @@ import {
   parseBackupJson,
   createLibraryBackupContent,
   createFullConfigBackupContent,
-  type ColumnWidths,
+  type TabColumnState,
+  type AllTabsColumnConfig,
   type ParsedBackupResult,
 } from "../lib/backup.ts";
 import coffeeQr from "../assets/coffee-qr.jpg";
@@ -34,26 +36,107 @@ import coffeeQr from "../assets/coffee-qr.jpg";
 type View = "checker" | "library" | "settings" | "guide" | "about" | "support";
 type AlertTab = "XML1" | "XML2" | "XML3" | "XML4";
 const SERVICE_RULES_KEY = "nsn-xmlcheck-service-rules";
-const COLUMN_WIDTHS_KEY = "nsn-xmlcheck-col-widths";
+const DRUG_RULES_KEY = "nsn-xmlcheck-drug-rules";
+const COLUMNS_CONFIG_KEY = "nsn-xmlcheck-columns-config-v2";
 
-const DEFAULT_COLUMN_WIDTHS: ColumnWidths = {
-  status: 85,
-  maLk: 125,
-  hoTen: 155,
-  maBn: 110,
-  duration: 75,
-  overLimit: 90,
-  detail: 230, // Thu ngắn lại theo yêu cầu
-  service: 380, // Kéo dài thêm theo yêu cầu
-  group: 75,
-  ttThau: 100, // Cột thông tin thầu
-  khoa: 75,
-  ngayYl: 130,
-  ngayThYl: 130,
-  ngayKq: 130,
-  fileName: 120,
-  stt: 60,
+type ColumnDef = {
+  key: string;
+  label: string;
+  defaultWidth: number;
+  isCompact?: boolean;
+  isWide?: boolean;
 };
+
+const TAB_COLUMNS: Record<AlertTab, ColumnDef[]> = {
+  XML3: [
+    { key: "status", label: "Trạng thái", defaultWidth: 85 },
+    { key: "maLk", label: "MA_LK", defaultWidth: 125 },
+    { key: "hoTen", label: "Họ và tên", defaultWidth: 155 },
+    { key: "maBn", label: "MA_BN", defaultWidth: 110 },
+    { key: "duration", label: "Số phút", defaultWidth: 75 },
+    { key: "overLimit", label: "Vượt ngưỡng", defaultWidth: 90 },
+    { key: "detail", label: "Chi tiết (thu gọn)", defaultWidth: 230, isCompact: true },
+    { key: "service", label: "Dịch vụ / Vật tư (mở rộng)", defaultWidth: 380, isWide: true },
+    { key: "group", label: "Mã nhóm", defaultWidth: 75 },
+    { key: "ttThau", label: "TT_THAU", defaultWidth: 100 },
+    { key: "khoa", label: "Khoa", defaultWidth: 75 },
+    { key: "ngayYl", label: "NGAY_YL", defaultWidth: 130 },
+    { key: "ngayThYl", label: "NGAY_TH_YL", defaultWidth: 130 },
+    { key: "ngayKq", label: "NGAY_KQ", defaultWidth: 130 },
+    { key: "fileName", label: "File", defaultWidth: 120 },
+    { key: "stt", label: "STT", defaultWidth: 60 },
+  ],
+  XML1: [
+    { key: "detailIndex", label: "Chi tiết thứ", defaultWidth: 95 },
+    { key: "maLk", label: "MA_LK", defaultWidth: 130 },
+    { key: "hoTen", label: "Họ và tên", defaultWidth: 170 },
+    { key: "maBn", label: "MA_BN", defaultWidth: 120 },
+    { key: "maDichVu", label: "Mã trường / DV", defaultWidth: 130 },
+    { key: "tenDichVu", label: "Tên thông tin / DV", defaultWidth: 200 },
+    { key: "message", label: "Nội dung cảnh báo", defaultWidth: 420 },
+  ],
+  XML2: [
+    { key: "action", label: "Thao tác", defaultWidth: 115 },
+    { key: "detailIndex", label: "Chi tiết thứ", defaultWidth: 95 },
+    { key: "maLk", label: "MA_LK", defaultWidth: 130 },
+    { key: "hoTen", label: "Họ và tên", defaultWidth: 170 },
+    { key: "maBn", label: "MA_BN", defaultWidth: 120 },
+    { key: "maThuoc", label: "Mã thuốc", defaultWidth: 130 },
+    { key: "tenThuoc", label: "Tên thuốc", defaultWidth: 220 },
+    { key: "message", label: "Nội dung cảnh báo", defaultWidth: 380 },
+  ],
+  XML4: [
+    { key: "detailIndex", label: "Chi tiết thứ", defaultWidth: 95 },
+    { key: "maLk", label: "MA_LK", defaultWidth: 130 },
+    { key: "hoTen", label: "Họ và tên", defaultWidth: 170 },
+    { key: "maBn", label: "MA_BN", defaultWidth: 120 },
+    { key: "maDichVu", label: "Mã dịch vụ", defaultWidth: 130 },
+    { key: "tenDichVu", label: "Tên dịch vụ", defaultWidth: 220 },
+    { key: "message", label: "Nội dung cảnh báo", defaultWidth: 400 },
+  ],
+};
+
+function getDefaultTabState(tab: AlertTab): TabColumnState {
+  const widths: Record<string, number> = {};
+  const visible: Record<string, boolean> = {};
+  for (const col of TAB_COLUMNS[tab]) {
+    widths[col.key] = col.defaultWidth;
+    visible[col.key] = true;
+  }
+  return { widths, visible };
+}
+
+function getDefaultColumnsConfig(): AllTabsColumnConfig {
+  return {
+    XML1: getDefaultTabState("XML1"),
+    XML2: getDefaultTabState("XML2"),
+    XML3: getDefaultTabState("XML3"),
+    XML4: getDefaultTabState("XML4"),
+  };
+}
+
+function loadColumnsConfig(): AllTabsColumnConfig {
+  const defaults = getDefaultColumnsConfig();
+  try {
+    const saved = localStorage.getItem(COLUMNS_CONFIG_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed && typeof parsed === "object") {
+        for (const tab of ["XML1", "XML2", "XML3", "XML4"] as AlertTab[]) {
+          if (parsed[tab]) {
+            defaults[tab] = {
+              widths: { ...defaults[tab].widths, ...(parsed[tab].widths || {}) },
+              visible: { ...defaults[tab].visible, ...(parsed[tab].visible || {}) },
+            };
+          }
+        }
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return defaults;
+}
 
 function loadServiceRules(): ServiceRule[] {
   try {
@@ -74,16 +157,18 @@ function loadServiceRules(): ServiceRule[] {
   }
 }
 
-function loadColumnWidths(): ColumnWidths {
+function loadDrugRules(): DrugRule[] {
   try {
-    const saved = localStorage.getItem(COLUMN_WIDTHS_KEY);
-    if (saved) {
-      return { ...DEFAULT_COLUMN_WIDTHS, ...JSON.parse(saved) };
-    }
+    const value = JSON.parse(localStorage.getItem(DRUG_RULES_KEY) ?? "[]");
+    return Array.isArray(value)
+      ? value.filter(
+          (rule): rule is DrugRule =>
+            typeof rule?.MA_THUOC === "string" && rule.MA_THUOC.trim().length > 0,
+        )
+      : [];
   } catch {
-    /* ignore */
+    return [];
   }
-  return { ...DEFAULT_COLUMN_WIDTHS };
 }
 
 type SummaryFocus =
@@ -114,22 +199,70 @@ export function HomePage() {
   const [summaryFocus, setSummaryFocus] = useState<SummaryFocus>("warnings");
   const [notice, setNotice] = useState("");
   const [serviceRules, setServiceRules] = useState<ServiceRule[]>(loadServiceRules);
+  const [drugRules, setDrugRules] = useState<DrugRule[]>(loadDrugRules);
   const [telegramConfig, setTelegramConfig] = useState<TelegramConfig>(loadTelegramConfig);
-  const [columnWidths, setColumnWidths] = useState<ColumnWidths>(loadColumnWidths);
+  const [columnsConfig, setColumnsConfig] = useState<AllTabsColumnConfig>(loadColumnsConfig);
+  const [showColumnModal, setShowColumnModal] = useState(false);
 
-  // Lưu columnWidths vào localStorage khi thay đổi
-  const updateColumnWidth = (columnKey: string, width: number) => {
-    setColumnWidths((prev) => {
-      const next = { ...prev, [columnKey]: Math.max(45, width) };
-      localStorage.setItem(COLUMN_WIDTHS_KEY, JSON.stringify(next));
+  // Lưu columnsConfig vào localStorage khi thay đổi
+  const saveColsConfig = (next: AllTabsColumnConfig) => {
+    setColumnsConfig(next);
+    localStorage.setItem(COLUMNS_CONFIG_KEY, JSON.stringify(next));
+  };
+
+  const updateColumnWidth = (tab: AlertTab, columnKey: string, width: number) => {
+    setColumnsConfig((prev) => {
+      const currentTab = prev[tab] || getDefaultTabState(tab);
+      const nextTab: TabColumnState = {
+        ...currentTab,
+        widths: { ...currentTab.widths, [columnKey]: Math.max(45, width) },
+      };
+      const next: AllTabsColumnConfig = { ...prev, [tab]: nextTab };
+      localStorage.setItem(COLUMNS_CONFIG_KEY, JSON.stringify(next));
       return next;
     });
   };
 
-  const resetColumnWidths = () => {
-    setColumnWidths({ ...DEFAULT_COLUMN_WIDTHS });
-    localStorage.removeItem(COLUMN_WIDTHS_KEY);
-    setNotice("Đã khôi phục kích thước cột về mặc định.");
+  const toggleColumnVisibility = (tab: AlertTab, columnKey: string) => {
+    setColumnsConfig((prev) => {
+      const currentTab = prev[tab] || getDefaultTabState(tab);
+      const nextTab: TabColumnState = {
+        ...currentTab,
+        visible: { ...currentTab.visible, [columnKey]: !currentTab.visible[columnKey] },
+      };
+      const next: AllTabsColumnConfig = { ...prev, [tab]: nextTab };
+      localStorage.setItem(COLUMNS_CONFIG_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const setAllTabColumnsVisibility = (tab: AlertTab, isVisible: boolean) => {
+    setColumnsConfig((prev) => {
+      const currentTab = prev[tab] || getDefaultTabState(tab);
+      const nextVisible: Record<string, boolean> = {};
+      for (const col of TAB_COLUMNS[tab]) {
+        nextVisible[col.key] = isVisible;
+      }
+      const nextTab: TabColumnState = { ...currentTab, visible: nextVisible };
+      const next: AllTabsColumnConfig = { ...prev, [tab]: nextTab };
+      localStorage.setItem(COLUMNS_CONFIG_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const resetTabColumns = (tab: AlertTab) => {
+    setColumnsConfig((prev) => {
+      const next: AllTabsColumnConfig = { ...prev, [tab]: getDefaultTabState(tab) };
+      localStorage.setItem(COLUMNS_CONFIG_KEY, JSON.stringify(next));
+      return next;
+    });
+    setNotice(`Đã khôi phục cấu hình cột tab ${tab} về mặc định.`);
+  };
+
+  const resetAllColumns = () => {
+    const defaults = getDefaultColumnsConfig();
+    saveColsConfig(defaults);
+    setNotice("Đã khôi phục cấu hình cột của tất cả các tab về mặc định.");
   };
 
   const filteredRecords = useMemo(
@@ -213,7 +346,7 @@ export function HomePage() {
     setBusy(true);
     setNotice("");
     try {
-      const nextAnalysis = await analyzeXml3Files(files, serviceRules);
+      const nextAnalysis = await analyzeXml3Files(files, serviceRules, drugRules);
       setSummaryFocus("warnings");
       setAlertTab("XML3");
       setAnalysis(nextAnalysis);
@@ -232,18 +365,21 @@ export function HomePage() {
     }
   }
 
-  async function reanalyzeWithRules(nextRules: ServiceRule[]) {
+  async function reanalyzeWithRules(
+    nextServiceRules: ServiceRule[],
+    nextDrugRules: DrugRule[] = drugRules,
+  ) {
     if (!files.length) return;
     setBusy(true);
     try {
       setSummaryFocus("warnings");
-      setAlertTab("XML3");
-      setAnalysis(await analyzeXml3Files(files, nextRules));
+      setAnalysis(await analyzeXml3Files(files, nextServiceRules, nextDrugRules));
     } finally {
       setBusy(false);
     }
   }
 
+  // Cập nhật Thư viện Dịch vụ kỹ thuật
   async function updateServiceRule(record: Xml3Record, maxMinutes: number | null) {
     const code = record.MA_DICH_VU.trim();
     if (!code) {
@@ -258,7 +394,7 @@ export function HomePage() {
     const nextRules = [...serviceRules.filter((item) => item.MA_DICH_VU !== code), rule];
     setServiceRules(nextRules);
     localStorage.setItem(SERVICE_RULES_KEY, JSON.stringify(nextRules));
-    await reanalyzeWithRules(nextRules);
+    await reanalyzeWithRules(nextRules, drugRules);
     setNotice(`Đã cập nhật thư viện cho dịch vụ ${code} và phân tích lại toàn bộ cảnh báo.`);
   }
 
@@ -266,14 +402,47 @@ export function HomePage() {
     const nextRules = serviceRules.filter((rule) => rule.MA_DICH_VU !== code);
     setServiceRules(nextRules);
     localStorage.setItem(SERVICE_RULES_KEY, JSON.stringify(nextRules));
-    await reanalyzeWithRules(nextRules);
+    await reanalyzeWithRules(nextRules, drugRules);
     setNotice(`Đã xóa dịch vụ ${code} khỏi thư viện.`);
   }
 
-  async function handleSaveAllRules(newRules: ServiceRule[]) {
+  async function handleSaveAllServiceRules(newRules: ServiceRule[]) {
     setServiceRules(newRules);
     localStorage.setItem(SERVICE_RULES_KEY, JSON.stringify(newRules));
-    await reanalyzeWithRules(newRules);
+    await reanalyzeWithRules(newRules, drugRules);
+  }
+
+  // Cập nhật Thư viện Thuốc loại trừ XML2
+  async function handleAddExcludedDrug(code: string, name: string) {
+    const cleanCode = code.trim();
+    if (!cleanCode) return;
+    const rule: DrugRule = {
+      MA_THUOC: cleanCode,
+      TEN_THUOC: name.trim(),
+      excluded: true,
+    };
+    const nextDrugRules = [
+      ...drugRules.filter((r) => r.MA_THUOC.toUpperCase() !== cleanCode.toUpperCase()),
+      rule,
+    ];
+    setDrugRules(nextDrugRules);
+    localStorage.setItem(DRUG_RULES_KEY, JSON.stringify(nextDrugRules));
+    await reanalyzeWithRules(serviceRules, nextDrugRules);
+    setNotice(`Đã thêm thuốc ${cleanCode} vào danh mục loại trừ XML2 và phân tích lại.`);
+  }
+
+  async function handleRemoveDrugRule(code: string) {
+    const nextDrugRules = drugRules.filter((r) => r.MA_THUOC.toUpperCase() !== code.toUpperCase());
+    setDrugRules(nextDrugRules);
+    localStorage.setItem(DRUG_RULES_KEY, JSON.stringify(nextDrugRules));
+    await reanalyzeWithRules(serviceRules, nextDrugRules);
+    setNotice(`Đã xóa thuốc ${code} khỏi danh mục loại trừ XML2.`);
+  }
+
+  async function handleSaveAllDrugRules(newDrugRules: DrugRule[]) {
+    setDrugRules(newDrugRules);
+    localStorage.setItem(DRUG_RULES_KEY, JSON.stringify(newDrugRules));
+    await reanalyzeWithRules(serviceRules, newDrugRules);
   }
 
   function addFiles(list: FileList | null) {
@@ -356,19 +525,20 @@ export function HomePage() {
       let caption = "";
 
       if (type === "library") {
-        json = createLibraryBackupContent(serviceRules);
-        filename = `${formatTimestampForFilename()}_backup_thu_vien_dvkt.json`;
-        caption = `💾 <b>BACKUP THƯ VIỆN DỊCH VỤ — NSN_XMLCHECK</b>\n• Số quy tắc: <b>${serviceRules.length}</b>\n• Thời gian: <b>${new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}</b>`;
+        json = createLibraryBackupContent(serviceRules, drugRules);
+        filename = `${formatTimestampForFilename()}_backup_thu_vien_dvkt_thuoc.json`;
+        caption = `💾 <b>BACKUP THƯ VIỆN DỊCH VỤ & THUỐC — NSN_XMLCHECK</b>\n• Số quy tắc DVKT: <b>${serviceRules.length}</b>\n• Số thuốc loại trừ XML2: <b>${drugRules.length}</b>\n• Thời gian: <b>${new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}</b>`;
       } else {
         json = createFullConfigBackupContent({
           serviceRules,
+          drugRules,
           groupCodes,
           telegramConfig,
-          columnWidths,
+          columnsConfig,
           onlyWarnings,
         });
         filename = `${formatTimestampForFilename()}_backup_cau_hinh_toan_trang.json`;
-        caption = `⚙️ <b>BACKUP CẤU HÌNH TOÀN TRANG — NSN_XMLCHECK</b>\n• Số quy tắc thư viện: <b>${serviceRules.length}</b>\n• Mã nhóm: <b>${groupCodes.join(", ")}</b>\n• Thời gian: <b>${new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}</b>`;
+        caption = `⚙️ <b>BACKUP CẤU HÌNH TOÀN TRANG — NSN_XMLCHECK</b>\n• Quy tắc DVKT: <b>${serviceRules.length}</b>\n• Thuốc loại trừ XML2: <b>${drugRules.length}</b>\n• Mã nhóm: <b>${groupCodes.join(", ")}</b>\n• Thời gian: <b>${new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}</b>`;
       }
 
       const blob = new Blob([json], { type: "application/json;charset=utf-8" });
@@ -392,6 +562,8 @@ export function HomePage() {
     }
   }
 
+  const currentTabCols = columnsConfig[alertTab] || getDefaultTabState(alertTab);
+
   return (
     <div className="min-h-screen bg-[#f5faf9] text-slate-900">
       <header className="border-b border-teal-900/10 bg-gradient-to-r from-[#0f766e] via-[#0d9488] to-[#0891b2] text-white">
@@ -405,7 +577,7 @@ export function HomePage() {
                 {APP_META.name} · v{APP_META.version}
               </h1>
               <p className="text-xs text-teal-50">
-                Kiểm tra thời gian thực hiện dịch vụ, trả kết quả XML3 & kiểm tra TT_THAU
+                Kiểm tra thời gian XML3, thông tin thầu XML2/XML3 & Tùy chỉnh cột đa tab
               </p>
             </div>
           </div>
@@ -423,7 +595,7 @@ export function HomePage() {
         <div className="mx-auto flex max-w-[1440px] gap-1 overflow-x-auto px-4 md:px-8">
           {[
             ["checker", "Kiểm tra thời gian"],
-            ["library", `Thư viện dịch vụ (${serviceRules.length})`],
+            ["library", `Thư viện (${serviceRules.length} DV · ${drugRules.length} Thuốc)`],
             ["settings", "Cấu hình & Backup"],
             ["guide", "Hướng dẫn"],
             ["about", "Phiên bản & tác giả"],
@@ -470,9 +642,9 @@ export function HomePage() {
             xmlWarnings={xmlWarnings}
             onlyWarnings={onlyWarnings}
             busy={busy}
-            columnWidths={columnWidths}
-            onUpdateColumnWidth={updateColumnWidth}
-            onResetColumnWidths={resetColumnWidths}
+            currentTabCols={currentTabCols}
+            onUpdateColumnWidth={(colKey, width) => updateColumnWidth(alertTab, colKey, width)}
+            onOpenColumnModal={() => setShowColumnModal(true)}
             onAddFiles={addFiles}
             onRemoveFile={(name) =>
               setFiles((current) => current.filter((file) => file.name !== name))
@@ -485,6 +657,7 @@ export function HomePage() {
             onSummaryFocus={focusSummary}
             onExportWarnings={(source, warnings) => exportWarningList(source, warnings)}
             onAddServiceRule={updateServiceRule}
+            onAddExcludedDrug={handleAddExcludedDrug}
             onToggleWarnings={setOnlyWarnings}
             onExport={() => analysis && exportXml3Report(analysis, filteredRecords)}
             onSendTelegramReport={() => handleSendTelegramReport()}
@@ -496,15 +669,19 @@ export function HomePage() {
 
         {view === "library" && (
           <LibraryView
-            rules={serviceRules}
-            onSaveRules={handleSaveAllRules}
-            onAddRule={async (rule) => {
+            serviceRules={serviceRules}
+            drugRules={drugRules}
+            onSaveServiceRules={handleSaveAllServiceRules}
+            onAddServiceRule={async (rule) => {
               const next = [...serviceRules.filter((r) => r.MA_DICH_VU !== rule.MA_DICH_VU), rule];
-              await handleSaveAllRules(next);
+              await handleSaveAllServiceRules(next);
               setNotice(`Đã thêm dịch vụ ${rule.MA_DICH_VU} vào thư viện.`);
             }}
-            onRemoveRule={removeServiceRule}
-            onExportBackup={() => exportLibraryBackup(serviceRules)}
+            onRemoveServiceRule={removeServiceRule}
+            onSaveDrugRules={handleSaveAllDrugRules}
+            onAddDrugRule={handleAddExcludedDrug}
+            onRemoveDrugRule={handleRemoveDrugRule}
+            onExportBackup={() => exportLibraryBackup(serviceRules, drugRules)}
             onSendTelegramBackup={() => handleSendTelegramBackup("library")}
             hasTelegramConfig={Boolean(telegramConfig.botToken && telegramConfig.chatId)}
           />
@@ -513,6 +690,7 @@ export function HomePage() {
         {view === "settings" && (
           <SettingsBackupView
             telegramConfig={telegramConfig}
+            columnsConfig={columnsConfig}
             onSaveTelegramConfig={(cfg) => {
               setTelegramConfig(cfg);
               saveTelegramConfig(cfg);
@@ -527,13 +705,16 @@ export function HomePage() {
               }
               return res;
             }}
-            onExportLibraryBackup={() => exportLibraryBackup(serviceRules)}
+            onResetColumnsForTab={resetTabColumns}
+            onResetAllColumns={resetAllColumns}
+            onExportLibraryBackup={() => exportLibraryBackup(serviceRules, drugRules)}
             onExportFullBackup={() =>
               exportFullConfigBackup({
                 serviceRules,
+                drugRules,
                 groupCodes,
                 telegramConfig,
-                columnWidths,
+                columnsConfig,
                 onlyWarnings,
               })
             }
@@ -542,23 +723,24 @@ export function HomePage() {
             hasAnalysis={Boolean(analysis)}
             onRestoreBackup={(parsed) => {
               if (parsed.type === "library") {
-                handleSaveAllRules(parsed.serviceRules);
+                handleSaveAllServiceRules(parsed.serviceRules);
+                handleSaveAllDrugRules(parsed.drugRules || []);
                 setNotice(
-                  `Đã khôi phục thành công ${parsed.serviceRules.length} dịch vụ vào thư viện.`,
+                  `Đã khôi phục thành công ${parsed.serviceRules.length} dịch vụ và ${parsed.drugRules?.length || 0} thuốc vào thư viện.`,
                 );
               } else {
-                handleSaveAllRules(parsed.serviceRules);
+                handleSaveAllServiceRules(parsed.serviceRules);
+                handleSaveAllDrugRules(parsed.drugRules || []);
                 if (parsed.groupCodes) setGroupCodes(parsed.groupCodes);
                 if (parsed.telegramConfig) {
                   setTelegramConfig(parsed.telegramConfig);
                   saveTelegramConfig(parsed.telegramConfig);
                 }
-                if (parsed.columnWidths) {
-                  setColumnWidths(parsed.columnWidths);
-                  localStorage.setItem(COLUMN_WIDTHS_KEY, JSON.stringify(parsed.columnWidths));
+                if (parsed.columnsConfig) {
+                  saveColsConfig(parsed.columnsConfig);
                 }
                 if (typeof parsed.onlyWarnings === "boolean") setOnlyWarnings(parsed.onlyWarnings);
-                setNotice("Đã khôi phục toàn bộ cấu hình trang và thư viện dịch vụ!");
+                setNotice("Đã khôi phục toàn bộ cấu hình trang và thư viện dịch vụ/thuốc!");
               }
             }}
             onResetAllDefaults={() => {
@@ -566,12 +748,14 @@ export function HomePage() {
                 window.confirm("Bạn có chắc chắn muốn đặt lại toàn bộ cài đặt và xóa thư viện?")
               ) {
                 localStorage.removeItem(SERVICE_RULES_KEY);
+                localStorage.removeItem(DRUG_RULES_KEY);
                 localStorage.removeItem(TELEGRAM_CONFIG_KEY);
-                localStorage.removeItem(COLUMN_WIDTHS_KEY);
+                localStorage.removeItem(COLUMNS_CONFIG_KEY);
                 setServiceRules([]);
+                setDrugRules([]);
                 setGroupCodes([...DEFAULT_GROUP_CODES]);
                 setTelegramConfig({ ...loadTelegramConfig() });
-                setColumnWidths({ ...DEFAULT_COLUMN_WIDTHS });
+                setColumnsConfig(getDefaultColumnsConfig());
                 setNotice("Đã đặt lại toàn bộ cài đặt về mặc định.");
               }
             }}
@@ -582,6 +766,19 @@ export function HomePage() {
         {view === "about" && <AboutView />}
         {view === "support" && <SupportView />}
       </main>
+
+      {/* Modal Tùy chỉnh cột */}
+      {showColumnModal && (
+        <ColumnCustomizerModal
+          activeTab={alertTab}
+          tabColumns={TAB_COLUMNS[alertTab]}
+          tabState={currentTabCols}
+          onToggleColumn={(key) => toggleColumnVisibility(alertTab, key)}
+          onSetAll={(val) => setAllTabColumnsVisibility(alertTab, val)}
+          onResetTab={() => resetTabColumns(alertTab)}
+          onClose={() => setShowColumnModal(false)}
+        />
+      )}
 
       <footer className="border-t border-slate-200 bg-white px-4 py-4 text-center text-xs text-slate-500">
         v{APP_META.version} · {APP_META.author} ·{" "}
@@ -608,9 +805,9 @@ function CheckerView({
   xmlWarnings,
   onlyWarnings,
   busy,
-  columnWidths,
+  currentTabCols,
   onUpdateColumnWidth,
-  onResetColumnWidths,
+  onOpenColumnModal,
   onAddFiles,
   onRemoveFile,
   onClear,
@@ -621,6 +818,7 @@ function CheckerView({
   onSummaryFocus,
   onExportWarnings,
   onAddServiceRule,
+  onAddExcludedDrug,
   onToggleWarnings,
   onExport,
   onSendTelegramReport,
@@ -639,9 +837,9 @@ function CheckerView({
   xmlWarnings: Record<AlertTab, ValidationWarning[]>;
   onlyWarnings: boolean;
   busy: boolean;
-  columnWidths: ColumnWidths;
+  currentTabCols: TabColumnState;
   onUpdateColumnWidth: (key: string, width: number) => void;
-  onResetColumnWidths: () => void;
+  onOpenColumnModal: () => void;
   onAddFiles: (files: FileList | null) => void;
   onRemoveFile: (name: string) => void;
   onClear: () => void;
@@ -652,6 +850,7 @@ function CheckerView({
   onSummaryFocus: (value: SummaryFocus) => void;
   onExportWarnings: (source: AlertTab, warnings: ValidationWarning[]) => void;
   onAddServiceRule: (record: Xml3Record, maxMinutes: number | null) => void;
+  onAddExcludedDrug: (code: string, name: string) => void;
   onToggleWarnings: (value: boolean) => void;
   onExport: () => void;
   onSendTelegramReport: () => void;
@@ -748,8 +947,8 @@ function CheckerView({
 
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs">
               <span className="text-slate-600 font-medium">
-                ⚙️ Thư viện dịch vụ đã chuyển sang tab riêng trên thanh menu để tiện quản lý, sửa và
-                thử nghiệm.
+                ⚙️ Thư viện dịch vụ & danh mục thuốc loại trừ đã chuyển sang tab riêng trên thanh
+                menu để tiện quản lý.
               </span>
               <div className="flex gap-2">
                 <button
@@ -757,7 +956,7 @@ function CheckerView({
                   onClick={onOpenLibrary}
                   className="rounded-lg bg-teal-700 px-3 py-1.5 font-bold text-white hover:bg-teal-800 shadow-sm"
                 >
-                  Mở Thư viện DV
+                  Mở Thư viện DV & Thuốc
                 </button>
                 <button
                   type="button"
@@ -909,36 +1108,38 @@ function CheckerView({
               <div>
                 <h2 className="font-bold text-rose-900">Chi tiết cảnh báo & Dữ liệu XML</h2>
                 <p className="mt-1 text-xs text-slate-500">
-                  Cột Chi tiết đã được thu gọn và cột Dịch vụ/vật tư được kéo dài; bạn có thể kéo
-                  thả viền cột để chỉnh độ rộng.
+                  Hỗ trợ kéo thả chỉnh độ rộng cột và tùy chỉnh ẩn/hiện cột trên tất cả các tab
+                  (XML1–XML4).
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <label className="flex min-w-[240px] items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600">
+                <label className="flex min-w-[220px] items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600">
                   <span className="font-bold text-teal-700">Tìm kiếm:</span>
                   <input
                     value={patientQuery}
                     onChange={(event) => onPatientQueryChange(event.target.value)}
                     className="min-w-0 flex-1 bg-transparent font-semibold text-slate-800 outline-none"
-                    placeholder="Mã BN, họ tên hoặc MA_LK"
+                    placeholder="Mã BN, họ tên, MA_LK..."
                   />
                 </label>
-                <label className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={onlyWarnings}
-                    onChange={(event) => onToggleWarnings(event.target.checked)}
-                    className="accent-teal-700"
-                  />{" "}
-                  Chỉ cảnh báo
-                </label>
+                {alertTab === "XML3" && (
+                  <label className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={onlyWarnings}
+                      onChange={(event) => onToggleWarnings(event.target.checked)}
+                      className="accent-teal-700"
+                    />{" "}
+                    Chỉ cảnh báo
+                  </label>
+                )}
                 <button
                   type="button"
-                  onClick={onResetColumnWidths}
-                  title="Đặt lại độ rộng các cột về chuẩn tối ưu"
-                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  onClick={onOpenColumnModal}
+                  className="rounded-lg border border-teal-300 bg-teal-50 px-2.5 py-1.5 text-xs font-bold text-teal-800 hover:bg-teal-100 shadow-sm flex items-center gap-1"
+                  title="Tùy chỉnh ẩn/hiện các cột của bảng này"
                 >
-                  ↺ Cột mặc định
+                  <span>⚙️ Tùy chỉnh cột ({alertTab})</span>
                 </button>
                 <button
                   disabled={
@@ -991,104 +1192,19 @@ function CheckerView({
                   <table className="w-full text-left text-xs border-collapse">
                     <thead className="bg-slate-100/90 text-[11px] uppercase tracking-wide text-slate-600 sticky top-0 z-10 select-none">
                       <tr>
-                        <ResizableTh
-                          width={columnWidths.status}
-                          onResize={(w) => onUpdateColumnWidth("status", w)}
-                        >
-                          Trạng thái
-                        </ResizableTh>
-                        <ResizableTh
-                          width={columnWidths.maLk}
-                          onResize={(w) => onUpdateColumnWidth("maLk", w)}
-                        >
-                          MA_LK
-                        </ResizableTh>
-                        <ResizableTh
-                          width={columnWidths.hoTen}
-                          onResize={(w) => onUpdateColumnWidth("hoTen", w)}
-                        >
-                          HO_TEN
-                        </ResizableTh>
-                        <ResizableTh
-                          width={columnWidths.maBn}
-                          onResize={(w) => onUpdateColumnWidth("maBn", w)}
-                        >
-                          MA_BN
-                        </ResizableTh>
-                        <ResizableTh
-                          width={columnWidths.duration}
-                          onResize={(w) => onUpdateColumnWidth("duration", w)}
-                        >
-                          Số phút
-                        </ResizableTh>
-                        <ResizableTh
-                          width={columnWidths.overLimit}
-                          onResize={(w) => onUpdateColumnWidth("overLimit", w)}
-                        >
-                          Vượt ngưỡng
-                        </ResizableTh>
-                        <ResizableTh
-                          width={columnWidths.detail}
-                          onResize={(w) => onUpdateColumnWidth("detail", w)}
-                          isCompact
-                        >
-                          Chi tiết (thu gọn)
-                        </ResizableTh>
-                        <ResizableTh
-                          width={columnWidths.service}
-                          onResize={(w) => onUpdateColumnWidth("service", w)}
-                          isWide
-                        >
-                          Dịch vụ / Vật tư (mở rộng)
-                        </ResizableTh>
-                        <ResizableTh
-                          width={columnWidths.group}
-                          onResize={(w) => onUpdateColumnWidth("group", w)}
-                        >
-                          Mã nhóm
-                        </ResizableTh>
-                        <ResizableTh
-                          width={columnWidths.ttThau}
-                          onResize={(w) => onUpdateColumnWidth("ttThau", w)}
-                        >
-                          TT_THAU
-                        </ResizableTh>
-                        <ResizableTh
-                          width={columnWidths.khoa}
-                          onResize={(w) => onUpdateColumnWidth("khoa", w)}
-                        >
-                          Khoa
-                        </ResizableTh>
-                        <ResizableTh
-                          width={columnWidths.ngayYl}
-                          onResize={(w) => onUpdateColumnWidth("ngayYl", w)}
-                        >
-                          NGAY_YL
-                        </ResizableTh>
-                        <ResizableTh
-                          width={columnWidths.ngayThYl}
-                          onResize={(w) => onUpdateColumnWidth("ngayThYl", w)}
-                        >
-                          NGAY_TH_YL
-                        </ResizableTh>
-                        <ResizableTh
-                          width={columnWidths.ngayKq}
-                          onResize={(w) => onUpdateColumnWidth("ngayKq", w)}
-                        >
-                          NGAY_KQ
-                        </ResizableTh>
-                        <ResizableTh
-                          width={columnWidths.fileName}
-                          onResize={(w) => onUpdateColumnWidth("fileName", w)}
-                        >
-                          File
-                        </ResizableTh>
-                        <ResizableTh
-                          width={columnWidths.stt}
-                          onResize={(w) => onUpdateColumnWidth("stt", w)}
-                        >
-                          STT
-                        </ResizableTh>
+                        {TAB_COLUMNS.XML3.filter(
+                          (col) => currentTabCols.visible[col.key] !== false,
+                        ).map((col) => (
+                          <ResizableTh
+                            key={col.key}
+                            width={currentTabCols.widths[col.key] || col.defaultWidth}
+                            onResize={(w) => onUpdateColumnWidth(col.key, w)}
+                            isCompact={col.isCompact}
+                            isWide={col.isWide}
+                          >
+                            {col.label}
+                          </ResizableTh>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
@@ -1096,7 +1212,7 @@ function CheckerView({
                         <WarningRow
                           key={`${record.fileName}-${record.MA_LK}-${record.STT}-${index}`}
                           record={record}
-                          columnWidths={columnWidths}
+                          tabCols={currentTabCols}
                           onAddServiceRule={onAddServiceRule}
                         />
                       ))}
@@ -1108,7 +1224,10 @@ function CheckerView({
               <ValidationTable
                 source={alertTab}
                 warnings={xmlWarnings[alertTab]}
+                tabCols={currentTabCols}
+                onUpdateColumnWidth={onUpdateColumnWidth}
                 onExport={() => onExportWarnings(alertTab, xmlWarnings[alertTab])}
+                onAddExcludedDrug={onAddExcludedDrug}
               />
             )}
           </section>
@@ -1129,6 +1248,9 @@ function CheckerView({
   );
 }
 
+// ---------------------------------------------------------------------------
+// RESIZABLE TH
+// ---------------------------------------------------------------------------
 function ResizableTh({
   children,
   width,
@@ -1170,6 +1292,7 @@ function ResizableTh({
       style={{
         width: width ? `${width}px` : undefined,
         minWidth: width ? `${width}px` : undefined,
+        maxWidth: width ? `${width}px` : undefined,
       }}
       className={`relative px-3 py-3 font-bold border-r border-slate-200 last:border-r-0 ${
         isCompact ? "bg-amber-50/70 text-amber-900" : isWide ? "bg-teal-50/70 text-teal-900" : ""
@@ -1185,13 +1308,16 @@ function ResizableTh({
   );
 }
 
+// ---------------------------------------------------------------------------
+// WARNING ROW (XML3)
+// ---------------------------------------------------------------------------
 function WarningRow({
   record,
-  columnWidths,
+  tabCols,
   onAddServiceRule,
 }: {
   record: Xml3Record;
-  columnWidths: ColumnWidths;
+  tabCols: TabColumnState;
   onAddServiceRule: (record: Xml3Record, maxMinutes: number | null) => void;
 }) {
   const isWarning =
@@ -1216,152 +1342,203 @@ function WarningRow({
               ? "ĐẠT"
               : record.status.toUpperCase();
 
+  const isVisible = (key: string) => tabCols.visible[key] !== false;
+  const colWidth = (key: string, def: number) => ({
+    width: `${tabCols.widths[key] || def}px`,
+    minWidth: `${tabCols.widths[key] || def}px`,
+    maxWidth: `${tabCols.widths[key] || def}px`,
+  });
+
   return (
     <tr
       className={`border-t border-slate-200/70 align-top ${
         isWarning ? "bg-rose-50/60 hover:bg-rose-100/50" : "hover:bg-slate-50/80"
       }`}
     >
-      <td style={{ width: columnWidths.status }} className="px-3 py-2.5">
-        <span
-          className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-black ${
-            isWarning ? "bg-rose-600 text-white" : "bg-slate-100 text-slate-600"
-          }`}
+      {isVisible("status") && (
+        <td style={colWidth("status", 85)} className="px-3 py-2.5">
+          <span
+            className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-black ${
+              isWarning ? "bg-rose-600 text-white" : "bg-slate-100 text-slate-600"
+            }`}
+          >
+            {label}
+          </span>
+        </td>
+      )}
+      {isVisible("maLk") && (
+        <td
+          style={colWidth("maLk", 125)}
+          className="px-3 py-2.5 font-mono font-bold text-teal-800 break-all"
         >
-          {label}
-        </span>
-      </td>
-      <td
-        style={{ width: columnWidths.maLk }}
-        className="px-3 py-2.5 font-mono font-bold text-teal-800 break-all"
-      >
-        {record.MA_LK || "(trống)"}
-      </td>
-      <td style={{ width: columnWidths.hoTen }} className="px-3 py-2.5">
-        <div className="font-semibold text-slate-800 break-words leading-tight">
-          {record.HO_TEN || "Chưa có họ tên"}
-        </div>
-      </td>
-      <td
-        style={{ width: columnWidths.maBn }}
-        className="px-3 py-2.5 font-mono font-bold break-all"
-      >
-        {record.MA_BN || "(chưa nối)"}
-      </td>
-      <td
-        style={{ width: columnWidths.duration }}
-        className="px-3 py-2.5 text-right font-black text-slate-800"
-      >
-        {record.durationMinutes === null ? "—" : record.durationMinutes.toLocaleString("vi-VN")}
-      </td>
-      <td
-        style={{ width: columnWidths.overLimit }}
-        className="px-3 py-2.5 text-right font-bold text-rose-700"
-      >
-        {record.status === "warning" && record.durationMinutes !== null
-          ? `${(record.durationMinutes - (record.serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES)).toLocaleString("vi-VN")} ph`
-          : "—"}
-      </td>
-      <td style={{ width: columnWidths.detail }} className="px-3 py-2.5 text-slate-600">
-        <div className="text-xs leading-relaxed break-words">{record.detail}</div>
-        {record.MA_DICH_VU && (
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            <button
-              type="button"
-              className="rounded border border-rose-200 bg-white px-1.5 py-0.5 text-[9px] font-bold text-rose-700 hover:bg-rose-50"
-              onClick={() => onAddServiceRule(record, null)}
-              title="Loại trừ dịch vụ này khỏi cảnh báo thời lượng"
-            >
-              Loại trừ
-            </button>
-            <button
-              type="button"
-              className="rounded border border-teal-200 bg-white px-1.5 py-0.5 text-[9px] font-bold text-teal-700 hover:bg-teal-50"
-              onClick={() => {
-                const value = window.prompt(
-                  `Ngưỡng thời gian tối đa cho [${record.MA_DICH_VU}] (phút):`,
-                  String(record.serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES),
-                );
-                if (value === null) return;
-                const maxMinutes = Number(value);
-                if (Number.isFinite(maxMinutes) && maxMinutes >= 0) {
-                  onAddServiceRule(record, maxMinutes);
-                }
-              }}
-              title="Đặt ngưỡng số phút tối đa riêng"
-            >
-              Đặt ngưỡng
-            </button>
+          {record.MA_LK || "(trống)"}
+        </td>
+      )}
+      {isVisible("hoTen") && (
+        <td style={colWidth("hoTen", 155)} className="px-3 py-2.5">
+          <div className="font-semibold text-slate-800 break-words leading-tight">
+            {record.HO_TEN || "Chưa có họ tên"}
           </div>
-        )}
-      </td>
-      <td style={{ width: columnWidths.service }} className="px-3 py-2.5">
-        <div className="font-semibold text-slate-900 leading-snug break-words">
-          {record.TEN_DICH_VU || record.TEN_VAT_TU || "(chưa có tên)"}
-        </div>
-        <div className="mt-1 font-mono text-[10px] text-slate-500">
-          DV: <span className="text-teal-700 font-bold">{record.MA_DICH_VU || "—"}</span>
-          {record.MA_VAT_TU && ` · VT: ${record.MA_VAT_TU}`}
-        </div>
-      </td>
-      <td
-        style={{ width: columnWidths.group }}
-        className="px-3 py-2.5 font-mono text-center font-bold"
-      >
-        {record.MA_NHOM || "—"}
-      </td>
-      <td style={{ width: columnWidths.ttThau }} className="px-3 py-2.5 font-mono text-xs">
-        {record.TT_THAU ? (
-          <span className="text-slate-800 break-all">{record.TT_THAU}</span>
-        ) : (
-          <span className="text-rose-600 font-semibold italic">(trống)</span>
-        )}
-      </td>
-      <td style={{ width: columnWidths.khoa }} className="px-3 py-2.5 font-mono text-slate-700">
-        {record.MA_KHOA || "—"}
-      </td>
-      <td
-        style={{ width: columnWidths.ngayYl }}
-        className="whitespace-nowrap px-3 py-2.5 font-mono text-[11px]"
-      >
-        {formatXmlDateTime(record.NGAY_YL) || record.NGAY_YL || "—"}
-      </td>
-      <td
-        style={{ width: columnWidths.ngayThYl }}
-        className="whitespace-nowrap px-3 py-2.5 font-mono text-[11px]"
-      >
-        {formatXmlDateTime(record.NGAY_TH_YL) || record.NGAY_TH_YL || "—"}
-      </td>
-      <td
-        style={{ width: columnWidths.ngayKq }}
-        className="whitespace-nowrap px-3 py-2.5 font-mono text-[11px]"
-      >
-        {formatXmlDateTime(record.NGAY_KQ) || record.NGAY_KQ || "—"}
-      </td>
-      <td style={{ width: columnWidths.fileName }} className="px-3 py-2.5">
-        <div className="truncate font-mono text-[10px] text-slate-500" title={record.fileName}>
-          {record.fileName}
-        </div>
-      </td>
-      <td
-        style={{ width: columnWidths.stt }}
-        className="px-3 py-2.5 font-mono text-slate-500 text-center"
-      >
-        {record.STT || "—"}
-      </td>
+        </td>
+      )}
+      {isVisible("maBn") && (
+        <td style={colWidth("maBn", 110)} className="px-3 py-2.5 font-mono font-bold break-all">
+          {record.MA_BN || "(chưa nối)"}
+        </td>
+      )}
+      {isVisible("duration") && (
+        <td
+          style={colWidth("duration", 75)}
+          className="px-3 py-2.5 text-right font-black text-slate-800"
+        >
+          {record.durationMinutes === null ? "—" : record.durationMinutes.toLocaleString("vi-VN")}
+        </td>
+      )}
+      {isVisible("overLimit") && (
+        <td
+          style={colWidth("overLimit", 90)}
+          className="px-3 py-2.5 text-right font-bold text-rose-700"
+        >
+          {record.status === "warning" && record.durationMinutes !== null
+            ? `${(record.durationMinutes - (record.serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES)).toLocaleString("vi-VN")} ph`
+            : "—"}
+        </td>
+      )}
+      {isVisible("detail") && (
+        <td style={colWidth("detail", 230)} className="px-3 py-2.5 text-slate-600">
+          <div className="text-xs leading-relaxed break-words">{record.detail}</div>
+          {record.MA_DICH_VU && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              <button
+                type="button"
+                className="rounded border border-rose-200 bg-white px-1.5 py-0.5 text-[9px] font-bold text-rose-700 hover:bg-rose-50"
+                onClick={() => onAddServiceRule(record, null)}
+                title="Loại trừ dịch vụ này khỏi cảnh báo thời lượng"
+              >
+                Loại trừ
+              </button>
+              <button
+                type="button"
+                className="rounded border border-teal-200 bg-white px-1.5 py-0.5 text-[9px] font-bold text-teal-700 hover:bg-teal-50"
+                onClick={() => {
+                  const value = window.prompt(
+                    `Ngưỡng thời gian tối đa cho [${record.MA_DICH_VU}] (phút):`,
+                    String(record.serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES),
+                  );
+                  if (value === null) return;
+                  const maxMinutes = Number(value);
+                  if (Number.isFinite(maxMinutes) && maxMinutes >= 0) {
+                    onAddServiceRule(record, maxMinutes);
+                  }
+                }}
+                title="Đặt ngưỡng số phút tối đa riêng"
+              >
+                Đặt ngưỡng
+              </button>
+            </div>
+          )}
+        </td>
+      )}
+      {isVisible("service") && (
+        <td style={colWidth("service", 380)} className="px-3 py-2.5">
+          <div className="font-semibold text-slate-900 leading-snug break-words">
+            {record.TEN_DICH_VU || record.TEN_VAT_TU || "(chưa có tên)"}
+          </div>
+          <div className="mt-1 font-mono text-[10px] text-slate-500">
+            DV: <span className="text-teal-700 font-bold">{record.MA_DICH_VU || "—"}</span>
+            {record.MA_VAT_TU && ` · VT: ${record.MA_VAT_TU}`}
+          </div>
+        </td>
+      )}
+      {isVisible("group") && (
+        <td style={colWidth("group", 75)} className="px-3 py-2.5 font-mono text-center font-bold">
+          {record.MA_NHOM || "—"}
+        </td>
+      )}
+      {isVisible("ttThau") && (
+        <td style={colWidth("ttThau", 100)} className="px-3 py-2.5 font-mono text-xs">
+          {record.TT_THAU ? (
+            <span className="text-slate-800 break-all">{record.TT_THAU}</span>
+          ) : (
+            <span className="text-rose-600 font-semibold italic">(trống)</span>
+          )}
+        </td>
+      )}
+      {isVisible("khoa") && (
+        <td style={colWidth("khoa", 75)} className="px-3 py-2.5 font-mono text-slate-700">
+          {record.MA_KHOA || "—"}
+        </td>
+      )}
+      {isVisible("ngayYl") && (
+        <td
+          style={colWidth("ngayYl", 130)}
+          className="whitespace-nowrap px-3 py-2.5 font-mono text-[11px]"
+        >
+          {formatXmlDateTime(record.NGAY_YL) || record.NGAY_YL || "—"}
+        </td>
+      )}
+      {isVisible("ngayThYl") && (
+        <td
+          style={colWidth("ngayThYl", 130)}
+          className="whitespace-nowrap px-3 py-2.5 font-mono text-[11px]"
+        >
+          {formatXmlDateTime(record.NGAY_TH_YL) || record.NGAY_TH_YL || "—"}
+        </td>
+      )}
+      {isVisible("ngayKq") && (
+        <td
+          style={colWidth("ngayKq", 130)}
+          className="whitespace-nowrap px-3 py-2.5 font-mono text-[11px]"
+        >
+          {formatXmlDateTime(record.NGAY_KQ) || record.NGAY_KQ || "—"}
+        </td>
+      )}
+      {isVisible("fileName") && (
+        <td style={colWidth("fileName", 120)} className="px-3 py-2.5">
+          <div className="truncate font-mono text-[10px] text-slate-500" title={record.fileName}>
+            {record.fileName}
+          </div>
+        </td>
+      )}
+      {isVisible("stt") && (
+        <td
+          style={colWidth("stt", 60)}
+          className="px-3 py-2.5 font-mono text-slate-500 text-center"
+        >
+          {record.STT || "—"}
+        </td>
+      )}
     </tr>
   );
 }
 
+// ---------------------------------------------------------------------------
+// VALIDATION TABLE (XML1, XML2, XML4)
+// ---------------------------------------------------------------------------
 function ValidationTable({
   source,
   warnings,
+  tabCols,
+  onUpdateColumnWidth,
   onExport,
+  onAddExcludedDrug,
 }: {
   source: AlertTab;
   warnings: ValidationWarning[];
+  tabCols: TabColumnState;
+  onUpdateColumnWidth: (key: string, width: number) => void;
   onExport: () => void;
+  onAddExcludedDrug: (code: string, name: string) => void;
 }) {
+  const isVisible = (key: string) => tabCols.visible[key] !== false;
+  const colWidth = (key: string, def: number) => ({
+    width: `${tabCols.widths[key] || def}px`,
+    minWidth: `${tabCols.widths[key] || def}px`,
+    maxWidth: `${tabCols.widths[key] || def}px`,
+  });
+
+  const columns = TAB_COLUMNS[source] || [];
+
   return (
     <div>
       <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-3 md:px-6 bg-slate-50/50">
@@ -1383,22 +1560,20 @@ function ValidationTable({
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="min-w-[980px] w-full text-left text-xs">
-            <thead className="bg-slate-100 text-[11px] uppercase tracking-wide text-slate-600">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead className="bg-slate-100 text-[11px] uppercase tracking-wide text-slate-600 select-none">
               <tr>
-                {[
-                  "Chi tiết thứ",
-                  "MA_LK",
-                  "HO_TEN",
-                  "MA_BN",
-                  source === "XML2" ? "Mã thuốc" : "Mã dịch vụ",
-                  source === "XML2" ? "Tên thuốc" : "Tên dịch vụ",
-                  "Nội dung cảnh báo",
-                ].map((heading) => (
-                  <th key={heading} className="whitespace-nowrap px-4 py-3 font-bold">
-                    {heading}
-                  </th>
-                ))}
+                {columns
+                  .filter((col) => isVisible(col.key))
+                  .map((col) => (
+                    <ResizableTh
+                      key={col.key}
+                      width={tabCols.widths[col.key] || col.defaultWidth}
+                      onResize={(w) => onUpdateColumnWidth(col.key, w)}
+                    >
+                      {col.label}
+                    </ResizableTh>
+                  ))}
               </tr>
             </thead>
             <tbody>
@@ -1407,27 +1582,187 @@ function ValidationTable({
                   key={`${source}-${warning.MA_LK}-${warning.detailIndex}-${index}`}
                   className="border-t border-slate-100 bg-rose-50/60 hover:bg-rose-100/50 align-top"
                 >
-                  <td className="px-4 py-3 font-mono font-bold">{warning.detailIndex}</td>
-                  <td className="px-4 py-3 font-mono font-bold text-teal-800">
-                    {warning.MA_LK || "—"}
-                  </td>
-                  <td className="px-4 py-3 font-semibold text-slate-800">
-                    {warning.HO_TEN || "Chưa có họ tên"}
-                  </td>
-                  <td className="px-4 py-3 font-mono font-bold">{warning.MA_BN || "—"}</td>
-                  <td className="px-4 py-3 font-mono">{warning.MA_DICH_VU || "—"}</td>
-                  <td className="max-w-[260px] px-4 py-3 font-medium text-slate-800">
-                    {warning.TEN_DICH_VU || "—"}
-                  </td>
-                  <td className="max-w-[520px] px-4 py-3 text-slate-700 font-semibold text-rose-800">
-                    {warning.message}
-                  </td>
+                  {source === "XML2" && isVisible("action") && (
+                    <td style={colWidth("action", 115)} className="px-3 py-3">
+                      {warning.MA_DICH_VU && (
+                        <button
+                          type="button"
+                          onClick={() => onAddExcludedDrug(warning.MA_DICH_VU, warning.TEN_DICH_VU)}
+                          className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-800 hover:bg-amber-100 shadow-sm whitespace-nowrap"
+                          title="Thêm thuốc này vào danh mục loại trừ XML2"
+                        >
+                          🛡️ Loại trừ thuốc
+                        </button>
+                      )}
+                    </td>
+                  )}
+                  {isVisible("detailIndex") && (
+                    <td
+                      style={colWidth("detailIndex", 95)}
+                      className="px-3 py-3 font-mono font-bold"
+                    >
+                      {warning.detailIndex}
+                    </td>
+                  )}
+                  {isVisible("maLk") && (
+                    <td
+                      style={colWidth("maLk", 130)}
+                      className="px-3 py-3 font-mono font-bold text-teal-800 break-all"
+                    >
+                      {warning.MA_LK || "—"}
+                    </td>
+                  )}
+                  {isVisible("hoTen") && (
+                    <td
+                      style={colWidth("hoTen", 170)}
+                      className="px-3 py-3 font-semibold text-slate-800 break-words"
+                    >
+                      {warning.HO_TEN || "Chưa có họ tên"}
+                    </td>
+                  )}
+                  {isVisible("maBn") && (
+                    <td
+                      style={colWidth("maBn", 120)}
+                      className="px-3 py-3 font-mono font-bold break-all"
+                    >
+                      {warning.MA_BN || "—"}
+                    </td>
+                  )}
+                  {isVisible(source === "XML2" ? "maThuoc" : "maDichVu") && (
+                    <td
+                      style={colWidth(source === "XML2" ? "maThuoc" : "maDichVu", 130)}
+                      className="px-3 py-3 font-mono"
+                    >
+                      {warning.MA_DICH_VU || "—"}
+                    </td>
+                  )}
+                  {isVisible(source === "XML2" ? "tenThuoc" : "tenDichVu") && (
+                    <td
+                      style={colWidth(source === "XML2" ? "tenThuoc" : "tenDichVu", 220)}
+                      className="px-3 py-3 font-medium text-slate-800 break-words"
+                    >
+                      {warning.TEN_DICH_VU || "—"}
+                    </td>
+                  )}
+                  {isVisible("message") && (
+                    <td
+                      style={colWidth("message", 400)}
+                      className="px-3 py-3 text-slate-700 font-semibold text-rose-800 break-words leading-relaxed"
+                    >
+                      {warning.message}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// COLUMN CUSTOMIZER MODAL
+// ---------------------------------------------------------------------------
+function ColumnCustomizerModal({
+  activeTab,
+  tabColumns,
+  tabState,
+  onToggleColumn,
+  onSetAll,
+  onResetTab,
+  onClose,
+}: {
+  activeTab: AlertTab;
+  tabColumns: ColumnDef[];
+  tabState: TabColumnState;
+  onToggleColumn: (key: string) => void;
+  onSetAll: (isVisible: boolean) => void;
+  onResetTab: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+      <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+              <span>⚙️</span> Tùy chỉnh cột hiển thị ·{" "}
+              <span className="text-teal-700">{activeTab}</span>
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Chọn các cột muốn hiển thị hoặc ẩn trong bảng {activeTab}.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-xl border border-slate-200 p-2 text-slate-400 hover:bg-slate-50 hover:text-slate-700"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="my-4 flex items-center justify-between gap-2 border-b border-slate-100 pb-3 text-xs">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => onSetAll(true)}
+              className="rounded-lg bg-teal-50 px-2.5 py-1 text-teal-800 font-bold hover:bg-teal-100"
+            >
+              ✓ Hiện tất cả
+            </button>
+            <button
+              type="button"
+              onClick={() => onSetAll(false)}
+              className="rounded-lg bg-slate-100 px-2.5 py-1 text-slate-600 font-semibold hover:bg-slate-200"
+            >
+              Ẩn tất cả
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={onResetTab}
+            className="rounded-lg border border-slate-300 px-2.5 py-1 text-slate-600 font-semibold hover:bg-slate-50"
+          >
+            ↺ Đặt lại cột mặc định
+          </button>
+        </div>
+
+        <div className="max-h-72 overflow-y-auto pr-1 grid grid-cols-2 gap-2">
+          {tabColumns.map((col) => {
+            const checked = tabState.visible[col.key] !== false;
+            return (
+              <label
+                key={col.key}
+                className={`flex cursor-pointer items-center gap-2.5 rounded-xl border p-2.5 text-xs transition ${
+                  checked
+                    ? "border-teal-300 bg-teal-50/50 text-teal-950 font-bold"
+                    : "border-slate-200 bg-slate-50 text-slate-400"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => onToggleColumn(col.key)}
+                  className="accent-teal-700 h-4 w-4"
+                />
+                <span className="truncate">{col.label}</span>
+              </label>
+            );
+          })}
+        </div>
+
+        <div className="mt-5 pt-3 border-t border-slate-100 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl bg-teal-700 px-5 py-2 text-xs font-bold text-white hover:bg-teal-800 shadow-sm"
+          >
+            Hoàn tất
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1477,43 +1812,51 @@ function Metric({
 }
 
 // ---------------------------------------------------------------------------
-// LIBRARY VIEW (DEDICATED TAB)
+// LIBRARY VIEW (DEDICATED TAB: SERVICE RULES & DRUG RULES)
 // ---------------------------------------------------------------------------
 function LibraryView({
-  rules,
-  onSaveRules,
-  onAddRule,
-  onRemoveRule,
+  serviceRules,
+  drugRules,
+  onSaveServiceRules,
+  onAddServiceRule,
+  onRemoveServiceRule,
+  onSaveDrugRules,
+  onAddDrugRule,
+  onRemoveDrugRule,
   onExportBackup,
   onSendTelegramBackup,
   hasTelegramConfig,
 }: {
-  rules: ServiceRule[];
-  onSaveRules: (rules: ServiceRule[]) => Promise<void>;
-  onAddRule: (rule: ServiceRule) => Promise<void>;
-  onRemoveRule: (code: string) => Promise<void>;
+  serviceRules: ServiceRule[];
+  drugRules: DrugRule[];
+  onSaveServiceRules: (rules: ServiceRule[]) => Promise<void>;
+  onAddServiceRule: (rule: ServiceRule) => Promise<void>;
+  onRemoveServiceRule: (code: string) => Promise<void>;
+  onSaveDrugRules: (rules: DrugRule[]) => Promise<void>;
+  onAddDrugRule: (code: string, name: string) => Promise<void>;
+  onRemoveDrugRule: (code: string) => Promise<void>;
   onExportBackup: () => void;
   onSendTelegramBackup: () => void;
   hasTelegramConfig: boolean;
 }) {
-  const [search, setSearch] = useState("");
+  const [subTab, setSubTab] = useState<"service" | "drug">("service");
+
+  // Service rule state
+  const [serviceSearch, setServiceSearch] = useState("");
   const [filterType, setFilterType] = useState<"all" | "excluded" | "custom">("all");
-  const [newCode, setNewCode] = useState("");
-  const [newName, setNewName] = useState("");
+  const [newServiceCode, setNewServiceCode] = useState("");
+  const [newServiceName, setNewServiceName] = useState("");
   const [newRuleType, setNewRuleType] = useState<"exclude" | "limit">("exclude");
   const [newMinutes, setNewMinutes] = useState("120");
-
-  // Inline editing state
-  const [editingCode, setEditingCode] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editType, setEditType] = useState<"exclude" | "limit">("exclude");
+  const [editingServiceCode, setEditingServiceCode] = useState<string | null>(null);
+  const [editServiceName, setEditServiceName] = useState("");
+  const [editServiceType, setEditServiceType] = useState<"exclude" | "limit">("exclude");
   const [editMinutes, setEditMinutes] = useState("");
 
-  // Testing tool simulator state
+  // Service simulator state
   const [testCode, setTestCode] = useState("");
   const [testDuration, setTestDuration] = useState("80");
   const [testResult, setTestResult] = useState<{
-    matchedRule?: ServiceRule;
     appliedLimit: number | null;
     isExcluded: boolean;
     isWarning: boolean;
@@ -1521,9 +1864,24 @@ function LibraryView({
     message: string;
   } | null>(null);
 
-  const filteredRules = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return rules.filter((r) => {
+  // Drug rule state
+  const [drugSearch, setDrugSearch] = useState("");
+  const [newDrugCode, setNewDrugCode] = useState("");
+  const [newDrugName, setNewDrugName] = useState("");
+  const [editingDrugCode, setEditingDrugCode] = useState<string | null>(null);
+  const [editDrugName, setEditDrugName] = useState("");
+
+  // Drug simulator state
+  const [testDrugCode, setTestDrugCode] = useState("");
+  const [testDrugResult, setTestDrugResult] = useState<{
+    isExcluded: boolean;
+    message: string;
+  } | null>(null);
+
+  // Filtered lists
+  const filteredServices = useMemo(() => {
+    const q = serviceSearch.trim().toLowerCase();
+    return serviceRules.filter((r) => {
       const matchSearch =
         !q || r.MA_DICH_VU.toLowerCase().includes(q) || r.TEN_DICH_VU.toLowerCase().includes(q);
       const matchFilter =
@@ -1532,61 +1890,87 @@ function LibraryView({
         (filterType === "custom" && typeof r.maxMinutes === "number");
       return matchSearch && matchFilter;
     });
-  }, [rules, search, filterType]);
+  }, [serviceRules, serviceSearch, filterType]);
 
-  const excludedCount = useMemo(() => rules.filter((r) => r.maxMinutes === null).length, [rules]);
+  const filteredDrugs = useMemo(() => {
+    const q = drugSearch.trim().toLowerCase();
+    return drugRules.filter(
+      (r) => !q || r.MA_THUOC.toLowerCase().includes(q) || r.TEN_THUOC.toLowerCase().includes(q),
+    );
+  }, [drugRules, drugSearch]);
+
+  const excludedCount = useMemo(
+    () => serviceRules.filter((r) => r.maxMinutes === null).length,
+    [serviceRules],
+  );
   const customLimitCount = useMemo(
-    () => rules.filter((r) => typeof r.maxMinutes === "number").length,
-    [rules],
+    () => serviceRules.filter((r) => typeof r.maxMinutes === "number").length,
+    [serviceRules],
   );
 
-  const handleAddNew = async (e: React.FormEvent) => {
+  const handleAddServiceSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanCode = newCode.trim();
+    const cleanCode = newServiceCode.trim();
     if (!cleanCode) return;
     const rule: ServiceRule = {
       MA_DICH_VU: cleanCode,
-      TEN_DICH_VU: newName.trim(),
+      TEN_DICH_VU: newServiceName.trim(),
       maxMinutes: newRuleType === "exclude" ? null : Math.max(0, Number(newMinutes) || 70),
     };
-    await onAddRule(rule);
-    setNewCode("");
-    setNewName("");
+    await onAddServiceRule(rule);
+    setNewServiceCode("");
+    setNewServiceName("");
   };
 
-  const startEdit = (rule: ServiceRule) => {
-    setEditingCode(rule.MA_DICH_VU);
-    setEditName(rule.TEN_DICH_VU);
-    setEditType(rule.maxMinutes === null ? "exclude" : "limit");
-    setEditMinutes(rule.maxMinutes === null ? "120" : String(rule.maxMinutes));
+  const handleAddDrugSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanCode = newDrugCode.trim();
+    if (!cleanCode) return;
+    await onAddDrugRule(cleanCode, newDrugName.trim());
+    setNewDrugCode("");
+    setNewDrugName("");
   };
 
-  const saveEdit = async () => {
-    if (!editingCode) return;
-    const updated = rules.map((r) => {
-      if (r.MA_DICH_VU === editingCode) {
+  const saveServiceEdit = async () => {
+    if (!editingServiceCode) return;
+    const updated = serviceRules.map((r) => {
+      if (r.MA_DICH_VU === editingServiceCode) {
         return {
           ...r,
-          TEN_DICH_VU: editName.trim(),
-          maxMinutes: editType === "exclude" ? null : Math.max(0, Number(editMinutes) || 70),
+          TEN_DICH_VU: editServiceName.trim(),
+          maxMinutes: editServiceType === "exclude" ? null : Math.max(0, Number(editMinutes) || 70),
         };
       }
       return r;
     });
-    await onSaveRules(updated);
-    setEditingCode(null);
+    await onSaveServiceRules(updated);
+    setEditingServiceCode(null);
   };
 
-  const handleRunTest = (e: React.FormEvent) => {
+  const saveDrugEdit = async () => {
+    if (!editingDrugCode) return;
+    const updated = drugRules.map((r) => {
+      if (r.MA_THUOC === editingDrugCode) {
+        return {
+          ...r,
+          TEN_THUOC: editDrugName.trim(),
+        };
+      }
+      return r;
+    });
+    await onSaveDrugRules(updated);
+    setEditingDrugCode(null);
+  };
+
+  const handleRunServiceTest = (e: React.FormEvent) => {
     e.preventDefault();
     const code = testCode.trim();
     const duration = Number(testDuration) || 0;
-    const matched = rules.find((r) => r.MA_DICH_VU.toLowerCase() === code.toLowerCase());
+    const matched = serviceRules.find((r) => r.MA_DICH_VU.toLowerCase() === code.toLowerCase());
 
     if (matched) {
       if (matched.maxMinutes === null) {
         setTestResult({
-          matchedRule: matched,
           appliedLimit: null,
           isExcluded: true,
           isWarning: false,
@@ -1595,31 +1979,47 @@ function LibraryView({
         });
       } else {
         const limit = matched.maxMinutes;
-        const isWarning = duration > limit;
+        const isWarn = duration > limit;
         const over = Math.max(0, duration - limit);
         setTestResult({
-          matchedRule: matched,
           appliedLimit: limit,
           isExcluded: false,
-          isWarning,
+          isWarning: isWarn,
           overMinutes: over,
-          message: isWarning
+          message: isWarn
             ? `CẢNH BÁO: Vượt ${over} phút so với ngưỡng riêng ${limit} phút.`
             : `ĐẠT: Nằm trong ngưỡng riêng ${limit} phút.`,
         });
       }
     } else {
       const limit = DURATION_LIMIT_MINUTES;
-      const isWarning = duration > limit;
+      const isWarn = duration > limit;
       const over = Math.max(0, duration - limit);
       setTestResult({
         appliedLimit: limit,
         isExcluded: false,
-        isWarning,
+        isWarning: isWarn,
         overMinutes: over,
-        message: isWarning
-          ? `CẢNH BÁO (Mặc định): Vượt ${over} phút so với ngưỡng chuẩn ${limit} phút (dịch vụ chưa có trong thư viện).`
+        message: isWarn
+          ? `CẢNH BÁO (Mặc định): Vượt ${over} phút so với ngưỡng chuẩn ${limit} phút.`
           : `ĐẠT (Mặc định): Nằm trong ngưỡng chuẩn ${limit} phút.`,
+      });
+    }
+  };
+
+  const handleRunDrugTest = (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = testDrugCode.trim();
+    const matched = drugRules.find((r) => r.MA_THUOC.toLowerCase() === code.toLowerCase());
+    if (matched && matched.excluded) {
+      setTestDrugResult({
+        isExcluded: true,
+        message: `Thuốc [${matched.MA_THUOC}] ${matched.TEN_THUOC ? `(${matched.TEN_THUOC})` : ""} ĐƯỢC LOẠI TRỪ khỏi cảnh báo thiếu TT_THAU XML2.`,
+      });
+    } else {
+      setTestDrugResult({
+        isExcluded: false,
+        message: `Thuốc [${code}] CHƯA LOẠI TRỪ. Nếu thiếu TT_THAU trong XML2, hệ thống sẽ cảnh báo.`,
       });
     }
   };
@@ -1630,15 +2030,14 @@ function LibraryView({
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div>
             <div className="text-xs font-black uppercase tracking-wider text-teal-700">
-              Quản lý quy tắc dịch vụ
+              Quản lý danh mục & quy tắc
             </div>
             <h2 className="mt-1 text-2xl font-black text-slate-900">
-              Thư viện Dịch vụ kỹ thuật & Vật tư y tế
+              Thư viện Dịch vụ kỹ thuật & Thuốc loại trừ XML2
             </h2>
             <p className="mt-1 text-sm text-slate-500 max-w-2xl">
-              Cấu hình các dịch vụ đặc thù cần loại trừ cảnh báo thời lượng hoặc đặt ngưỡng thời
-              gian thực hiện riêng. Dữ liệu được lưu trong trình duyệt và tự động áp dụng khi phân
-              tích.
+              Cấu hình các dịch vụ kỹ thuật cần loại trừ/đặt ngưỡng riêng và danh mục các mã thuốc
+              được loại trừ khỏi cảnh báo thiếu TT_THAU ở XML2.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -1659,352 +2058,611 @@ function LibraryView({
           </div>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-teal-200 bg-teal-50/50 p-4">
-            <div className="text-xs font-bold text-teal-800 uppercase">Tổng quy tắc</div>
-            <div className="mt-1 text-2xl font-black text-teal-900">{rules.length}</div>
-            <div className="mt-1 text-xs text-slate-500">Dịch vụ đã lưu trong thư viện</div>
-          </div>
-          <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4">
-            <div className="text-xs font-bold text-amber-800 uppercase">Loại trừ hoàn toàn</div>
-            <div className="mt-1 text-2xl font-black text-amber-900">{excludedCount}</div>
-            <div className="mt-1 text-xs text-slate-500">Không bao giờ tạo cảnh báo thời lượng</div>
-          </div>
-          <div className="rounded-2xl border border-sky-200 bg-sky-50/50 p-4">
-            <div className="text-xs font-bold text-sky-800 uppercase">Ngưỡng riêng</div>
-            <div className="mt-1 text-2xl font-black text-sky-900">{customLimitCount}</div>
-            <div className="mt-1 text-xs text-slate-500">Áp dụng số phút tối đa tùy chỉnh</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Grid 2 cột: Thêm mới & Simulator */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Form thêm mới */}
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="font-bold text-slate-900 flex items-center gap-2">
-            <span>➕</span> Thêm dịch vụ vào thư viện
-          </h3>
-          <form onSubmit={handleAddNew} className="mt-4 space-y-4 text-xs">
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">
-                Mã dịch vụ (MA_DICH_VU) <span className="text-rose-600">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={newCode}
-                onChange={(e) => setNewCode(e.target.value)}
-                placeholder="VD: 04.0123, C01.002..."
-                className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-sm font-bold text-slate-900 focus:border-teal-500 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">
-                Tên dịch vụ kỹ thuật / Vật tư
-              </label>
-              <input
-                type="text"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="VD: Phẫu thuật nội soi ổ bụng, Chụp CT 128 dãy..."
-                className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">Quy tắc thời lượng</label>
-              <div className="grid grid-cols-2 gap-2">
-                <label
-                  className={`flex cursor-pointer items-center gap-2 rounded-xl border p-3 ${
-                    newRuleType === "exclude"
-                      ? "border-amber-500 bg-amber-50 text-amber-900 font-bold"
-                      : "border-slate-200 bg-slate-50 text-slate-600"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="ruleType"
-                    checked={newRuleType === "exclude"}
-                    onChange={() => setNewRuleType("exclude")}
-                    className="accent-amber-600"
-                  />
-                  <span>Loại trừ cảnh báo</span>
-                </label>
-                <label
-                  className={`flex cursor-pointer items-center gap-2 rounded-xl border p-3 ${
-                    newRuleType === "limit"
-                      ? "border-teal-500 bg-teal-50 text-teal-900 font-bold"
-                      : "border-slate-200 bg-slate-50 text-slate-600"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="ruleType"
-                    checked={newRuleType === "limit"}
-                    onChange={() => setNewRuleType("limit")}
-                    className="accent-teal-600"
-                  />
-                  <span>Đặt ngưỡng riêng</span>
-                </label>
-              </div>
-            </div>
-            {newRuleType === "limit" && (
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Ngưỡng thời gian tối đa (phút)
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  required
-                  value={newMinutes}
-                  onChange={(e) => setNewMinutes(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-sm font-bold text-slate-900 focus:border-teal-500 focus:outline-none"
-                />
-              </div>
-            )}
-            <button
-              type="submit"
-              className="w-full rounded-xl bg-teal-700 py-2.5 text-xs font-bold text-white hover:bg-teal-800 shadow-sm"
-            >
-              Lưu vào Thư viện
-            </button>
-          </form>
+        <div className="mt-6 flex gap-2 border-b border-slate-200 pb-3">
+          <button
+            onClick={() => setSubTab("service")}
+            className={`rounded-xl px-4 py-2 text-xs font-bold transition ${
+              subTab === "service"
+                ? "bg-teal-700 text-white shadow-sm"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            🩺 Dịch vụ kỹ thuật & VTYT ({serviceRules.length})
+          </button>
+          <button
+            onClick={() => setSubTab("drug")}
+            className={`rounded-xl px-4 py-2 text-xs font-bold transition ${
+              subTab === "drug"
+                ? "bg-amber-600 text-white shadow-sm"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            💊 Thuốc loại trừ XML2 ({drugRules.length})
+          </button>
         </div>
 
-        {/* Bộ mô phỏng / kiểm tra thử */}
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="font-bold text-slate-900 flex items-center gap-2">
-            <span>🧪</span> Kiểm tra thử quy tắc (Simulator)
-          </h3>
-          <p className="mt-1 text-xs text-slate-500">
-            Thử nghiệm nhanh xem một mã dịch vụ với thời lượng cụ thể sẽ cho kết quả Đạt hay Cảnh
-            báo.
-          </p>
-          <form onSubmit={handleRunTest} className="mt-4 space-y-4 text-xs">
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">Mã dịch vụ cần thử</label>
-              <input
-                type="text"
-                required
-                value={testCode}
-                onChange={(e) => setTestCode(e.target.value)}
-                placeholder="Nhập mã dịch vụ..."
-                className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-sm font-bold text-slate-900 focus:border-teal-500 focus:outline-none"
-              />
+        {subTab === "service" ? (
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-teal-200 bg-teal-50/50 p-4">
+              <div className="text-xs font-bold text-teal-800 uppercase">Tổng quy tắc DVKT</div>
+              <div className="mt-1 text-2xl font-black text-teal-900">{serviceRules.length}</div>
+              <div className="mt-1 text-xs text-slate-500">Dịch vụ đã lưu trong thư viện</div>
             </div>
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">
-                Thời gian thực tế (phút)
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="1"
-                required
-                value={testDuration}
-                onChange={(e) => setTestDuration(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-sm font-bold text-slate-900 focus:border-teal-500 focus:outline-none"
-              />
-            </div>
-            <button
-              type="submit"
-              className="w-full rounded-xl bg-slate-800 py-2.5 text-xs font-bold text-white hover:bg-slate-900 shadow-sm"
-            >
-              Kiểm tra kết quả
-            </button>
-          </form>
-
-          {testResult && (
-            <div
-              className={`mt-4 rounded-2xl border p-4 text-xs ${
-                testResult.isWarning
-                  ? "border-rose-300 bg-rose-50 text-rose-950"
-                  : testResult.isExcluded
-                    ? "border-amber-300 bg-amber-50 text-amber-950"
-                    : "border-teal-300 bg-teal-50 text-teal-950"
-              }`}
-            >
-              <div className="font-bold text-sm mb-1 flex items-center gap-2">
-                <span>{testResult.isWarning ? "⚠️" : testResult.isExcluded ? "🛡️" : "✅"}</span>
-                <span>
-                  {testResult.isWarning
-                    ? "CẢNH BÁO THỜI LƯỢNG"
-                    : testResult.isExcluded
-                      ? "ĐƯỢC LOẠI TRỪ"
-                      : "ĐẠT YÊU CẦU"}
-                </span>
-              </div>
-              <p className="leading-relaxed">{testResult.message}</p>
-              <div className="mt-2 text-[11px] opacity-80">
-                Ngưỡng áp dụng:{" "}
-                <b>
-                  {testResult.appliedLimit === null
-                    ? "Loại trừ"
-                    : `${testResult.appliedLimit} phút`}
-                </b>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4">
+              <div className="text-xs font-bold text-amber-800 uppercase">Loại trừ hoàn toàn</div>
+              <div className="mt-1 text-2xl font-black text-amber-900">{excludedCount}</div>
+              <div className="mt-1 text-xs text-slate-500">
+                Không bao giờ tạo cảnh báo thời lượng
               </div>
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Bảng danh sách thư viện */}
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col justify-between gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-center">
-          <h3 className="font-bold text-slate-900">
-            Danh sách dịch vụ trong thư viện ({filteredRules.length})
-          </h3>
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tìm theo mã hoặc tên..."
-              className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs focus:border-teal-500 focus:outline-none min-w-[200px]"
-            />
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value as "all" | "excluded" | "custom")}
-              className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs text-slate-700 bg-white focus:outline-none"
-            >
-              <option value="all">Tất cả quy tắc</option>
-              <option value="excluded">Chỉ loại trừ</option>
-              <option value="custom">Chỉ ngưỡng riêng</option>
-            </select>
-          </div>
-        </div>
-
-        {filteredRules.length === 0 ? (
-          <div className="py-12 text-center text-sm text-slate-400">
-            {rules.length === 0
-              ? "Thư viện hiện đang trống. Bạn có thể thêm dịch vụ mới ở form phía trên hoặc bấm 'Loại trừ DV' trong bảng cảnh báo XML3."
-              : "Không tìm thấy dịch vụ nào phù hợp với từ khóa tìm kiếm."}
+            <div className="rounded-2xl border border-sky-200 bg-sky-50/50 p-4">
+              <div className="text-xs font-bold text-sky-800 uppercase">Ngưỡng riêng</div>
+              <div className="mt-1 text-2xl font-black text-sky-900">{customLimitCount}</div>
+              <div className="mt-1 text-xs text-slate-500">Áp dụng số phút tối đa tùy chỉnh</div>
+            </div>
           </div>
         ) : (
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-4 py-3 font-bold">STT</th>
-                  <th className="px-4 py-3 font-bold">Mã dịch vụ</th>
-                  <th className="px-4 py-3 font-bold">Tên dịch vụ</th>
-                  <th className="px-4 py-3 font-bold">Quy tắc thời lượng</th>
-                  <th className="px-4 py-3 font-bold text-right">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRules.map((rule, idx) => {
-                  const isEditing = editingCode === rule.MA_DICH_VU;
-                  return (
-                    <tr
-                      key={rule.MA_DICH_VU}
-                      className={`border-t border-slate-100 ${
-                        isEditing ? "bg-teal-50/60" : "hover:bg-slate-50"
-                      }`}
-                    >
-                      <td className="px-4 py-3 font-mono text-slate-400">{idx + 1}</td>
-                      <td className="px-4 py-3 font-mono font-bold text-teal-800">
-                        {rule.MA_DICH_VU}
-                      </td>
-                      <td className="px-4 py-3 font-semibold text-slate-800">
-                        {isEditing ? (
-                          <input
-                            type="text"
-                            value={editName}
-                            onChange={(e) => setEditName(e.target.value)}
-                            className="w-full rounded-lg border border-teal-400 bg-white px-2 py-1 text-xs"
-                          />
-                        ) : (
-                          rule.TEN_DICH_VU || (
-                            <span className="text-slate-400 italic">(chưa có tên)</span>
-                          )
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {isEditing ? (
-                          <div className="flex items-center gap-2">
-                            <select
-                              value={editType}
-                              onChange={(e) => setEditType(e.target.value as "exclude" | "limit")}
-                              className="rounded-lg border border-teal-400 bg-white px-2 py-1 text-xs"
-                            >
-                              <option value="exclude">Loại trừ</option>
-                              <option value="limit">Ngưỡng số phút</option>
-                            </select>
-                            {editType === "limit" && (
-                              <input
-                                type="number"
-                                min="1"
-                                value={editMinutes}
-                                onChange={(e) => setEditMinutes(e.target.value)}
-                                className="w-20 rounded-lg border border-teal-400 bg-white px-2 py-1 text-xs font-mono"
-                              />
-                            )}
-                          </div>
-                        ) : rule.maxMinutes === null ? (
-                          <span className="inline-block rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800">
-                            🛡️ Loại trừ cảnh báo
-                          </span>
-                        ) : (
-                          <span className="inline-block rounded-full bg-teal-100 px-2.5 py-0.5 text-[11px] font-bold text-teal-800 font-mono">
-                            ⏱ ≤ {rule.maxMinutes} phút
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {isEditing ? (
-                          <div className="flex justify-end gap-1.5">
-                            <button
-                              onClick={saveEdit}
-                              className="rounded-lg bg-teal-700 px-3 py-1 text-xs font-bold text-white hover:bg-teal-800"
-                            >
-                              Lưu
-                            </button>
-                            <button
-                              onClick={() => setEditingCode(null)}
-                              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                            >
-                              Hủy
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex justify-end gap-1.5">
-                            <button
-                              onClick={() => startEdit(rule)}
-                              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                            >
-                              Sửa
-                            </button>
-                            <button
-                              onClick={() => onRemoveRule(rule.MA_DICH_VU)}
-                              className="rounded-lg border border-rose-200 bg-white px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50"
-                            >
-                              Xóa
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4">
+              <div className="text-xs font-bold text-amber-800 uppercase">
+                Tổng mã thuốc loại trừ XML2
+              </div>
+              <div className="mt-1 text-2xl font-black text-amber-900">{drugRules.length}</div>
+              <div className="mt-1 text-xs text-slate-500">
+                Các thuốc này khi thiếu TT_THAU trong XML2 sẽ không bị cảnh báo
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 flex flex-col justify-center">
+              <div className="text-xs font-bold text-slate-700">
+                Loại trừ nhanh từ bảng cảnh báo
+              </div>
+              <div className="mt-1 text-xs text-slate-500">
+                Khi xem tab <b>XML2</b> trong phần kiểm tra, bạn có thể bấm nút{" "}
+                <b>[🛡️ Loại trừ thuốc]</b> trên từng dòng để thêm thuốc vào danh mục này ngay lập
+                tức.
+              </div>
+            </div>
           </div>
         )}
       </div>
+
+      {subTab === "service" ? (
+        <>
+          {/* Grid 2 cột: Thêm mới DVKT & Simulator DVKT */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                <span>➕</span> Thêm dịch vụ vào thư viện
+              </h3>
+              <form onSubmit={handleAddServiceSubmit} className="mt-4 space-y-4 text-xs">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Mã dịch vụ (MA_DICH_VU) <span className="text-rose-600">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newServiceCode}
+                    onChange={(e) => setNewServiceCode(e.target.value)}
+                    placeholder="VD: 04.0123, C01.002..."
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-sm font-bold text-slate-900 focus:border-teal-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Tên dịch vụ kỹ thuật / Vật tư
+                  </label>
+                  <input
+                    type="text"
+                    value={newServiceName}
+                    onChange={(e) => setNewServiceName(e.target.value)}
+                    placeholder="VD: Phẫu thuật nội soi ổ bụng, Chụp CT 128 dãy..."
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Quy tắc thời lượng</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label
+                      className={`flex cursor-pointer items-center gap-2 rounded-xl border p-3 ${
+                        newRuleType === "exclude"
+                          ? "border-amber-500 bg-amber-50 text-amber-900 font-bold"
+                          : "border-slate-200 bg-slate-50 text-slate-600"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="ruleType"
+                        checked={newRuleType === "exclude"}
+                        onChange={() => setNewRuleType("exclude")}
+                        className="accent-amber-600"
+                      />
+                      <span>Loại trừ cảnh báo</span>
+                    </label>
+                    <label
+                      className={`flex cursor-pointer items-center gap-2 rounded-xl border p-3 ${
+                        newRuleType === "limit"
+                          ? "border-teal-500 bg-teal-50 text-teal-900 font-bold"
+                          : "border-slate-200 bg-slate-50 text-slate-600"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="ruleType"
+                        checked={newRuleType === "limit"}
+                        onChange={() => setNewRuleType("limit")}
+                        className="accent-teal-600"
+                      />
+                      <span>Đặt ngưỡng riêng</span>
+                    </label>
+                  </div>
+                </div>
+                {newRuleType === "limit" && (
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Ngưỡng thời gian tối đa (phút)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      required
+                      value={newMinutes}
+                      onChange={(e) => setNewMinutes(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-sm font-bold text-slate-900 focus:border-teal-500 focus:outline-none"
+                    />
+                  </div>
+                )}
+                <button
+                  type="submit"
+                  className="w-full rounded-xl bg-teal-700 py-2.5 text-xs font-bold text-white hover:bg-teal-800 shadow-sm"
+                >
+                  Lưu vào Thư viện
+                </button>
+              </form>
+            </div>
+
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                <span>🧪</span> Kiểm tra thử quy tắc DVKT (Simulator)
+              </h3>
+              <p className="mt-1 text-xs text-slate-500">
+                Thử nghiệm nhanh xem một mã dịch vụ với thời lượng cụ thể sẽ cho kết quả Đạt hay
+                Cảnh báo.
+              </p>
+              <form onSubmit={handleRunServiceTest} className="mt-4 space-y-4 text-xs">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Mã dịch vụ cần thử</label>
+                  <input
+                    type="text"
+                    required
+                    value={testCode}
+                    onChange={(e) => setTestCode(e.target.value)}
+                    placeholder="Nhập mã dịch vụ..."
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-sm font-bold text-slate-900 focus:border-teal-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Thời gian thực tế (phút)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    required
+                    value={testDuration}
+                    onChange={(e) => setTestDuration(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-sm font-bold text-slate-900 focus:border-teal-500 focus:outline-none"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full rounded-xl bg-slate-800 py-2.5 text-xs font-bold text-white hover:bg-slate-900 shadow-sm"
+                >
+                  Kiểm tra kết quả
+                </button>
+              </form>
+
+              {testResult && (
+                <div
+                  className={`mt-4 rounded-2xl border p-4 text-xs ${
+                    testResult.isWarning
+                      ? "border-rose-300 bg-rose-50 text-rose-950"
+                      : testResult.isExcluded
+                        ? "border-amber-300 bg-amber-50 text-amber-950"
+                        : "border-teal-300 bg-teal-50 text-teal-950"
+                  }`}
+                >
+                  <div className="font-bold text-sm mb-1 flex items-center gap-2">
+                    <span>{testResult.isWarning ? "⚠️" : testResult.isExcluded ? "🛡️" : "✅"}</span>
+                    <span>
+                      {testResult.isWarning
+                        ? "CẢNH BÁO THỜI LƯỢNG"
+                        : testResult.isExcluded
+                          ? "ĐƯỢC LOẠI TRỪ"
+                          : "ĐẠT YÊU CẦU"}
+                    </span>
+                  </div>
+                  <p className="leading-relaxed">{testResult.message}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Bảng danh sách DVKT */}
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex flex-col justify-between gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-center">
+              <h3 className="font-bold text-slate-900">
+                Danh sách dịch vụ trong thư viện ({filteredServices.length})
+              </h3>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="text"
+                  value={serviceSearch}
+                  onChange={(e) => setServiceSearch(e.target.value)}
+                  placeholder="Tìm theo mã hoặc tên..."
+                  className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs focus:border-teal-500 focus:outline-none min-w-[200px]"
+                />
+                <select
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value as "all" | "excluded" | "custom")}
+                  className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs text-slate-700 bg-white focus:outline-none"
+                >
+                  <option value="all">Tất cả quy tắc</option>
+                  <option value="excluded">Chỉ loại trừ</option>
+                  <option value="custom">Chỉ ngưỡng riêng</option>
+                </select>
+              </div>
+            </div>
+
+            {filteredServices.length === 0 ? (
+              <div className="py-12 text-center text-sm text-slate-400">
+                Không có dịch vụ nào phù hợp với tìm kiếm.
+              </div>
+            ) : (
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3 font-bold">STT</th>
+                      <th className="px-4 py-3 font-bold">Mã dịch vụ</th>
+                      <th className="px-4 py-3 font-bold">Tên dịch vụ</th>
+                      <th className="px-4 py-3 font-bold">Quy tắc thời lượng</th>
+                      <th className="px-4 py-3 font-bold text-right">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredServices.map((rule, idx) => {
+                      const isEditing = editingServiceCode === rule.MA_DICH_VU;
+                      return (
+                        <tr
+                          key={rule.MA_DICH_VU}
+                          className={`border-t border-slate-100 ${
+                            isEditing ? "bg-teal-50/60" : "hover:bg-slate-50"
+                          }`}
+                        >
+                          <td className="px-4 py-3 font-mono text-slate-400">{idx + 1}</td>
+                          <td className="px-4 py-3 font-mono font-bold text-teal-800">
+                            {rule.MA_DICH_VU}
+                          </td>
+                          <td className="px-4 py-3 font-semibold text-slate-800">
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={editServiceName}
+                                onChange={(e) => setEditServiceName(e.target.value)}
+                                className="w-full rounded-lg border border-teal-400 bg-white px-2 py-1 text-xs"
+                              />
+                            ) : (
+                              rule.TEN_DICH_VU || (
+                                <span className="text-slate-400 italic">(chưa có tên)</span>
+                              )
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {isEditing ? (
+                              <div className="flex items-center gap-2">
+                                <select
+                                  value={editServiceType}
+                                  onChange={(e) =>
+                                    setEditServiceType(e.target.value as "exclude" | "limit")
+                                  }
+                                  className="rounded-lg border border-teal-400 bg-white px-2 py-1 text-xs"
+                                >
+                                  <option value="exclude">Loại trừ</option>
+                                  <option value="limit">Ngưỡng số phút</option>
+                                </select>
+                                {editServiceType === "limit" && (
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={editMinutes}
+                                    onChange={(e) => setEditMinutes(e.target.value)}
+                                    className="w-20 rounded-lg border border-teal-400 bg-white px-2 py-1 text-xs font-mono"
+                                  />
+                                )}
+                              </div>
+                            ) : rule.maxMinutes === null ? (
+                              <span className="inline-block rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800">
+                                🛡️ Loại trừ cảnh báo
+                              </span>
+                            ) : (
+                              <span className="inline-block rounded-full bg-teal-100 px-2.5 py-0.5 text-[11px] font-bold text-teal-800 font-mono">
+                                ⏱ ≤ {rule.maxMinutes} phút
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {isEditing ? (
+                              <div className="flex justify-end gap-1.5">
+                                <button
+                                  onClick={saveServiceEdit}
+                                  className="rounded-lg bg-teal-700 px-3 py-1 text-xs font-bold text-white hover:bg-teal-800"
+                                >
+                                  Lưu
+                                </button>
+                                <button
+                                  onClick={() => setEditingServiceCode(null)}
+                                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                                >
+                                  Hủy
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex justify-end gap-1.5">
+                                <button
+                                  onClick={() => {
+                                    setEditingServiceCode(rule.MA_DICH_VU);
+                                    setEditServiceName(rule.TEN_DICH_VU);
+                                    setEditServiceType(
+                                      rule.maxMinutes === null ? "exclude" : "limit",
+                                    );
+                                    setEditMinutes(
+                                      rule.maxMinutes === null ? "120" : String(rule.maxMinutes),
+                                    );
+                                  }}
+                                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                                >
+                                  Sửa
+                                </button>
+                                <button
+                                  onClick={() => onRemoveServiceRule(rule.MA_DICH_VU)}
+                                  className="rounded-lg border border-rose-200 bg-white px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                                >
+                                  Xóa
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Grid 2 cột: Thêm mới Thuốc & Simulator Thuốc */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                <span>💊</span> Thêm thuốc loại trừ XML2
+              </h3>
+              <p className="mt-1 text-xs text-slate-500">
+                Các thuốc có mã trong danh mục này sẽ không bị báo lỗi thiếu TT_THAU ở XML2.
+              </p>
+              <form onSubmit={handleAddDrugSubmit} className="mt-4 space-y-4 text-xs">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Mã thuốc (MA_THUOC) <span className="text-rose-600">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newDrugCode}
+                    onChange={(e) => setNewDrugCode(e.target.value)}
+                    placeholder="VD: 40.123, TH001..."
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-sm font-bold text-slate-900 focus:border-teal-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Tên thuốc / Hoạt chất
+                  </label>
+                  <input
+                    type="text"
+                    value={newDrugName}
+                    onChange={(e) => setNewDrugName(e.target.value)}
+                    placeholder="VD: Paracetamol 500mg, Kháng sinh..."
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:outline-none"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full rounded-xl bg-amber-600 py-2.5 text-xs font-bold text-white hover:bg-amber-700 shadow-sm"
+                >
+                  Thêm vào Danh mục Loại trừ Thuốc
+                </button>
+              </form>
+            </div>
+
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                <span>🧪</span> Kiểm tra thử mã thuốc (Simulator)
+              </h3>
+              <p className="mt-1 text-xs text-slate-500">
+                Nhập mã thuốc để xem thuốc này đã được loại trừ khỏi cảnh báo TT_THAU XML2 chưa.
+              </p>
+              <form onSubmit={handleRunDrugTest} className="mt-4 space-y-4 text-xs">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Mã thuốc cần thử</label>
+                  <input
+                    type="text"
+                    required
+                    value={testDrugCode}
+                    onChange={(e) => setTestDrugCode(e.target.value)}
+                    placeholder="Nhập mã thuốc..."
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-sm font-bold text-slate-900 focus:border-teal-500 focus:outline-none"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full rounded-xl bg-slate-800 py-2.5 text-xs font-bold text-white hover:bg-slate-900 shadow-sm"
+                >
+                  Kiểm tra trạng thái loại trừ
+                </button>
+              </form>
+
+              {testDrugResult && (
+                <div
+                  className={`mt-4 rounded-2xl border p-4 text-xs ${
+                    testDrugResult.isExcluded
+                      ? "border-amber-300 bg-amber-50 text-amber-950"
+                      : "border-slate-300 bg-slate-50 text-slate-900"
+                  }`}
+                >
+                  <div className="font-bold text-sm mb-1 flex items-center gap-2">
+                    <span>{testDrugResult.isExcluded ? "🛡️" : "ℹ️"}</span>
+                    <span>
+                      {testDrugResult.isExcluded ? "THUỐC ĐÃ ĐƯỢC LOẠI TRỪ" : "THUỐC CHƯA LOẠI TRỪ"}
+                    </span>
+                  </div>
+                  <p className="leading-relaxed">{testDrugResult.message}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Bảng danh sách Thuốc loại trừ */}
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex flex-col justify-between gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-center">
+              <h3 className="font-bold text-slate-900">
+                Danh sách thuốc loại trừ XML2 ({filteredDrugs.length})
+              </h3>
+              <input
+                type="text"
+                value={drugSearch}
+                onChange={(e) => setDrugSearch(e.target.value)}
+                placeholder="Tìm theo mã thuốc hoặc tên..."
+                className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs focus:border-teal-500 focus:outline-none min-w-[240px]"
+              />
+            </div>
+
+            {filteredDrugs.length === 0 ? (
+              <div className="py-12 text-center text-sm text-slate-400">
+                {drugRules.length === 0
+                  ? "Danh mục thuốc loại trừ hiện đang trống. Bạn có thể thêm thuốc ở form trên hoặc bấm [Loại trừ thuốc] trong tab XML2."
+                  : "Không tìm thấy mã thuốc nào phù hợp."}
+              </div>
+            ) : (
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3 font-bold">STT</th>
+                      <th className="px-4 py-3 font-bold">Mã thuốc (MA_THUOC)</th>
+                      <th className="px-4 py-3 font-bold">Tên thuốc / Hoạt chất</th>
+                      <th className="px-4 py-3 font-bold">Trạng thái XML2</th>
+                      <th className="px-4 py-3 font-bold text-right">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredDrugs.map((rule, idx) => {
+                      const isEditing = editingDrugCode === rule.MA_THUOC;
+                      return (
+                        <tr
+                          key={rule.MA_THUOC}
+                          className={`border-t border-slate-100 ${
+                            isEditing ? "bg-amber-50/60" : "hover:bg-slate-50"
+                          }`}
+                        >
+                          <td className="px-4 py-3 font-mono text-slate-400">{idx + 1}</td>
+                          <td className="px-4 py-3 font-mono font-bold text-amber-900">
+                            {rule.MA_THUOC}
+                          </td>
+                          <td className="px-4 py-3 font-semibold text-slate-800">
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={editDrugName}
+                                onChange={(e) => setEditDrugName(e.target.value)}
+                                className="w-full rounded-lg border border-amber-400 bg-white px-2 py-1 text-xs"
+                              />
+                            ) : (
+                              rule.TEN_THUOC || (
+                                <span className="text-slate-400 italic">(chưa có tên)</span>
+                              )
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="inline-block rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800">
+                              🛡️ Loại trừ cảnh báo TT_THAU
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {isEditing ? (
+                              <div className="flex justify-end gap-1.5">
+                                <button
+                                  onClick={saveDrugEdit}
+                                  className="rounded-lg bg-amber-600 px-3 py-1 text-xs font-bold text-white hover:bg-amber-700"
+                                >
+                                  Lưu
+                                </button>
+                                <button
+                                  onClick={() => setEditingDrugCode(null)}
+                                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                                >
+                                  Hủy
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex justify-end gap-1.5">
+                                <button
+                                  onClick={() => {
+                                    setEditingDrugCode(rule.MA_THUOC);
+                                    setEditDrugName(rule.TEN_THUOC);
+                                  }}
+                                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                                >
+                                  Sửa
+                                </button>
+                                <button
+                                  onClick={() => onRemoveDrugRule(rule.MA_THUOC)}
+                                  className="rounded-lg border border-rose-200 bg-white px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                                >
+                                  Xóa
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// SETTINGS, TELEGRAM & BACKUP VIEW (DEDICATED TAB)
+// SETTINGS, TELEGRAM & BACKUP VIEW
 // ---------------------------------------------------------------------------
 function SettingsBackupView({
   telegramConfig,
+  columnsConfig,
   onSaveTelegramConfig,
   onTestTelegram,
+  onResetColumnsForTab,
+  onResetAllColumns,
   onExportLibraryBackup,
   onExportFullBackup,
   onSendTelegramBackup,
@@ -2014,8 +2672,11 @@ function SettingsBackupView({
   onResetAllDefaults,
 }: {
   telegramConfig: TelegramConfig;
+  columnsConfig: AllTabsColumnConfig;
   onSaveTelegramConfig: (cfg: TelegramConfig) => void;
   onTestTelegram: (token: string, chatId: string) => Promise<{ ok: boolean; description?: string }>;
+  onResetColumnsForTab: (tab: AlertTab) => void;
+  onResetAllColumns: () => void;
   onExportLibraryBackup: () => void;
   onExportFullBackup: () => void;
   onSendTelegramBackup: (type: "library" | "full") => void;
@@ -2059,8 +2720,8 @@ function SettingsBackupView({
       onRestoreBackup(parsed);
       setRestoreNotice(
         `✅ Khôi phục thành công từ file [${file.name}]: ${
-          parsed.type === "library" ? "Thư viện dịch vụ" : "Toàn bộ cấu hình"
-        } (${parsed.itemCount} dịch vụ).`,
+          parsed.type === "library" ? "Thư viện dịch vụ & thuốc" : "Toàn bộ cấu hình"
+        } (${parsed.itemCount} mục).`,
       );
     } catch (err) {
       setRestoreNotice(
@@ -2077,11 +2738,11 @@ function SettingsBackupView({
           Cài đặt & Tích hợp
         </div>
         <h2 className="mt-1 text-2xl font-black text-slate-900">
-          Cấu hình Telegram, Sao lưu & Khôi phục
+          Cấu hình Telegram, Tùy chỉnh cột & Sao lưu
         </h2>
         <p className="mt-1 text-sm text-slate-500 max-w-3xl">
-          Tùy chỉnh kết nối gửi báo cáo trực tiếp về kênh Telegram của bạn, tải file sao lưu thư
-          viện hoặc toàn bộ cấu hình trang để dễ dàng chuyển sang máy khác.
+          Tùy chỉnh kết nối gửi báo cáo trực tiếp về kênh Telegram của bạn, quản lý kích thước cột
+          từng bảng và xuất/nhập file sao lưu toàn trang.
         </p>
       </div>
 
@@ -2178,6 +2839,65 @@ function SettingsBackupView({
         </form>
       </div>
 
+      {/* Quản lý Cột các tab */}
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="grid h-10 w-10 place-content-center rounded-2xl bg-teal-50 text-xl text-teal-700">
+            📐
+          </div>
+          <div>
+            <h3 className="font-bold text-slate-900">
+              Quản lý Cột hiển thị (XML1, XML2, XML3, XML4)
+            </h3>
+            <p className="text-xs text-slate-500">
+              Khôi phục nhanh kích thước hoặc danh sách cột cho từng bảng hoặc toàn bộ ứng dụng.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+          {(["XML1", "XML2", "XML3", "XML4"] as AlertTab[]).map((tab) => {
+            const visibleCount = TAB_COLUMNS[tab].filter(
+              (c) => columnsConfig[tab]?.visible[c.key] !== false,
+            ).length;
+            return (
+              <div
+                key={tab}
+                className="rounded-2xl border border-slate-100 bg-slate-50 p-4 flex flex-col justify-between"
+              >
+                <div>
+                  <div className="font-bold text-slate-800 text-sm">{tab}</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    Hiển thị:{" "}
+                    <b>
+                      {visibleCount}/{TAB_COLUMNS[tab].length}
+                    </b>{" "}
+                    cột
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onResetColumnsForTab(tab)}
+                  className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-100 text-left text-[11px]"
+                >
+                  ↺ Đặt lại cột {tab}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 pt-3 border-t border-slate-100 flex justify-end">
+          <button
+            type="button"
+            onClick={onResetAllColumns}
+            className="rounded-xl border border-teal-300 bg-teal-50 px-4 py-2 text-xs font-bold text-teal-800 hover:bg-teal-100"
+          >
+            ↺ Đặt lại toàn bộ cột 4 tab về mặc định
+          </button>
+        </div>
+      </div>
+
       {/* Sao lưu và Khôi phục */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Sao lưu */}
@@ -2189,7 +2909,7 @@ function SettingsBackupView({
             <div>
               <h3 className="font-bold text-slate-900">Tạo File Sao Lưu (Backup)</h3>
               <p className="text-xs text-slate-500">
-                Xuất file JSON lưu trữ để lưu trữ dự phòng hoặc chia sẻ cấu hình.
+                Xuất file JSON lưu trữ dự phòng hoặc chia sẻ cấu hình sang máy khác.
               </p>
             </div>
           </div>
@@ -2197,9 +2917,11 @@ function SettingsBackupView({
           <div className="space-y-3 pt-2">
             <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 flex items-center justify-between gap-3">
               <div>
-                <div className="font-bold text-slate-800 text-xs">Backup Thư viện Dịch vụ</div>
+                <div className="font-bold text-slate-800 text-xs">
+                  Backup Thư viện (DVKT & Thuốc)
+                </div>
                 <div className="text-[11px] text-slate-500">
-                  Chỉ sao lưu danh sách dịch vụ và quy tắc
+                  Sao lưu quy tắc DVKT và danh mục thuốc loại trừ XML2
                 </div>
               </div>
               <div className="flex gap-1.5">
@@ -2227,7 +2949,7 @@ function SettingsBackupView({
               <div>
                 <div className="font-bold text-slate-800 text-xs">Backup Cấu hình Toàn Trang</div>
                 <div className="text-[11px] text-slate-500">
-                  Bao gồm thư viện, mã nhóm, cài đặt Telegram và độ rộng cột
+                  Bao gồm thư viện, thuốc loại trừ, cấu hình cột 4 tab & Telegram
                 </div>
               </div>
               <div className="flex gap-1.5">
@@ -2308,8 +3030,8 @@ function GuideView() {
     <div className="mx-auto max-w-4xl space-y-5">
       <PageTitle
         eyebrow="Hướng dẫn sử dụng"
-        title="Kiểm tra thời gian trả kết quả XML3 & Thông tin thầu TT_THAU"
-        description="Quy trình tự động kiểm tra chênh lệch thời gian NGAY_KQ - NGAY_TH_YL, kiểm tra TT_THAU XML2 và XML3 MA_NHOM 10/11."
+        title="Kiểm tra thời gian XML3, Thông tin thầu TT_THAU & Tùy chỉnh cột"
+        description="Quy trình kiểm tra chênh lệch thời gian NGAY_KQ - NGAY_TH_YL, TT_THAU trên XML2 và XML3, hỗ trợ ẩn/hiện và kéo giãn cột đa tab."
       />
       <section className="grid gap-4 md:grid-cols-3">
         <GuideCard
@@ -2324,8 +3046,8 @@ function GuideView() {
         />
         <GuideCard
           number="03"
-          title="Rà soát & Báo cáo"
-          text="Xem cảnh báo thời lượng > 70 phút, cảnh báo TT_THAU trên XML2/XML3, kéo thả chỉnh cột và gửi báo cáo qua Telegram hoặc xuất Excel."
+          title="Tùy chỉnh & Báo cáo"
+          text="Tùy biến cột hiển thị, thêm dịch vụ/thuốc loại trừ, kéo thả độ rộng cột và gửi báo cáo qua Telegram hoặc xuất Excel."
         />
       </section>
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -2344,7 +3066,7 @@ function GuideView() {
                 [
                   "TT_THAU",
                   "XML2 (cột 15)",
-                  "Bắt buộc không được để rỗng. Cảnh báo: 'XML2. Chi tiết thứ xxx: Thiếu thông tin TT_THAU'",
+                  "Bắt buộc không được để rỗng (trừ các mã thuốc được thêm vào danh mục loại trừ). Cảnh báo: 'XML2. Chi tiết thứ xxx: Thiếu thông tin TT_THAU'",
                 ],
                 [
                   "TT_THAU",

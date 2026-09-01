@@ -195,7 +195,7 @@ const xml3Group2NoThau = evaluateRecord(
 // Nhóm 2 không phải nhóm 10/11 nên không bị cảnh báo TT_THAU
 assert.equal(xml3Group2NoThau.hasTtThauWarning, false);
 
-// 4. Kiểm tra XML2 Mock Document
+// 4. Kiểm tra XML2 và Loại trừ Thuốc
 function createMockXml2Element(maLk, stt, maThuoc, tenThuoc, ttThau) {
   const map = new Map([
     ["MA_LK", maLk],
@@ -229,44 +229,66 @@ const mockDoc = {
   },
 };
 
-const xml2Warnings = readXml2Warnings(
+// Chưa loại trừ -> TH01 thiếu TT_THAU sẽ cảnh báo
+const xml2Warnings1 = readXml2Warnings(
   mockDoc,
   new Map([["LK-001", { MA_LK: "LK-001", MA_BN: "BN-001", HO_TEN: "Nguyễn Văn A" }]]),
+  [],
 );
-assert.equal(xml2Warnings.length, 1);
-assert.equal(xml2Warnings[0].source, "XML2");
-assert.equal(xml2Warnings[0].detailIndex, 1);
-assert.equal(xml2Warnings[0].message, "XML2. Chi tiết thứ 1: Thiếu thông tin TT_THAU");
-assert.equal(xml2Warnings[0].MA_DICH_VU, "TH01");
-assert.equal(xml2Warnings[0].TEN_DICH_VU, "Paracetamol 500mg");
+assert.equal(xml2Warnings1.length, 1);
+assert.equal(xml2Warnings1[0].source, "XML2");
+assert.equal(xml2Warnings1[0].detailIndex, 1);
+assert.equal(xml2Warnings1[0].message, "XML2. Chi tiết thứ 1: Thiếu thông tin TT_THAU");
+assert.equal(xml2Warnings1[0].MA_DICH_VU, "TH01");
+assert.equal(xml2Warnings1[0].TEN_DICH_VU, "Paracetamol 500mg");
 
-// 5. Kiểm tra Backup / Restore JSON
+// Đã thêm TH01 vào danh mục loại trừ -> không còn cảnh báo
+const xml2Warnings2 = readXml2Warnings(
+  mockDoc,
+  new Map([["LK-001", { MA_LK: "LK-001", MA_BN: "BN-001", HO_TEN: "Nguyễn Văn A" }]]),
+  [{ MA_THUOC: "TH01", TEN_THUOC: "Paracetamol 500mg", excluded: true }],
+);
+assert.equal(xml2Warnings2.length, 0);
+
+// 5. Kiểm tra Backup / Restore JSON với Thư viện thuốc & Cấu hình cột
 const sampleRules = [
   { MA_DICH_VU: "04.01", TEN_DICH_VU: "Nội soi", maxMinutes: null },
   { MA_DICH_VU: "04.02", TEN_DICH_VU: "Phẫu thuật", maxMinutes: 120 },
 ];
-const libJson = createLibraryBackupContent(sampleRules);
+const sampleDrugRules = [{ MA_THUOC: "TH01", TEN_THUOC: "Paracetamol 500mg", excluded: true }];
+const libJson = createLibraryBackupContent(sampleRules, sampleDrugRules);
 const parsedLib = parseBackupJson(libJson);
 assert.equal(parsedLib.type, "library");
 assert.equal(parsedLib.serviceRules.length, 2);
+assert.equal(parsedLib.drugRules.length, 1);
 assert.equal(parsedLib.serviceRules[0].MA_DICH_VU, "04.01");
 assert.equal(parsedLib.serviceRules[0].maxMinutes, null);
-assert.equal(parsedLib.serviceRules[1].maxMinutes, 120);
+assert.equal(parsedLib.drugRules[0].MA_THUOC, "TH01");
+assert.equal(parsedLib.drugRules[0].excluded, true);
 
 const fullConfigJson = createFullConfigBackupContent({
   serviceRules: sampleRules,
+  drugRules: sampleDrugRules,
   groupCodes: ["2", "3", "8", "18", "10"],
-  telegramConfig: { botToken: "123:ABC", chatId: "999", enabled: true, autoSendOnAnalysis: false },
-  columnWidths: { detail: 230, service: 380 },
+  telegramConfig: {
+    botToken: "123:ABC",
+    chatId: "999",
+    enabled: true,
+    autoSendOnAnalysis: false,
+  },
+  columnsConfig: {
+    XML1: { widths: { detailIndex: 100 }, visible: { detailIndex: true } },
+  },
   onlyWarnings: true,
 });
 const parsedFull = parseBackupJson(fullConfigJson);
 assert.equal(parsedFull.type, "full");
 assert.equal(parsedFull.serviceRules.length, 2);
+assert.equal(parsedFull.drugRules.length, 1);
 assert.deepEqual(parsedFull.groupCodes, ["2", "3", "8", "18", "10"]);
 assert.equal(parsedFull.telegramConfig?.botToken, "123:ABC");
-assert.equal(parsedFull.columnWidths?.detail, 230);
+assert.equal(parsedFull.columnsConfig?.XML1?.widths?.detailIndex, 100);
 
 console.log(
-  "All tests passed: XML2/XML3 TT_THAU validation, chronology, library backup/restore: OK",
+  "All tests passed: XML2/XML3 TT_THAU validation, drug exclusion, chronology, library backup/restore: OK",
 );

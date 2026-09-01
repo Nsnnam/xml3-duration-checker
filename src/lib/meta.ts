@@ -1,11 +1,21 @@
 export const APP_META = {
   name: "NsN_XMLcheck",
-  version: "1.7.0",
+  version: "1.8.0",
   date: "2026-09-01",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "1.8.0",
+      date: "2026-09-01",
+      changes: [
+        "Thêm bộ cấu hình tùy chỉnh thêm/ẩn/hiện các cột và kéo thả thay đổi kích thước cột trên TẤT CẢ các tab cảnh báo (XML1, XML2, XML3, XML4); tự động lưu cấu hình theo từng tab vào localStorage.",
+        "Thêm danh mục Thuốc loại trừ khỏi cảnh báo TT_THAU ở XML2 vào Thư viện: hỗ trợ thêm/sửa/xóa thuốc, tìm kiếm, thử nghiệm quy tắc (Simulator).",
+        "Thêm nút 'Loại trừ thuốc' trực tiếp trên từng dòng cảnh báo XML2 để loại trừ nhanh và tự động phân tích lại.",
+        "Cập nhật hệ thống Backup và gửi Telegram đồng bộ cả thư viện thuốc loại trừ và cấu hình hiển thị cột toàn trang.",
+      ],
+    },
     {
       version: "1.7.0",
       date: "2026-09-01",

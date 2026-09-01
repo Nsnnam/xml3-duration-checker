@@ -27,6 +27,12 @@ export type ServiceRule = {
   maxMinutes: number | null;
 };
 
+export type DrugRule = {
+  MA_THUOC: string;
+  TEN_THUOC: string;
+  excluded: boolean;
+};
+
 export type Xml3Record = {
   fileName: string;
   table: "XML3";
@@ -255,7 +261,13 @@ function readXml1Warnings(doc: Document): ValidationWarning[] {
 export function readXml2Warnings(
   doc: Document,
   patients: ReadonlyMap<string, PatientInfo> = new Map(),
+  drugRules: ReadonlyMap<string, DrugRule> | ReadonlyArray<DrugRule> = [],
 ): ValidationWarning[] {
+  const drugRuleMap: ReadonlyMap<string, DrugRule> = Array.isArray(drugRules)
+    ? new Map(
+        (drugRules as ReadonlyArray<DrugRule>).map((r) => [r.MA_THUOC.trim().toUpperCase(), r]),
+      )
+    : (drugRules as ReadonlyMap<string, DrugRule>);
   const warnings: ValidationWarning[] = [];
   const candidateTags = ["CHI_TIET_THUOC", "CHI_TIET"];
   let rows: Element[] = [];
@@ -294,6 +306,12 @@ export function readXml2Warnings(
       directTextOf(node, "TEN_DICH_VU") ||
       textOfGeneral(node, "TEN_DICH_VU");
     const patient = patients.get(maLk);
+
+    // Kiểm tra xem mã thuốc có thuộc danh mục loại trừ XML2 không
+    const cleanMaThuoc = maThuoc ? maThuoc.trim().toUpperCase() : "";
+    if (cleanMaThuoc && drugRuleMap.get(cleanMaThuoc)?.excluded) {
+      return; // Bỏ qua cảnh báo cho thuốc này
+    }
 
     // Kiểm tra XML2 cột 15 TT_THAU bắt buộc không được để rỗng (null)
     if (!ttThau || !ttThau.trim()) {
@@ -638,6 +656,7 @@ export async function analyzeXml3File(
   file: File,
   sharedPatients = new Map<string, PatientInfo>(),
   serviceRules: ReadonlyMap<string, ServiceRule> = new Map(),
+  drugRules: ReadonlyMap<string, DrugRule> = new Map(),
 ): Promise<Xml3Analysis> {
   const text = await file.text();
   const outer = parseXml(text, file.name);
@@ -660,7 +679,7 @@ export async function analyzeXml3File(
     }
     if (type === "XML2") {
       const inner = decodeFileContent(content, `${file.name} XML2`);
-      xml2Warnings.push(...readXml2Warnings(inner, patients));
+      xml2Warnings.push(...readXml2Warnings(inner, patients, drugRules));
     }
     if (type === "XML4") {
       const inner = decodeFileContent(content, `${file.name} XML4`);
@@ -682,7 +701,7 @@ export async function analyzeXml3File(
     rawRecords.push(...readXml3Records(outer, file.name, patients, serviceRules));
   }
   if (!fileNodes.length && outer.getElementsByTagName("CHI_TIET_THUOC").length) {
-    xml2Warnings.push(...readXml2Warnings(outer, patients));
+    xml2Warnings.push(...readXml2Warnings(outer, patients, drugRules));
   }
 
   const hasOtherXml = fileNodes.some((fileNode) => {
@@ -728,6 +747,7 @@ export async function analyzeXml3File(
 export async function analyzeXml3Files(
   files: File[],
   serviceRules: ReadonlyArray<ServiceRule> = [],
+  drugRules: ReadonlyArray<DrugRule> = [],
 ): Promise<BatchAnalysis> {
   const allRecords: Xml3Record[] = [];
   const errors: string[] = [];
@@ -735,6 +755,7 @@ export async function analyzeXml3Files(
   let tableFiles = 0;
   const sharedPatients = new Map<string, PatientInfo>();
   const serviceRuleMap = new Map(serviceRules.map((rule) => [rule.MA_DICH_VU.trim(), rule]));
+  const drugRuleMap = new Map(drugRules.map((rule) => [rule.MA_THUOC.trim().toUpperCase(), rule]));
   const xml1Warnings: ValidationWarning[] = [];
   const xml2Warnings: ValidationWarning[] = [];
   const xml3Warnings: ValidationWarning[] = [];
@@ -752,7 +773,7 @@ export async function analyzeXml3Files(
 
   for (const file of files) {
     try {
-      const analysis = await analyzeXml3File(file, sharedPatients, serviceRuleMap);
+      const analysis = await analyzeXml3File(file, sharedPatients, serviceRuleMap, drugRuleMap);
       allRecords.push(...analysis.records);
       tableFiles += analysis.tableFiles;
       xml1Warnings.push(...analysis.xml1Warnings);

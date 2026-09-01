@@ -18,24 +18,24 @@
 - Cảnh báo khi số phút **lớn hơn 70 phút** (hoặc vượt ngưỡng riêng được cấu hình trong Thư viện). Đúng 70 phút không bị cảnh báo.
 - Cảnh báo **SAI THỨ TỰ** khi mốc thời gian bị ngược và **TRÙNG MỐC** khi các mốc trùng nhau.
 
-## Quy tắc kiểm tra thông tin thầu TT_THAU
+## Quy tắc kiểm tra thông tin thầu TT_THAU & Danh mục Thuốc loại trừ
 
-- **XML2 (Thuốc)**: Cột 15 `TT_THAU` bắt buộc không được để rỗng (null). Nếu để trống, hệ thống đưa ra cảnh báo: `XML2. Chi tiết thứ xxx: Thiếu thông tin TT_THAU` (với `xxx` là số thứ tự chi tiết).
+- **XML2 (Thuốc)**: Cột 15 `TT_THAU` bắt buộc không được để rỗng (null). Nếu để trống, hệ thống đưa ra cảnh báo: `XML2. Chi tiết thứ xxx: Thiếu thông tin TT_THAU`.
+  - Nếu mã thuốc thuộc danh mục **Thuốc loại trừ XML2** đã được lưu trong Thư viện (hoặc bấm `🛡️ Loại trừ thuốc` trực tiếp trên dòng cảnh báo), hệ thống sẽ bỏ qua và không tạo cảnh báo.
 - **XML3 (DVKT & VTYT)**: Với trường hợp mã nhóm ở cột 6 `MA_NHOM` bằng `10` hoặc `11` (Vật tư y tế), bắt buộc cột `TT_THAU` không được để rỗng (null). Nếu để trống, hệ thống đưa ra cảnh báo: `XML3: TT_THAU không được để trống khi mã nhóm bằng 10 hoặc 11`.
 
-## Tối ưu giao diện & Kéo thả cột
+## Tùy biến cột (Ẩn/Hiện & Kéo giãn) trên tất cả các tab
 
-- Cột Chi tiết được thu ngắn gọn gàng và cột Dịch vụ/Vật tư được kéo dài thêm giúp giao diện hiển thị thoáng đãng và dễ đọc.
-- Bảng hiển thị hỗ trợ kéo thả trực tiếp tại đường viền tiêu đề cột để thay đổi độ rộng theo ý muốn. Kích thước tùy chỉnh được tự động lưu vào trình duyệt. Có nút `↺ Cột mặc định` để khôi phục nhanh.
+- Người dùng có thể bấm nút **`⚙️ Tùy chỉnh cột`** ở mọi tab cảnh báo (**XML1, XML2, XML3, XML4**) để chọn ẩn hoặc hiện bất kỳ cột nào.
+- Kéo thả trực tiếp tại viền phải tiêu đề từng cột để điều chỉnh độ rộng linh hoạt. Kích thước và trạng thái ẩn/hiện được tự động lưu theo từng tab vào trình duyệt.
 
-## Thư viện dịch vụ (Tab riêng)
+## Thư viện Dịch vụ & Thuốc
 
-- Quản lý danh mục dịch vụ loại trừ khỏi cảnh báo hoặc đặt số phút tối đa riêng.
-- Hỗ trợ thêm mới, tìm kiếm, lọc và chỉnh sửa trực tiếp (inline edit) tên dịch vụ cũng như quy tắc.
-- Tích hợp bộ công cụ **Simulator** giúp kiểm tra thử ngay lập tức một mã dịch vụ với số phút bất kỳ.
+- **Tab Dịch vụ kỹ thuật & VTYT**: Thêm mới, chỉnh sửa inline tên dịch vụ, loại trừ hoặc đặt ngưỡng thời gian riêng, kèm bộ công cụ **Simulator** thử nghiệm số phút.
+- **Tab Thuốc loại trừ XML2**: Quản lý danh mục các mã thuốc không cần báo thiếu `TT_THAU` trong XML2, kèm bộ thử nghiệm mã thuốc.
 
 ## Sao lưu (Backup) & Gửi Telegram
 
-- Cho phép tải file backup JSON riêng cho Thư viện dịch vụ hoặc toàn bộ cấu hình trang.
+- Cho phép tải file backup JSON riêng cho Thư viện hoặc toàn bộ cấu hình trang (bao gồm cả cấu hình cột và thuốc loại trừ).
 - Cho phép khôi phục (Restore) lại dữ liệu từ file backup JSON bất cứ lúc nào.
 - Cấu hình Telegram với Bot Token và Chat ID để nhận file báo cáo Excel phân tích và file backup cấu hình trực tiếp qua Telegram.
