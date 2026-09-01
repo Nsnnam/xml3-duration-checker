@@ -114,7 +114,10 @@ export function HomePage() {
     setBusy(true);
     setNotice("");
     try {
-      setAnalysis(await analyzeXml3Files(files));
+      const nextAnalysis = await analyzeXml3Files(files);
+      setSummaryFocus("warnings");
+      setAlertTab("XML3");
+      setAnalysis(nextAnalysis);
     } finally {
       setBusy(false);
     }

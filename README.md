@@ -45,7 +45,7 @@ Artifact được tạo tại `releases/web/` và `releases/single-page/xml3-dur
 
 ## Hướng dẫn nhanh
 
-Chọn file XML hồ sơ, tích thêm các nhóm `MA_NHOM` nếu cần, bấm **Phân tích XML3**, sau đó tìm theo `MA_BN`, `HO_TEN` hoặc `MA_LK` trong bảng **Cảnh báo chi tiết theo dịch vụ**. Các nhóm 2, 3, 8, 18 luôn được kiểm tra thời lượng và không bị ẩn khi bỏ chọn bộ lọc; sau khi phân tích, khu vực import và quy tắc tự thu gọn để ưu tiên phần kết quả. Mặc định bảng chỉ hiển thị dòng cảnh báo; bỏ chọn **Chỉ cảnh báo** để xem toàn bộ bản ghi thuộc nhóm đã chọn và mọi dòng có cảnh báo trình tự/trùng mốc. Dùng **Xuất XLSX** để lưu báo cáo XML3 hoặc danh sách cảnh báo của tab XML1/XML4 đang mở.
+Chọn file XML hồ sơ, tích thêm các nhóm `MA_NHOM` nếu cần, bấm **Phân tích XML3**, sau đó tìm theo `MA_BN`, `HO_TEN` hoặc `MA_LK` trong bảng **Cảnh báo chi tiết theo dịch vụ**. Các nhóm 2, 3, 8, 18 luôn được kiểm tra thời lượng và không bị ẩn khi bỏ chọn bộ lọc; sau khi phân tích, khu vực import và quy tắc tự thu gọn để ưu tiên phần kết quả; bộ lọc tab và loại cảnh báo cũng được reset về cảnh báo XML3 để không che các dòng thời lượng. Mặc định bảng chỉ hiển thị dòng cảnh báo; bỏ chọn **Chỉ cảnh báo** để xem toàn bộ bản ghi thuộc nhóm đã chọn và mọi dòng có cảnh báo trình tự/trùng mốc. Dùng **Xuất XLSX** để lưu báo cáo XML3 hoặc danh sách cảnh báo của tab XML1/XML4 đang mở.
 
 Trong bảng cảnh báo XML3, thứ tự ưu tiên là `MA_LK`, `HO_TEN`, `MA_BN`, tiếp theo ngay là `Số phút` và `Vượt ngưỡng`; báo cáo XLSX dùng cùng thứ tự. Các trường nghiệp vụ lấy theo file mô tả `3176.xls`, sheet `Bang 3_DVKT, VTYT`: `MA_NHOM` là trường 6, `NGAY_YL` là trường 37, `NGAY_TH_YL` là trường 38 và `NGAY_KQ` là trường 39. XML1 cung cấp `MA_BN` ở cột 3 và `HO_TEN` ở cột 4; hai bảng được nối bằng `MA_LK`. Đúng 70 phút được xem là đạt; chỉ thời lượng `> 70` phút mới cảnh báo. Chuỗi `yyyymmddhhmm` được hiển thị thành `MM/DD/YYYY HH:mm`. `SO_CCCD` rỗng/null được bỏ qua; giá trị có nội dung nhưng sai định dạng sẽ cảnh báo. Nếu `MA_DKBD = MA_CSKCB` và `MA_DOITUONG_KCB` khác `1.1`, XML1 cảnh báo `MA_DKBD phải khác MA_CSKCB cho đối tượng khác 1.1`. Dòng thiếu, sai định dạng, thời lượng âm, sai trình tự, trùng mốc hoặc trùng giường được thống kê riêng, không tự kết luận đạt. Các tab XML1 và XML4 hiển thị cảnh báo theo từng chi tiết; XML4 kèm mã dịch vụ và tên dịch vụ; có thể xuất riêng danh sách cảnh báo của tab đang mở.
 
@@ -65,7 +65,7 @@ Trong bảng cảnh báo XML3, thứ tự ưu tiên là `MA_LK`, `HO_TEN`, `MA_B
 
 ## Phiên bản
 
-Phiên bản hiện tại: **1.5.0** · ngày **2026-08-31** · múi giờ **Asia/Ho_Chi_Minh (GMT+7)**. Xem [CHANGELOG.md](CHANGELOG.md) để biết lịch sử thay đổi.
+Phiên bản hiện tại: **1.5.2** · ngày **2026-08-31** · múi giờ **Asia/Ho_Chi_Minh (GMT+7)**. Xem [CHANGELOG.md](CHANGELOG.md) để biết lịch sử thay đổi.
 
 ## Tác giả và hỗ trợ
 
