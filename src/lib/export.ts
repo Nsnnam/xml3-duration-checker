@@ -27,6 +27,17 @@ function fitColumns(sheet: ExcelJS.Worksheet) {
 
 function detailRows(records: Xml3Record[]) {
   return records.map((record) => ({
+    Trạng_thái: record.hasOrderWarning
+      ? "SAI THỨ TỰ"
+      : record.hasEqualWarning
+        ? "TRÙNG MỐC"
+        : record.hasBedWarning
+          ? "GIƯỜNG"
+          : record.status === "warning"
+            ? "CB"
+            : record.status === "ok"
+              ? "Đạt"
+              : record.status,
     MA_LK: record.MA_LK,
     HO_TEN: record.HO_TEN,
     MA_BN: record.MA_BN,
@@ -35,19 +46,7 @@ function detailRows(records: Xml3Record[]) {
       record.status === "warning" && record.durationMinutes !== null
         ? Math.round((record.durationMinutes - (record.serviceRule?.maxMinutes ?? 70)) * 100) / 100
         : "",
-    File: record.fileName,
-    Trạng_thái: record.hasOrderWarning
-      ? "SAI THỨ TỰ"
-      : record.hasEqualWarning
-        ? "TRÙNG MỐC"
-        : record.hasBedWarning
-          ? "GIƯỜNG"
-          : record.status === "warning"
-            ? "CẢNH BÁO"
-            : record.status === "ok"
-              ? "Đạt"
-              : record.status,
-    STT: record.STT,
+    Chi_tiet: record.detail,
     MA_DICH_VU: record.MA_DICH_VU,
     MA_VAT_TU: record.MA_VAT_TU,
     TEN_DICH_VU: record.TEN_DICH_VU,
@@ -60,7 +59,8 @@ function detailRows(records: Xml3Record[]) {
     NGAY_YL: formatXmlDateTime(record.NGAY_YL) || record.NGAY_YL,
     NGAY_TH_YL: formatXmlDateTime(record.NGAY_TH_YL) || record.NGAY_TH_YL,
     NGAY_KQ: formatXmlDateTime(record.NGAY_KQ) || record.NGAY_KQ,
-    Chi_tiet: record.detail,
+    File: record.fileName,
+    STT: record.STT,
   }));
 }
 

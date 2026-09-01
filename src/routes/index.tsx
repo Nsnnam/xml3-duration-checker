@@ -636,7 +636,7 @@ function CheckerView({
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="min-w-[1180px] w-full text-left text-xs">
+                  <table className="min-w-[1760px] w-full text-left text-xs">
                     <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
                       <tr>
                         {[
@@ -646,15 +646,15 @@ function CheckerView({
                           "MA_BN",
                           "Số phút",
                           "Vượt ngưỡng",
-                          "File",
-                          "STT",
+                          "Chi tiết",
                           "Dịch vụ / vật tư",
                           "Mã nhóm",
                           "Khoa",
                           "NGAY_YL",
                           "NGAY_TH_YL",
                           "NGAY_KQ",
-                          "Chi tiết",
+                          "File",
+                          "STT",
                         ].map((heading) => (
                           <th key={heading} className="whitespace-nowrap px-4 py-3 font-bold">
                             {heading}
@@ -828,7 +828,7 @@ function WarningRow({
       : record.hasBedWarning
         ? "GIƯỜNG"
         : record.status === "warning"
-          ? "CẢNH BÁO"
+          ? "CB"
           : record.status === "ok"
             ? "ĐẠT"
             : record.status.toUpperCase();
@@ -862,30 +862,7 @@ function WarningRow({
           ? `${(record.durationMinutes - (record.serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES)).toLocaleString("vi-VN")} phút`
           : "—"}
       </td>
-      <td className="max-w-[180px] px-4 py-3">
-        <div className="truncate font-mono text-[11px] text-slate-500">{record.fileName}</div>
-      </td>
-      <td className="px-4 py-3 font-mono">{record.STT || "—"}</td>
-      <td className="max-w-[260px] px-4 py-3">
-        <div className="font-semibold text-slate-800">
-          {record.TEN_DICH_VU || record.TEN_VAT_TU || "(chưa có tên)"}
-        </div>
-        <div className="mt-1 font-mono text-[11px] text-slate-500">
-          DV: {record.MA_DICH_VU || "—"} · VT: {record.MA_VAT_TU || "—"}
-        </div>
-      </td>
-      <td className="px-4 py-3 font-mono">{record.MA_NHOM || "—"}</td>
-      <td className="px-4 py-3">{record.MA_KHOA || "—"}</td>
-      <td className="whitespace-nowrap px-4 py-3 font-mono">
-        {formatXmlDateTime(record.NGAY_YL) || record.NGAY_YL || "—"}
-      </td>
-      <td className="whitespace-nowrap px-4 py-3 font-mono">
-        {formatXmlDateTime(record.NGAY_TH_YL) || record.NGAY_TH_YL || "—"}
-      </td>
-      <td className="whitespace-nowrap px-4 py-3 font-mono">
-        {formatXmlDateTime(record.NGAY_KQ) || record.NGAY_KQ || "—"}
-      </td>
-      <td className="max-w-[260px] px-4 py-3 text-slate-600">
+      <td className="min-w-[360px] max-w-[520px] px-4 py-3 text-slate-600">
         <div>{record.detail}</div>
         {record.MA_DICH_VU && (
           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -916,6 +893,29 @@ function WarningRow({
           </div>
         )}
       </td>
+      <td className="min-w-[300px] max-w-[460px] px-4 py-3">
+        <div className="font-semibold text-slate-800">
+          {record.TEN_DICH_VU || record.TEN_VAT_TU || "(chưa có tên)"}
+        </div>
+        <div className="mt-1 font-mono text-[11px] text-slate-500">
+          DV: {record.MA_DICH_VU || "—"} · VT: {record.MA_VAT_TU || "—"}
+        </div>
+      </td>
+      <td className="px-4 py-3 font-mono">{record.MA_NHOM || "—"}</td>
+      <td className="px-4 py-3">{record.MA_KHOA || "—"}</td>
+      <td className="whitespace-nowrap px-4 py-3 font-mono">
+        {formatXmlDateTime(record.NGAY_YL) || record.NGAY_YL || "—"}
+      </td>
+      <td className="whitespace-nowrap px-4 py-3 font-mono">
+        {formatXmlDateTime(record.NGAY_TH_YL) || record.NGAY_TH_YL || "—"}
+      </td>
+      <td className="whitespace-nowrap px-4 py-3 font-mono">
+        {formatXmlDateTime(record.NGAY_KQ) || record.NGAY_KQ || "—"}
+      </td>
+      <td className="max-w-[180px] px-4 py-3">
+        <div className="truncate font-mono text-[11px] text-slate-500">{record.fileName}</div>
+      </td>
+      <td className="px-4 py-3 font-mono">{record.STT || "—"}</td>
     </tr>
   );
 }
