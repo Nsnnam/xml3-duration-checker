@@ -24,7 +24,8 @@ export const GROUP_OPTIONS = [
 export type ServiceRule = {
   MA_DICH_VU: string;
   TEN_DICH_VU: string;
-  maxMinutes: number | null;
+  minMinutes?: number | null; // Thời gian tối thiểu (phút), mặc định > 0 (tối thiểu 1 phút)
+  maxMinutes: number | null; // Thời gian tối đa (phút), null = loại trừ hoàn toàn
 };
 
 export type DrugRule = {
@@ -520,7 +521,11 @@ export function evaluateRecord(
 ): Xml3Record {
   const durationMinutes = minutesBetween(fields.NGAY_TH_YL, fields.NGAY_KQ);
   const serviceRule = serviceRules.get(fields.MA_DICH_VU.trim());
-  const durationLimit = serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES;
+  const minLimit =
+    serviceRule?.minMinutes !== undefined && serviceRule?.minMinutes !== null
+      ? serviceRule.minMinutes
+      : 1; // Mặc định quy ước thời gian tối thiểu > 0 phút (tối thiểu 1 phút)
+  const maxLimit = serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES;
   const orderIssues = chronologyIssues(fields);
   const hasOrderWarning = orderIssues.some((issue) => issue.includes("sớm hơn"));
   const hasEqualWarning = orderIssues.some((issue) => issue.includes("="));
@@ -543,13 +548,24 @@ export function evaluateRecord(
     details.push("NGAY_KQ sớm hơn NGAY_TH_YL");
   } else if (serviceRule?.maxMinutes === null) {
     details.push("Dịch vụ được loại trừ khỏi cảnh báo thời lượng");
-  } else if (durationMinutes > durationLimit) {
+  } else if (durationMinutes < minLimit) {
+    status = "warning";
+    if (minLimit === 1 && durationMinutes === 0) {
+      details.push("Thời lượng 0 phút (yêu cầu thời gian > 0 phút)");
+    } else {
+      details.push(
+        `Thời lượng ${formatMinutes(durationMinutes)} phút nhỏ hơn thời gian tối thiểu quy định (${minLimit} phút)`,
+      );
+    }
+  } else if (durationMinutes > maxLimit) {
     status = "warning";
     details.push(
-      `Vượt ${formatMinutes(durationMinutes - durationLimit)} phút so với ngưỡng ${durationLimit} phút`,
+      `Vượt ${formatMinutes(durationMinutes - maxLimit)} phút so với ngưỡng tối đa ${maxLimit} phút`,
     );
   } else {
-    details.push(`Trong ngưỡng ${durationLimit} phút`);
+    details.push(
+      `Trong ngưỡng thời gian (${minLimit > 1 ? `${minLimit}–` : "≤ "}${maxLimit} phút)`,
+    );
   }
 
   if (!fields.NGAY_YL) {

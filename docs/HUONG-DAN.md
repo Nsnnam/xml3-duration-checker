@@ -2,7 +2,7 @@
 
 ## Phạm vi
 
-**NsN_XMLcheck** là công cụ kiểm tra thời gian thực hiện–kết quả của dịch vụ kỹ thuật và vật tư y tế trong **Bảng XML3**, đồng thời kiểm tra thông tin thầu `TT_THAU` trong **XML2** và **XML3**, định dạng CCCD trong **XML1** và kết luận trong **XML4**. Ứng dụng không tra cứu ICD, không sửa file nguồn và không gửi dữ liệu lên máy chủ.
+**NsN_XMLcheck** là công cụ kiểm tra thời gian thực hiện–kết quả của dịch vụ kỹ thuật và vật tư y tế trong **Bảng XML3** (bao gồm cả quy ước thời gian tối thiểu và tối đa), đồng thời kiểm tra thông tin thầu `TT_THAU` trong **XML2** và **XML3**, định dạng CCCD trong **XML1** và kết luận trong **XML4**. Ứng dụng không tra cứu ICD, không sửa file nguồn và không gửi dữ liệu lên máy chủ.
 
 ## Cách thực hiện
 
@@ -15,7 +15,10 @@
 - Giao diện hỗ trợ 18 mã nhóm theo Phụ lục 3 QĐ 5937. Nhóm `2, 3, 8, 18` luôn bắt buộc kiểm tra thời lượng; các ô tích dùng để mở rộng thêm nhóm hiển thị.
 - Trình tự bắt buộc: `NGAY_YL (chỉ định) → NGAY_TH_YL (thực hiện) → NGAY_KQ (kết quả)`.
 - Công thức: `Số phút = NGAY_KQ - NGAY_TH_YL`.
-- Cảnh báo khi số phút **lớn hơn 70 phút** (hoặc vượt ngưỡng riêng được cấu hình trong Thư viện). Đúng 70 phút không bị cảnh báo.
+- **Quy ước thời gian tối thiểu**: Mặc định thời gian thực hiện phải **`> 0 phút`** (tối thiểu 1 phút). Nếu `Số phút = 0` hoặc nhỏ hơn ngưỡng tối thiểu riêng của dịch vụ, hệ thống sẽ cảnh báo:
+  - `Thời lượng 0 phút (yêu cầu thời gian > 0 phút)` hoặc
+  - `Thời lượng X phút nhỏ hơn thời gian tối thiểu quy định (Y phút)`.
+- **Quy ước thời gian tối đa**: Cảnh báo khi số phút **lớn hơn 70 phút** (hoặc vượt ngưỡng tối đa riêng được cấu hình trong Thư viện). Đúng 70 phút không bị cảnh báo.
 - Cảnh báo **SAI THỨ TỰ** khi mốc thời gian bị ngược và **TRÙNG MỐC** khi các mốc trùng nhau.
 
 ## Quy tắc kiểm tra thông tin thầu TT_THAU & Danh mục Thuốc loại trừ
@@ -24,15 +27,20 @@
   - Nếu mã thuốc thuộc danh mục **Thuốc loại trừ XML2** đã được lưu trong Thư viện (hoặc bấm `🛡️ Loại trừ thuốc` trực tiếp trên dòng cảnh báo), hệ thống sẽ bỏ qua và không tạo cảnh báo.
 - **XML3 (DVKT & VTYT)**: Với trường hợp mã nhóm ở cột 6 `MA_NHOM` bằng `10` hoặc `11` (Vật tư y tế), bắt buộc cột `TT_THAU` không được để rỗng (null). Nếu để trống, hệ thống đưa ra cảnh báo: `XML3: TT_THAU không được để trống khi mã nhóm bằng 10 hoặc 11`.
 
+## Nhập / Xuất Excel Thư viện & File Mẫu
+
+- **Tải Excel mẫu**: Bấm **`📥 Tải Excel mẫu`** để tải về file Excel chuẩn (`mau_nhap_thu_vien_nsn_xmlcheck.xlsx`) gồm 2 sheet:
+  1. `DVKT_VTYT`: Cột `MA_DICH_VU`, `TEN_DICH_VU`, `THOI_GIAN_TOI_THIEU_PHUT`, `THOI_GIAN_TOI_DA_PHUT`, `LOAI_TRU_HOAN_TOAN`, `GHI_CHU`.
+  2. `THUOC_XML2`: Cột `MA_THUOC`, `TEN_THUOC`, `LOAI_TRU_TT_THAU`, `GHI_CHU`.
+- **Nạp danh mục từ Excel**: Bấm **`📤 Nạp từ Excel`** và chọn file Excel để nhập danh mục với 2 chế độ:
+  - **Gộp (Merge)**: Thêm các dịch vụ mới, cập nhật dịch vụ trùng mã và giữ nguyên các dịch vụ cũ.
+  - **Ghi đè (Overwrite)**: Xóa toàn bộ thư viện hiện tại và thay bằng dữ liệu trong file Excel.
+- **Xuất Excel Thư viện**: Bấm **`📊 Xuất Excel Thư viện`** để xuất toàn bộ quy tắc ra file `.xlsx`.
+
 ## Tùy biến cột (Ẩn/Hiện & Kéo giãn) trên tất cả các tab
 
 - Người dùng có thể bấm nút **`⚙️ Tùy chỉnh cột`** ở mọi tab cảnh báo (**XML1, XML2, XML3, XML4**) để chọn ẩn hoặc hiện bất kỳ cột nào.
 - Kéo thả trực tiếp tại viền phải tiêu đề từng cột để điều chỉnh độ rộng linh hoạt. Kích thước và trạng thái ẩn/hiện được tự động lưu theo từng tab vào trình duyệt.
-
-## Thư viện Dịch vụ & Thuốc
-
-- **Tab Dịch vụ kỹ thuật & VTYT**: Thêm mới, chỉnh sửa inline tên dịch vụ, loại trừ hoặc đặt ngưỡng thời gian riêng, kèm bộ công cụ **Simulator** thử nghiệm số phút.
-- **Tab Thuốc loại trừ XML2**: Quản lý danh mục các mã thuốc không cần báo thiếu `TT_THAU` trong XML2, kèm bộ thử nghiệm mã thuốc.
 
 ## Sao lưu (Backup) & Gửi Telegram
 

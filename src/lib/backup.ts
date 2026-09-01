@@ -152,6 +152,14 @@ export function parseBackupJson(content: string): ParsedBackupResult {
     .map((item) => ({
       MA_DICH_VU: String(item.MA_DICH_VU).trim(),
       TEN_DICH_VU: typeof item.TEN_DICH_VU === "string" ? item.TEN_DICH_VU.trim() : "",
+      minMinutes:
+        item.minMinutes === undefined || item.minMinutes === null
+          ? undefined
+          : typeof item.minMinutes === "number" &&
+              Number.isFinite(item.minMinutes) &&
+              item.minMinutes >= 0
+            ? Number(item.minMinutes)
+            : undefined,
       maxMinutes: item.maxMinutes === null ? null : Number(item.maxMinutes),
     }));
 

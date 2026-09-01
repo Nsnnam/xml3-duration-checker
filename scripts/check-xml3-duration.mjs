@@ -195,6 +195,111 @@ const xml3Group2NoThau = evaluateRecord(
 // Nhóm 2 không phải nhóm 10/11 nên không bị cảnh báo TT_THAU
 assert.equal(xml3Group2NoThau.hasTtThauWarning, false);
 
+// 3.1. Kiểm tra Thời gian tối thiểu (Min duration - mặc định > 0)
+const xml3ZeroDuration = evaluateRecord(
+  {
+    MA_LK: "LK-001",
+    STT: "5",
+    MA_DICH_VU: "DV01",
+    MA_VAT_TU: "",
+    TEN_DICH_VU: "Chụp X-quang",
+    TEN_VAT_TU: "",
+    MA_NHOM: "2",
+    MA_KHOA: "K01",
+    MA_GIUONG: "",
+    MA_BAC_SI: "BS01",
+    NGUOI_THUC_HIEN: "BS01",
+    MA_BENH: "A00",
+    MA_BENH_YHCT: "",
+    NGAY_YL: "202608280800",
+    NGAY_TH_YL: "202608280810",
+    NGAY_KQ: "202608280810",
+    MA_MAY: "",
+    MA_HIEU_SP: "",
+    TT_THAU: "",
+  },
+  "test.xml",
+);
+// Thời lượng = 0 phút (dưới mức tối thiểu > 0)
+assert.equal(xml3ZeroDuration.durationMinutes, 0);
+assert.equal(xml3ZeroDuration.status, "warning");
+assert.ok(xml3ZeroDuration.detail.includes("Thời lượng 0 phút (yêu cầu thời gian > 0 phút)"));
+
+// 3.2. Kiểm tra Thời gian tối thiểu có cấu hình riêng trong thư viện
+const serviceRuleMap = new Map([
+  [
+    "04.01",
+    {
+      MA_DICH_VU: "04.01",
+      TEN_DICH_VU: "Nội soi dạ dày",
+      minMinutes: 15,
+      maxMinutes: 90,
+    },
+  ],
+]);
+
+const xml3UnderMin = evaluateRecord(
+  {
+    MA_LK: "LK-001",
+    STT: "6",
+    MA_DICH_VU: "04.01",
+    MA_VAT_TU: "",
+    TEN_DICH_VU: "Nội soi dạ dày",
+    TEN_VAT_TU: "",
+    MA_NHOM: "3",
+    MA_KHOA: "K01",
+    MA_GIUONG: "",
+    MA_BAC_SI: "BS01",
+    NGUOI_THUC_HIEN: "BS01",
+    MA_BENH: "A00",
+    MA_BENH_YHCT: "",
+    NGAY_YL: "202608280800",
+    NGAY_TH_YL: "202608280810",
+    NGAY_KQ: "202608280820",
+    MA_MAY: "",
+    MA_HIEU_SP: "",
+    TT_THAU: "",
+  },
+  "test.xml",
+  serviceRuleMap,
+);
+// 10 phút < 15 phút tối thiểu
+assert.equal(xml3UnderMin.durationMinutes, 10);
+assert.equal(xml3UnderMin.status, "warning");
+assert.ok(
+  xml3UnderMin.detail.includes("Thời lượng 10 phút nhỏ hơn thời gian tối thiểu quy định (15 phút)"),
+);
+
+const xml3ValidRange = evaluateRecord(
+  {
+    MA_LK: "LK-001",
+    STT: "7",
+    MA_DICH_VU: "04.01",
+    MA_VAT_TU: "",
+    TEN_DICH_VU: "Nội soi dạ dày",
+    TEN_VAT_TU: "",
+    MA_NHOM: "3",
+    MA_KHOA: "K01",
+    MA_GIUONG: "",
+    MA_BAC_SI: "BS01",
+    NGUOI_THUC_HIEN: "BS01",
+    MA_BENH: "A00",
+    MA_BENH_YHCT: "",
+    NGAY_YL: "202608280800",
+    NGAY_TH_YL: "202608280810",
+    NGAY_KQ: "202608280840",
+    MA_MAY: "",
+    MA_HIEU_SP: "",
+    TT_THAU: "",
+  },
+  "test.xml",
+  serviceRuleMap,
+);
+// 30 phút nằm trong [15, 90]
+assert.equal(xml3ValidRange.durationMinutes, 30);
+assert.equal(xml3ValidRange.status, "ok");
+assert.ok(xml3ValidRange.detail.includes("Trong ngưỡng thời gian (15–90 phút)"));
+
 // 4. Kiểm tra XML2 và Loại trừ Thuốc
 function createMockXml2Element(maLk, stt, maThuoc, tenThuoc, ttThau) {
   const map = new Map([
@@ -252,8 +357,8 @@ assert.equal(xml2Warnings2.length, 0);
 
 // 5. Kiểm tra Backup / Restore JSON với Thư viện thuốc & Cấu hình cột
 const sampleRules = [
-  { MA_DICH_VU: "04.01", TEN_DICH_VU: "Nội soi", maxMinutes: null },
-  { MA_DICH_VU: "04.02", TEN_DICH_VU: "Phẫu thuật", maxMinutes: 120 },
+  { MA_DICH_VU: "04.01", TEN_DICH_VU: "Nội soi", minMinutes: 1, maxMinutes: null },
+  { MA_DICH_VU: "04.02", TEN_DICH_VU: "Phẫu thuật", minMinutes: 15, maxMinutes: 120 },
 ];
 const sampleDrugRules = [{ MA_THUOC: "TH01", TEN_THUOC: "Paracetamol 500mg", excluded: true }];
 const libJson = createLibraryBackupContent(sampleRules, sampleDrugRules);
@@ -263,6 +368,8 @@ assert.equal(parsedLib.serviceRules.length, 2);
 assert.equal(parsedLib.drugRules.length, 1);
 assert.equal(parsedLib.serviceRules[0].MA_DICH_VU, "04.01");
 assert.equal(parsedLib.serviceRules[0].maxMinutes, null);
+assert.equal(parsedLib.serviceRules[1].minMinutes, 15);
+assert.equal(parsedLib.serviceRules[1].maxMinutes, 120);
 assert.equal(parsedLib.drugRules[0].MA_THUOC, "TH01");
 assert.equal(parsedLib.drugRules[0].excluded, true);
 

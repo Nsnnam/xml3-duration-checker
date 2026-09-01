@@ -1,5 +1,10 @@
 import { useMemo, useState, useRef } from "react";
 import { exportWarningList, exportXml3Report, createXml3ReportWorkbook } from "../lib/export.ts";
+import {
+  exportLibraryTemplate,
+  exportLibraryToExcel,
+  importLibraryFromExcel,
+} from "../lib/library-excel.ts";
 import { APP_META } from "../lib/meta.ts";
 import { formatTimestampForFilename, formatXmlDateTime } from "../lib/timezone.ts";
 import {
@@ -380,7 +385,11 @@ export function HomePage() {
   }
 
   // Cập nhật Thư viện Dịch vụ kỹ thuật
-  async function updateServiceRule(record: Xml3Record, maxMinutes: number | null) {
+  async function updateServiceRule(
+    record: Xml3Record,
+    maxMinutes: number | null,
+    minMinutes: number | null = 1,
+  ) {
     const code = record.MA_DICH_VU.trim();
     if (!code) {
       setNotice("Dòng này chưa có MA_DICH_VU nên không thể lưu vào thư viện.");
@@ -389,6 +398,7 @@ export function HomePage() {
     const rule: ServiceRule = {
       MA_DICH_VU: code,
       TEN_DICH_VU: record.TEN_DICH_VU || record.TEN_VAT_TU || "",
+      minMinutes: minMinutes !== null ? minMinutes : undefined,
       maxMinutes,
     };
     const nextRules = [...serviceRules.filter((item) => item.MA_DICH_VU !== code), rule];
@@ -443,6 +453,53 @@ export function HomePage() {
     setDrugRules(newDrugRules);
     localStorage.setItem(DRUG_RULES_KEY, JSON.stringify(newDrugRules));
     await reanalyzeWithRules(serviceRules, newDrugRules);
+  }
+
+  // Nhập dữ liệu thư viện từ file Excel
+  async function handleImportExcel(file: File, mode: "merge" | "overwrite") {
+    setBusy(true);
+    try {
+      const { serviceRules: importedServices, drugRules: importedDrugs } =
+        await importLibraryFromExcel(file);
+      let nextServices = serviceRules;
+      let nextDrugs = drugRules;
+
+      if (mode === "overwrite") {
+        nextServices = importedServices;
+        nextDrugs = importedDrugs;
+      } else {
+        // Merge: cập nhật hoặc thêm mới
+        const serviceMap = new Map(serviceRules.map((r) => [r.MA_DICH_VU.trim(), r]));
+        for (const s of importedServices) {
+          serviceMap.set(s.MA_DICH_VU.trim(), s);
+        }
+        nextServices = Array.from(serviceMap.values());
+
+        const drugMap = new Map(drugRules.map((r) => [r.MA_THUOC.trim().toUpperCase(), r]));
+        for (const d of importedDrugs) {
+          drugMap.set(d.MA_THUOC.trim().toUpperCase(), d);
+        }
+        nextDrugs = Array.from(drugMap.values());
+      }
+
+      setServiceRules(nextServices);
+      localStorage.setItem(SERVICE_RULES_KEY, JSON.stringify(nextServices));
+      setDrugRules(nextDrugs);
+      localStorage.setItem(DRUG_RULES_KEY, JSON.stringify(nextDrugs));
+
+      await reanalyzeWithRules(nextServices, nextDrugs);
+      setNotice(
+        `✅ Đã nạp thành công ${importedServices.length} dịch vụ kỹ thuật và ${importedDrugs.length} mã thuốc từ file Excel (${
+          mode === "merge" ? "chế độ Gộp" : "chế độ Ghi đè"
+        }).`,
+      );
+    } catch (err) {
+      setNotice(
+        `❌ Lỗi khi đọc file Excel: ${err instanceof Error ? err.message : "Định dạng không hợp lệ"}`,
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   function addFiles(list: FileList | null) {
@@ -577,7 +634,7 @@ export function HomePage() {
                 {APP_META.name} · v{APP_META.version}
               </h1>
               <p className="text-xs text-teal-50">
-                Kiểm tra thời gian XML3, thông tin thầu XML2/XML3 & Tùy chỉnh cột đa tab
+                Kiểm tra thời gian (tối thiểu & tối đa), TT_THAU XML2/XML3 & Import Excel thư viện
               </p>
             </div>
           </div>
@@ -586,6 +643,7 @@ export function HomePage() {
             <span className="rounded-full bg-white/15 px-3 py-1">
               Ngưỡng {DURATION_LIMIT_MINUTES} phút
             </span>
+            <span className="rounded-full bg-white/15 px-3 py-1">Tối thiểu &gt; 0 phút</span>
             <span className="rounded-full bg-white/15 px-3 py-1">GMT+7</span>
           </div>
         </div>
@@ -684,6 +742,9 @@ export function HomePage() {
             onExportBackup={() => exportLibraryBackup(serviceRules, drugRules)}
             onSendTelegramBackup={() => handleSendTelegramBackup("library")}
             hasTelegramConfig={Boolean(telegramConfig.botToken && telegramConfig.chatId)}
+            onExportTemplate={exportLibraryTemplate}
+            onExportToExcel={() => exportLibraryToExcel(serviceRules, drugRules)}
+            onImportExcel={handleImportExcel}
           />
         )}
 
@@ -849,7 +910,11 @@ function CheckerView({
   onAlertTabChange: (value: AlertTab) => void;
   onSummaryFocus: (value: SummaryFocus) => void;
   onExportWarnings: (source: AlertTab, warnings: ValidationWarning[]) => void;
-  onAddServiceRule: (record: Xml3Record, maxMinutes: number | null) => void;
+  onAddServiceRule: (
+    record: Xml3Record,
+    maxMinutes: number | null,
+    minMinutes?: number | null,
+  ) => void;
   onAddExcludedDrug: (code: string, name: string) => void;
   onToggleWarnings: (value: boolean) => void;
   onExport: () => void;
@@ -880,8 +945,8 @@ function CheckerView({
                 <h2 className="text-lg font-bold text-slate-900">Nạp file XML chứa 15 bảng</h2>
                 <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
                   Công cụ giải mã nội dung <b>NOIDUNGFILE</b> theo Base64, lấy riêng <b>XML3</b>{" "}
-                  (CHI_TIET_DVKT), kiểm tra thông tin thầu <b>XML2</b> (cột 15 TT_THAU) và{" "}
-                  <b>XML3</b> (MA_NHOM 10/11 bắt buộc có TT_THAU).
+                  (CHI_TIET_DVKT), kiểm tra thời gian (tối thiểu & tối đa), thông tin thầu{" "}
+                  <b>XML2</b> (cột 15 TT_THAU) và <b>XML3</b> (MA_NHOM 10/11 bắt buộc có TT_THAU).
                 </p>
               </div>
             </div>
@@ -947,8 +1012,8 @@ function CheckerView({
 
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs">
               <span className="text-slate-600 font-medium">
-                ⚙️ Thư viện dịch vụ & danh mục thuốc loại trừ đã chuyển sang tab riêng trên thanh
-                menu để tiện quản lý.
+                ⚙️ Thư viện dịch vụ kỹ thuật & danh mục thuốc loại trừ XML2 được quản lý tại tab Thư
+                viện riêng.
               </span>
               <div className="flex gap-2">
                 <button
@@ -1318,7 +1383,11 @@ function WarningRow({
 }: {
   record: Xml3Record;
   tabCols: TabColumnState;
-  onAddServiceRule: (record: Xml3Record, maxMinutes: number | null) => void;
+  onAddServiceRule: (
+    record: Xml3Record,
+    maxMinutes: number | null,
+    minMinutes?: number | null,
+  ) => void;
 }) {
   const isWarning =
     record.status === "warning" ||
@@ -1421,17 +1490,30 @@ function WarningRow({
                 type="button"
                 className="rounded border border-teal-200 bg-white px-1.5 py-0.5 text-[9px] font-bold text-teal-700 hover:bg-teal-50"
                 onClick={() => {
-                  const value = window.prompt(
-                    `Ngưỡng thời gian tối đa cho [${record.MA_DICH_VU}] (phút):`,
+                  const maxVal = window.prompt(
+                    `Ngưỡng thời gian TỐI ĐA cho [${record.MA_DICH_VU}] (phút):`,
                     String(record.serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES),
                   );
-                  if (value === null) return;
-                  const maxMinutes = Number(value);
-                  if (Number.isFinite(maxMinutes) && maxMinutes >= 0) {
-                    onAddServiceRule(record, maxMinutes);
+                  if (maxVal === null) return;
+                  const maxMinutes = Number(maxVal);
+
+                  const minVal = window.prompt(
+                    `Thời gian TỐI THIỂU cho [${record.MA_DICH_VU}] (phút, mặc định > 0):`,
+                    String(record.serviceRule?.minMinutes ?? 1),
+                  );
+                  if (minVal === null) return;
+                  const minMinutes = Number(minVal);
+
+                  if (
+                    Number.isFinite(maxMinutes) &&
+                    maxMinutes >= 0 &&
+                    Number.isFinite(minMinutes) &&
+                    minMinutes >= 0
+                  ) {
+                    onAddServiceRule(record, maxMinutes, minMinutes);
                   }
                 }}
-                title="Đặt ngưỡng số phút tối đa riêng"
+                title="Đặt ngưỡng số phút tối thiểu và tối đa riêng"
               >
                 Đặt ngưỡng
               </button>
@@ -1812,7 +1894,7 @@ function Metric({
 }
 
 // ---------------------------------------------------------------------------
-// LIBRARY VIEW (DEDICATED TAB: SERVICE RULES & DRUG RULES)
+// LIBRARY VIEW (DEDICATED TAB: SERVICE RULES & DRUG RULES & EXCEL IMPORT)
 // ---------------------------------------------------------------------------
 function LibraryView({
   serviceRules,
@@ -1826,6 +1908,9 @@ function LibraryView({
   onExportBackup,
   onSendTelegramBackup,
   hasTelegramConfig,
+  onExportTemplate,
+  onExportToExcel,
+  onImportExcel,
 }: {
   serviceRules: ServiceRule[];
   drugRules: DrugRule[];
@@ -1838,33 +1923,43 @@ function LibraryView({
   onExportBackup: () => void;
   onSendTelegramBackup: () => void;
   hasTelegramConfig: boolean;
+  onExportTemplate: () => Promise<void>;
+  onExportToExcel: () => Promise<void>;
+  onImportExcel: (file: File, mode: "merge" | "overwrite") => Promise<void>;
 }) {
   const [subTab, setSubTab] = useState<"service" | "drug">("service");
 
-  // Service rule state
+  // Service rule form state
   const [serviceSearch, setServiceSearch] = useState("");
   const [filterType, setFilterType] = useState<"all" | "excluded" | "custom">("all");
   const [newServiceCode, setNewServiceCode] = useState("");
   const [newServiceName, setNewServiceName] = useState("");
-  const [newRuleType, setNewRuleType] = useState<"exclude" | "limit">("exclude");
-  const [newMinutes, setNewMinutes] = useState("120");
+  const [newRuleType, setNewRuleType] = useState<"exclude" | "limit">("limit");
+  const [newMinMinutes, setNewMinMinutes] = useState("1");
+  const [newMaxMinutes, setNewMaxMinutes] = useState("70");
+
+  // Service editing state
   const [editingServiceCode, setEditingServiceCode] = useState<string | null>(null);
   const [editServiceName, setEditServiceName] = useState("");
-  const [editServiceType, setEditServiceType] = useState<"exclude" | "limit">("exclude");
-  const [editMinutes, setEditMinutes] = useState("");
+  const [editServiceType, setEditServiceType] = useState<"exclude" | "limit">("limit");
+  const [editMinMinutes, setEditMinMinutes] = useState("1");
+  const [editMaxMinutes, setEditMaxMinutes] = useState("70");
 
   // Service simulator state
   const [testCode, setTestCode] = useState("");
   const [testDuration, setTestDuration] = useState("80");
   const [testResult, setTestResult] = useState<{
-    appliedLimit: number | null;
+    appliedMin: number;
+    appliedMax: number | null;
     isExcluded: boolean;
     isWarning: boolean;
-    overMinutes: number;
+    isUnderMin: boolean;
+    isOverMax: boolean;
+    diffMinutes: number;
     message: string;
   } | null>(null);
 
-  // Drug rule state
+  // Drug rule form state
   const [drugSearch, setDrugSearch] = useState("");
   const [newDrugCode, setNewDrugCode] = useState("");
   const [newDrugName, setNewDrugName] = useState("");
@@ -1877,6 +1972,10 @@ function LibraryView({
     isExcluded: boolean;
     message: string;
   } | null>(null);
+
+  // Excel Import state
+  const [importMode, setImportMode] = useState<"merge" | "overwrite">("merge");
+  const excelInputRef = useRef<HTMLInputElement>(null);
 
   // Filtered lists
   const filteredServices = useMemo(() => {
@@ -1912,14 +2011,19 @@ function LibraryView({
     e.preventDefault();
     const cleanCode = newServiceCode.trim();
     if (!cleanCode) return;
+
+    const minMinutes = Math.max(0, Number(newMinMinutes) || 1);
     const rule: ServiceRule = {
       MA_DICH_VU: cleanCode,
       TEN_DICH_VU: newServiceName.trim(),
-      maxMinutes: newRuleType === "exclude" ? null : Math.max(0, Number(newMinutes) || 70),
+      minMinutes,
+      maxMinutes: newRuleType === "exclude" ? null : Math.max(0, Number(newMaxMinutes) || 70),
     };
     await onAddServiceRule(rule);
     setNewServiceCode("");
     setNewServiceName("");
+    setNewMinMinutes("1");
+    setNewMaxMinutes("70");
   };
 
   const handleAddDrugSubmit = async (e: React.FormEvent) => {
@@ -1938,7 +2042,9 @@ function LibraryView({
         return {
           ...r,
           TEN_DICH_VU: editServiceName.trim(),
-          maxMinutes: editServiceType === "exclude" ? null : Math.max(0, Number(editMinutes) || 70),
+          minMinutes: Math.max(0, Number(editMinMinutes) || 1),
+          maxMinutes:
+            editServiceType === "exclude" ? null : Math.max(0, Number(editMaxMinutes) || 70),
         };
       }
       return r;
@@ -1968,41 +2074,62 @@ function LibraryView({
     const duration = Number(testDuration) || 0;
     const matched = serviceRules.find((r) => r.MA_DICH_VU.toLowerCase() === code.toLowerCase());
 
-    if (matched) {
-      if (matched.maxMinutes === null) {
-        setTestResult({
-          appliedLimit: null,
-          isExcluded: true,
-          isWarning: false,
-          overMinutes: 0,
-          message: `Dịch vụ [${matched.MA_DICH_VU}] được cấu hình LOẠI TRỪ khỏi cảnh báo thời lượng.`,
-        });
-      } else {
-        const limit = matched.maxMinutes;
-        const isWarn = duration > limit;
-        const over = Math.max(0, duration - limit);
-        setTestResult({
-          appliedLimit: limit,
-          isExcluded: false,
-          isWarning: isWarn,
-          overMinutes: over,
-          message: isWarn
-            ? `CẢNH BÁO: Vượt ${over} phút so với ngưỡng riêng ${limit} phút.`
-            : `ĐẠT: Nằm trong ngưỡng riêng ${limit} phút.`,
-        });
-      }
-    } else {
-      const limit = DURATION_LIMIT_MINUTES;
-      const isWarn = duration > limit;
-      const over = Math.max(0, duration - limit);
+    const minLimit =
+      matched?.minMinutes !== undefined && matched?.minMinutes !== null ? matched.minMinutes : 1;
+    const maxLimit =
+      matched?.maxMinutes !== undefined ? matched.maxMinutes : DURATION_LIMIT_MINUTES;
+
+    if (matched && matched.maxMinutes === null) {
       setTestResult({
-        appliedLimit: limit,
+        appliedMin: minLimit,
+        appliedMax: null,
+        isExcluded: true,
+        isWarning: false,
+        isUnderMin: false,
+        isOverMax: false,
+        diffMinutes: 0,
+        message: `Dịch vụ [${matched.MA_DICH_VU}] được cấu hình LOẠI TRỪ khỏi cảnh báo thời lượng.`,
+      });
+      return;
+    }
+
+    if (duration < minLimit) {
+      const under = minLimit - duration;
+      setTestResult({
+        appliedMin: minLimit,
+        appliedMax: maxLimit,
         isExcluded: false,
-        isWarning: isWarn,
-        overMinutes: over,
-        message: isWarn
-          ? `CẢNH BÁO (Mặc định): Vượt ${over} phút so với ngưỡng chuẩn ${limit} phút.`
-          : `ĐẠT (Mặc định): Nằm trong ngưỡng chuẩn ${limit} phút.`,
+        isWarning: true,
+        isUnderMin: true,
+        isOverMax: false,
+        diffMinutes: under,
+        message:
+          minLimit === 1 && duration === 0
+            ? `CẢNH BÁO: Thời lượng 0 phút (yêu cầu thời gian phải > 0 phút).`
+            : `CẢNH BÁO: Thời lượng ${duration} phút nhỏ hơn thời gian tối thiểu quy định (${minLimit} phút).`,
+      });
+    } else if (maxLimit !== null && duration > maxLimit) {
+      const over = duration - maxLimit;
+      setTestResult({
+        appliedMin: minLimit,
+        appliedMax: maxLimit,
+        isExcluded: false,
+        isWarning: true,
+        isUnderMin: false,
+        isOverMax: true,
+        diffMinutes: over,
+        message: `CẢNH BÁO: Vượt ${over} phút so với ngưỡng tối đa ${maxLimit} phút.`,
+      });
+    } else {
+      setTestResult({
+        appliedMin: minLimit,
+        appliedMax: maxLimit,
+        isExcluded: false,
+        isWarning: false,
+        isUnderMin: false,
+        isOverMax: false,
+        diffMinutes: 0,
+        message: `ĐẠT YÊU CẦU: Nằm trong khoảng thời gian hợp lệ (${minLimit > 1 ? `${minLimit}–` : "≤ "}${maxLimit} phút).`,
       });
     }
   };
@@ -2024,6 +2151,13 @@ function LibraryView({
     }
   };
 
+  const handleExcelFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    onImportExcel(file, importMode);
+    e.target.value = "";
+  };
+
   return (
     <div className="space-y-6">
       <div className="rounded-3xl border border-teal-100 bg-white p-6 shadow-sm md:p-8">
@@ -2036,25 +2170,44 @@ function LibraryView({
               Thư viện Dịch vụ kỹ thuật & Thuốc loại trừ XML2
             </h2>
             <p className="mt-1 text-sm text-slate-500 max-w-2xl">
-              Cấu hình các dịch vụ kỹ thuật cần loại trừ/đặt ngưỡng riêng và danh mục các mã thuốc
-              được loại trừ khỏi cảnh báo thiếu TT_THAU ở XML2.
+              Cấu hình thời gian tối thiểu (mặc định &gt; 0) &amp; tối đa cho từng dịch vụ kỹ thuật,
+              danh mục thuốc loại trừ TT_THAU, hỗ trợ nhập/xuất file Excel mẫu.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={onExportBackup}
-              className="rounded-xl border border-teal-600 bg-white px-4 py-2 text-xs font-bold text-teal-700 hover:bg-teal-50 shadow-sm"
+              onClick={onExportTemplate}
+              className="rounded-xl border border-teal-600 bg-teal-50 px-3.5 py-2 text-xs font-bold text-teal-800 hover:bg-teal-100 shadow-sm flex items-center gap-1.5"
+              title="Tải về file Excel mẫu chuẩn để điền và nạp vào thư viện"
             >
-              📥 Xuất File Thư viện (.json)
+              <span>📥 Tải Excel mẫu</span>
             </button>
-            {hasTelegramConfig && (
-              <button
-                onClick={onSendTelegramBackup}
-                className="rounded-xl bg-[#229ED9] px-4 py-2 text-xs font-bold text-white hover:bg-[#1e8ec3] shadow-sm"
-              >
-                ✈️ Gửi Backup qua Telegram
-              </button>
-            )}
+            <button
+              onClick={onExportToExcel}
+              className="rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-sm flex items-center gap-1.5"
+              title="Xuất danh mục DVKT và thuốc hiện có ra file Excel"
+            >
+              <span>📊 Xuất Excel Thư viện</span>
+            </button>
+            <label className="flex items-center gap-1 rounded-xl bg-teal-700 px-3.5 py-2 text-xs font-bold text-white hover:bg-teal-800 shadow-sm cursor-pointer">
+              <span>📤 Nạp từ Excel</span>
+              <input
+                ref={excelInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={handleExcelFileInput}
+              />
+            </label>
+            <select
+              value={importMode}
+              onChange={(e) => setImportMode(e.target.value as "merge" | "overwrite")}
+              className="rounded-xl border border-slate-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none"
+              title="Chế độ nạp khi import file Excel"
+            >
+              <option value="merge">Chế độ: Gộp (Merge)</option>
+              <option value="overwrite">Chế độ: Ghi đè (Overwrite)</option>
+            </select>
           </div>
         </div>
 
@@ -2086,7 +2239,9 @@ function LibraryView({
             <div className="rounded-2xl border border-teal-200 bg-teal-50/50 p-4">
               <div className="text-xs font-bold text-teal-800 uppercase">Tổng quy tắc DVKT</div>
               <div className="mt-1 text-2xl font-black text-teal-900">{serviceRules.length}</div>
-              <div className="mt-1 text-xs text-slate-500">Dịch vụ đã lưu trong thư viện</div>
+              <div className="mt-1 text-xs text-slate-500">
+                Mặc định thời gian tối thiểu &gt; 0 phút
+              </div>
             </div>
             <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4">
               <div className="text-xs font-bold text-amber-800 uppercase">Loại trừ hoàn toàn</div>
@@ -2098,7 +2253,9 @@ function LibraryView({
             <div className="rounded-2xl border border-sky-200 bg-sky-50/50 p-4">
               <div className="text-xs font-bold text-sky-800 uppercase">Ngưỡng riêng</div>
               <div className="mt-1 text-2xl font-black text-sky-900">{customLimitCount}</div>
-              <div className="mt-1 text-xs text-slate-500">Áp dụng số phút tối đa tùy chỉnh</div>
+              <div className="mt-1 text-xs text-slate-500">
+                Áp dụng thời gian tối thiểu &amp; tối đa riêng
+              </div>
             </div>
           </div>
         ) : (
@@ -2160,25 +2317,46 @@ function LibraryView({
                     className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-teal-500 focus:outline-none"
                   />
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Thời gian tối thiểu (phút)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      required
+                      value={newMinMinutes}
+                      onChange={(e) => setNewMinMinutes(e.target.value)}
+                      placeholder="Mặc định: 1 (> 0)"
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-sm font-bold text-slate-900 focus:border-teal-500 focus:outline-none"
+                    />
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      Mặc định là 1 (yêu cầu &gt; 0 phút)
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Thời gian tối đa (phút)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      disabled={newRuleType === "exclude"}
+                      required={newRuleType !== "exclude"}
+                      value={newMaxMinutes}
+                      onChange={(e) => setNewMaxMinutes(e.target.value)}
+                      placeholder="Mặc định: 70"
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-sm font-bold text-slate-900 focus:border-teal-500 focus:outline-none disabled:bg-slate-100 disabled:opacity-50"
+                    />
+                    <p className="mt-1 text-[11px] text-slate-400">Mặc định chuẩn là 70 phút</p>
+                  </div>
+                </div>
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Quy tắc thời lượng</label>
                   <div className="grid grid-cols-2 gap-2">
-                    <label
-                      className={`flex cursor-pointer items-center gap-2 rounded-xl border p-3 ${
-                        newRuleType === "exclude"
-                          ? "border-amber-500 bg-amber-50 text-amber-900 font-bold"
-                          : "border-slate-200 bg-slate-50 text-slate-600"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="ruleType"
-                        checked={newRuleType === "exclude"}
-                        onChange={() => setNewRuleType("exclude")}
-                        className="accent-amber-600"
-                      />
-                      <span>Loại trừ cảnh báo</span>
-                    </label>
                     <label
                       className={`flex cursor-pointer items-center gap-2 rounded-xl border p-3 ${
                         newRuleType === "limit"
@@ -2193,26 +2371,26 @@ function LibraryView({
                         onChange={() => setNewRuleType("limit")}
                         className="accent-teal-600"
                       />
-                      <span>Đặt ngưỡng riêng</span>
+                      <span>Kiểm tra thời gian (Min/Max)</span>
+                    </label>
+                    <label
+                      className={`flex cursor-pointer items-center gap-2 rounded-xl border p-3 ${
+                        newRuleType === "exclude"
+                          ? "border-amber-500 bg-amber-50 text-amber-900 font-bold"
+                          : "border-slate-200 bg-slate-50 text-slate-600"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="ruleType"
+                        checked={newRuleType === "exclude"}
+                        onChange={() => setNewRuleType("exclude")}
+                        className="accent-amber-600"
+                      />
+                      <span>Loại trừ hoàn toàn</span>
                     </label>
                   </div>
                 </div>
-                {newRuleType === "limit" && (
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">
-                      Ngưỡng thời gian tối đa (phút)
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      step="1"
-                      required
-                      value={newMinutes}
-                      onChange={(e) => setNewMinutes(e.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-sm font-bold text-slate-900 focus:border-teal-500 focus:outline-none"
-                    />
-                  </div>
-                )}
                 <button
                   type="submit"
                   className="w-full rounded-xl bg-teal-700 py-2.5 text-xs font-bold text-white hover:bg-teal-800 shadow-sm"
@@ -2227,8 +2405,8 @@ function LibraryView({
                 <span>🧪</span> Kiểm tra thử quy tắc DVKT (Simulator)
               </h3>
               <p className="mt-1 text-xs text-slate-500">
-                Thử nghiệm nhanh xem một mã dịch vụ với thời lượng cụ thể sẽ cho kết quả Đạt hay
-                Cảnh báo.
+                Thử nghiệm nhanh xem một mã dịch vụ với thời lượng cụ thể có vi phạm thời gian tối
+                thiểu hoặc tối đa không.
               </p>
               <form onSubmit={handleRunServiceTest} className="mt-4 space-y-4 text-xs">
                 <div>
@@ -2278,10 +2456,12 @@ function LibraryView({
                     <span>{testResult.isWarning ? "⚠️" : testResult.isExcluded ? "🛡️" : "✅"}</span>
                     <span>
                       {testResult.isWarning
-                        ? "CẢNH BÁO THỜI LƯỢNG"
+                        ? testResult.isUnderMin
+                          ? "CẢNH BÁO: DƯỚI THỜI GIAN TỐI THIỂU"
+                          : "CẢNH BÁO: VƯỢT THỜI GIAN TỐI ĐA"
                         : testResult.isExcluded
-                          ? "ĐƯỢC LOẠI TRỪ"
-                          : "ĐẠT YÊU CẦU"}
+                          ? "ĐƯỢC LOẠI TRỪ HOÀN TOÀN"
+                          : "ĐẠT YÊU CẦU THỜI LƯỢNG"}
                     </span>
                   </div>
                   <p className="leading-relaxed">{testResult.message}</p>
@@ -2311,7 +2491,7 @@ function LibraryView({
                 >
                   <option value="all">Tất cả quy tắc</option>
                   <option value="excluded">Chỉ loại trừ</option>
-                  <option value="custom">Chỉ ngưỡng riêng</option>
+                  <option value="custom">Chỉ có ngưỡng riêng</option>
                 </select>
               </div>
             </div>
@@ -2328,7 +2508,8 @@ function LibraryView({
                       <th className="px-4 py-3 font-bold">STT</th>
                       <th className="px-4 py-3 font-bold">Mã dịch vụ</th>
                       <th className="px-4 py-3 font-bold">Tên dịch vụ</th>
-                      <th className="px-4 py-3 font-bold">Quy tắc thời lượng</th>
+                      <th className="px-4 py-3 font-bold">Thời gian tối thiểu</th>
+                      <th className="px-4 py-3 font-bold">Thời gian tối đa</th>
                       <th className="px-4 py-3 font-bold text-right">Thao tác</th>
                     </tr>
                   </thead>
@@ -2360,6 +2541,22 @@ function LibraryView({
                               )
                             )}
                           </td>
+                          <td className="px-4 py-3 font-mono">
+                            {isEditing ? (
+                              <input
+                                type="number"
+                                min="0"
+                                value={editMinMinutes}
+                                onChange={(e) => setEditMinMinutes(e.target.value)}
+                                className="w-20 rounded-lg border border-teal-400 bg-white px-2 py-1 text-xs font-mono"
+                                placeholder="≥ 1"
+                              />
+                            ) : (
+                              <span className="inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-700">
+                                ≥ {rule.minMinutes ?? 1} phút
+                              </span>
+                            )}
+                          </td>
                           <td className="px-4 py-3">
                             {isEditing ? (
                               <div className="flex items-center gap-2">
@@ -2370,15 +2567,15 @@ function LibraryView({
                                   }
                                   className="rounded-lg border border-teal-400 bg-white px-2 py-1 text-xs"
                                 >
+                                  <option value="limit">Ngưỡng tối đa</option>
                                   <option value="exclude">Loại trừ</option>
-                                  <option value="limit">Ngưỡng số phút</option>
                                 </select>
                                 {editServiceType === "limit" && (
                                   <input
                                     type="number"
                                     min="1"
-                                    value={editMinutes}
-                                    onChange={(e) => setEditMinutes(e.target.value)}
+                                    value={editMaxMinutes}
+                                    onChange={(e) => setEditMaxMinutes(e.target.value)}
                                     className="w-20 rounded-lg border border-teal-400 bg-white px-2 py-1 text-xs font-mono"
                                   />
                                 )}
@@ -2389,7 +2586,7 @@ function LibraryView({
                               </span>
                             ) : (
                               <span className="inline-block rounded-full bg-teal-100 px-2.5 py-0.5 text-[11px] font-bold text-teal-800 font-mono">
-                                ⏱ ≤ {rule.maxMinutes} phút
+                                ≤ {rule.maxMinutes} phút
                               </span>
                             )}
                           </td>
@@ -2415,11 +2612,12 @@ function LibraryView({
                                   onClick={() => {
                                     setEditingServiceCode(rule.MA_DICH_VU);
                                     setEditServiceName(rule.TEN_DICH_VU);
+                                    setEditMinMinutes(String(rule.minMinutes ?? 1));
                                     setEditServiceType(
                                       rule.maxMinutes === null ? "exclude" : "limit",
                                     );
-                                    setEditMinutes(
-                                      rule.maxMinutes === null ? "120" : String(rule.maxMinutes),
+                                    setEditMaxMinutes(
+                                      rule.maxMinutes === null ? "70" : String(rule.maxMinutes),
                                     );
                                   }}
                                   className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
@@ -3030,8 +3228,8 @@ function GuideView() {
     <div className="mx-auto max-w-4xl space-y-5">
       <PageTitle
         eyebrow="Hướng dẫn sử dụng"
-        title="Kiểm tra thời gian XML3, Thông tin thầu TT_THAU & Tùy chỉnh cột"
-        description="Quy trình kiểm tra chênh lệch thời gian NGAY_KQ - NGAY_TH_YL, TT_THAU trên XML2 và XML3, hỗ trợ ẩn/hiện và kéo giãn cột đa tab."
+        title="Kiểm tra thời gian XML3, Thông tin thầu TT_THAU & Import Excel thư viện"
+        description="Quy trình kiểm tra chênh lệch thời gian NGAY_KQ - NGAY_TH_YL (tối thiểu & tối đa), TT_THAU trên XML2 và XML3, hỗ trợ nhập file Excel danh mục và tùy chỉnh cột."
       />
       <section className="grid gap-4 md:grid-cols-3">
         <GuideCard
@@ -3081,7 +3279,7 @@ function GuideView() {
                 [
                   "NGAY_TH_YL, NGAY_KQ",
                   "XML3 (cột 38, 39)",
-                  "Thời lượng = NGAY_KQ - NGAY_TH_YL. Cảnh báo khi > 70 phút hoặc vượt ngưỡng thư viện.",
+                  "Thời lượng = NGAY_KQ - NGAY_TH_YL. Cảnh báo khi <= 0 phút (hoặc dưới thời gian tối thiểu), hoặc > 70 phút (hoặc vượt thời gian tối đa).",
                 ],
                 [
                   "NGAY_YL, NGAY_TH_YL, NGAY_KQ",
