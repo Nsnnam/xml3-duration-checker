@@ -74,6 +74,7 @@ type ColumnDef = {
 };
 
 const DEFAULT_GENERIC_COLUMNS: ColumnDef[] = [
+  { key: "action", label: "Thao tác", defaultWidth: 95 },
   { key: "detailIndex", label: "Chi tiết thứ", defaultWidth: 95 },
   { key: "maLk", label: "MA_LK", defaultWidth: 130 },
   { key: "hoTen", label: "Họ và tên", defaultWidth: 170 },
@@ -104,6 +105,7 @@ const TAB_COLUMNS: Record<string, ColumnDef[]> = {
     { key: "stt", label: "STT", defaultWidth: 60 },
   ],
   XML1: [
+    { key: "action", label: "Thao tác", defaultWidth: 95 },
     { key: "detailIndex", label: "Chi tiết thứ", defaultWidth: 95 },
     { key: "maLk", label: "MA_LK", defaultWidth: 130 },
     { key: "hoTen", label: "Họ và tên", defaultWidth: 170 },
@@ -123,6 +125,7 @@ const TAB_COLUMNS: Record<string, ColumnDef[]> = {
     { key: "message", label: "Nội dung cảnh báo", defaultWidth: 380 },
   ],
   XML4: [
+    { key: "action", label: "Thao tác", defaultWidth: 95 },
     { key: "detailIndex", label: "Chi tiết thứ", defaultWidth: 95 },
     { key: "maLk", label: "MA_LK", defaultWidth: 130 },
     { key: "hoTen", label: "Họ và tên", defaultWidth: 170 },
@@ -171,6 +174,10 @@ function loadColumnsConfig(): AllTabsColumnConfig {
               widths: { ...defState.widths, ...(tabCfg.widths || {}) },
               visible: { ...defState.visible, ...(tabCfg.visible || {}) },
             };
+            // Luôn đảm bảo cột action hiển thị mặc định nếu config cũ chưa có
+            if (tabCfg.visible?.action === undefined && defState.visible.action !== undefined) {
+              defaults[tab].visible.action = true;
+            }
           }
         }
       }
@@ -1088,7 +1095,13 @@ export function HomePage() {
       {/* Modal chi tiết bệnh nhân (khi click nút Xem) */}
       {detailModalData && (
         <PatientHoverCard
-          hoverData={detailModalData}
+          hoverData={{
+            ...detailModalData,
+            patient:
+              analysis?.patients?.get(detailModalData.maLk) ||
+              analysis?.dossierMap?.get(detailModalData.maLk)?.patient ||
+              detailModalData.patient,
+          }}
           onClose={() => setDetailModalData(null)}
           onOpenDossier={handleOpenDossier}
         />
@@ -1909,8 +1922,28 @@ function WarningRow({
       )}
       {isVisible("hoTen") && (
         <td style={colWidth("hoTen", 155)} className="px-3 py-2.5">
-          <div className="font-semibold text-slate-800 break-words leading-tight">
-            {record.HO_TEN || "Chưa có họ tên"}
+          <div className="flex items-center justify-between gap-1">
+            <span className="font-semibold text-slate-800 break-words leading-tight">
+              {record.HO_TEN || "Chưa có họ tên"}
+            </span>
+            {!isVisible("status") && onOpenDetail && (
+              <button
+                type="button"
+                onClick={() =>
+                  onOpenDetail({
+                    maLk: record.MA_LK,
+                    patient: record.patient,
+                    record,
+                    warningMessage: record.detail,
+                    source: "XML3",
+                  })
+                }
+                className="inline-flex items-center gap-0.5 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-bold text-slate-700 dark:text-slate-200 shadow-xs"
+                title="Xem chi tiết bệnh nhân"
+              >
+                👁️ Xem
+              </button>
+            )}
           </div>
         </td>
       )}
@@ -2156,20 +2189,43 @@ function ValidationTable({
                     key={`${source}-${warning.MA_LK}-${warning.detailIndex}-${index}`}
                     className="border-t border-slate-100 bg-rose-50/60 hover:bg-rose-100/60 align-top transition-colors"
                   >
-                    {source === "XML2" && isVisible("action") && (
-                      <td style={colWidth("action", 115)} className="px-3 py-3">
-                        {warning.MA_DICH_VU && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              onAddExcludedDrug(warning.MA_DICH_VU, warning.TEN_DICH_VU)
-                            }
-                            className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-800 hover:bg-amber-100 shadow-sm whitespace-nowrap"
-                            title="Thêm thuốc này vào danh mục loại trừ XML2"
-                          >
-                            🛡️ Loại trừ thuốc
-                          </button>
-                        )}
+                    {isVisible("action") && (
+                      <td
+                        style={colWidth("action", source === "XML2" ? 115 : 95)}
+                        className="px-3 py-3"
+                      >
+                        <div className="flex flex-col items-start gap-1.5">
+                          {onOpenDetail && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onOpenDetail({
+                                  maLk: warning.MA_LK,
+                                  patient: warning.patient,
+                                  record: warning.record,
+                                  warningMessage: warning.message,
+                                  source,
+                                })
+                              }
+                              className="inline-flex items-center justify-center gap-1 rounded-md border border-slate-300 dark:border-slate-600 bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 px-2 py-1 text-[11px] font-bold text-slate-700 dark:text-slate-200 transition shadow-xs whitespace-nowrap"
+                              title="Xem chi tiết bệnh nhân"
+                            >
+                              <span>👁️</span> Xem
+                            </button>
+                          )}
+                          {source === "XML2" && warning.MA_DICH_VU && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onAddExcludedDrug(warning.MA_DICH_VU, warning.TEN_DICH_VU)
+                              }
+                              className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-800 hover:bg-amber-100 shadow-sm whitespace-nowrap"
+                              title="Thêm thuốc này vào danh mục loại trừ XML2"
+                            >
+                              🛡️ Loại trừ thuốc
+                            </button>
+                          )}
+                        </div>
                       </td>
                     )}
                     {isVisible("detailIndex") && (
@@ -2178,7 +2234,7 @@ function ValidationTable({
                         className="px-3 py-3 font-mono font-bold"
                       >
                         <div>{warning.detailIndex}</div>
-                        {onOpenDetail && (
+                        {!isVisible("action") && onOpenDetail && (
                           <button
                             type="button"
                             onClick={() =>
@@ -2223,7 +2279,27 @@ function ValidationTable({
                         style={colWidth("hoTen", 170)}
                         className="px-3 py-3 font-semibold text-slate-800 break-words"
                       >
-                        {warning.HO_TEN || "Chưa có họ tên"}
+                        <div className="flex items-center justify-between gap-1">
+                          <span>{warning.HO_TEN || "Chưa có họ tên"}</span>
+                          {!isVisible("action") && !isVisible("detailIndex") && onOpenDetail && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onOpenDetail({
+                                  maLk: warning.MA_LK,
+                                  patient: warning.patient,
+                                  record: warning.record,
+                                  warningMessage: warning.message,
+                                  source,
+                                })
+                              }
+                              className="inline-flex items-center gap-0.5 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-bold text-slate-700 dark:text-slate-200 shadow-xs"
+                              title="Xem chi tiết bệnh nhân"
+                            >
+                              👁️ Xem
+                            </button>
+                          )}
+                        </div>
                       </td>
                     )}
                     {isVisible("maBn") && (

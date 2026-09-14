@@ -5,6 +5,7 @@ import {
   ALL_XML_TABLE_KEYS,
   formatXmlString,
   extractPrimaryDiagnosis,
+  XML1_FIELD_LABELS,
 } from "./xml3-duration.ts";
 import { formatXmlDateTime, formatXmlDate } from "./timezone.ts";
 
@@ -26,6 +27,10 @@ export function PatientDossierView({
   const [tableSearch, setTableSearch] = useState("");
   const [showWarningPanel, setShowWarningPanel] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState(false);
+  const [showFullPatientInfo, setShowFullPatientInfo] = useState(false);
+  const [patientFieldSearch, setPatientFieldSearch] = useState("");
+  const [copiedPatientField, setCopiedPatientField] = useState<string | null>(null);
+  const [copiedAllDossierAdmin, setCopiedAllDossierAdmin] = useState(false);
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const topScrollRef = useRef<HTMLDivElement>(null);
@@ -87,6 +92,132 @@ export function PatientDossierView({
       Object.values(row).some((val) => String(val).toLowerCase().includes(q)),
     );
   }, [currentTableData, tableSearch]);
+
+  // Tổng hợp toàn bộ các trường hành chính XML1 của bệnh nhân hiện tại
+  const dossierAdminFields = useMemo(() => {
+    if (!activeDossier) return [];
+    const map = new Map<string, string>();
+    const xml1Row = activeDossier.tables["XML1"]?.rows[0];
+    if (xml1Row) {
+      for (const [k, v] of Object.entries(xml1Row)) {
+        if (v !== undefined && v !== null && v !== "") {
+          map.set(k.toUpperCase(), String(v));
+        }
+      }
+    }
+    if (activeDossier.patient?.rawFields) {
+      for (const [k, v] of Object.entries(activeDossier.patient.rawFields)) {
+        if (v !== undefined && v !== null && v !== "") {
+          map.set(k.toUpperCase(), String(v));
+        }
+      }
+    }
+    const p = activeDossier.patient;
+    const knownFields: Array<[string, string | undefined]> = [
+      ["MA_LK", activeDossier.maLk],
+      ["MA_BN", p?.MA_BN],
+      ["HO_TEN", p?.HO_TEN],
+      ["SO_CCCD", p?.SO_CCCD],
+      ["NGAY_SINH", p?.NGAY_SINH],
+      [
+        "GIOI_TINH",
+        p?.GIOI_TINH === "1" ? "1 (Nam)" : p?.GIOI_TINH === "2" ? "2 (Nữ)" : p?.GIOI_TINH,
+      ],
+      ["DIA_CHI", p?.DIA_CHI],
+      ["MA_THE_BHYT", p?.MA_THE_BHYT],
+      ["MA_DKBD", p?.MA_DKBD],
+      ["GT_THE_TU", p?.GT_THE_TU],
+      ["GT_THE_DEN", p?.GT_THE_DEN],
+      ["MIEN_CUNG_CT", p?.MIEN_CUNG_CT],
+      ["NAM_NAM_LIEN_TUC", p?.NAM_NAM_LIEN_TUC],
+      ["MA_DOITUONG_KCB", p?.MA_DOITUONG_KCB],
+      ["MA_CSKCB", p?.MA_CSKCB],
+      ["MA_NOI_CHUYEN", p?.MA_NOI_CHUYEN],
+      ["MA_TAI_NAN", p?.MA_TAI_NAN],
+      ["NGAY_VAO", p?.NGAY_VAO],
+      ["NGAY_RA", p?.NGAY_RA],
+      ["SO_NGAY_DTRI", p?.SO_NGAY_DTRI],
+      ["MA_KHOA", p?.MA_KHOA],
+      ["KET_QUA_DTRI", p?.KET_QUA_DTRI],
+      ["TINH_TRANG_RV", p?.TINH_TRANG_RV],
+      ["CHAN_DOAN_VAO", p?.CHAN_DOAN_VAO],
+      ["CHAN_DOAN_RV", p?.CHAN_DOAN_RV],
+      ["MA_BENH", p?.MA_BENH || p?.MA_BENH_CHINH],
+      ["TEN_BENH", p?.TEN_BENH],
+      ["MA_BENHKEMTHEO", p?.MA_BENHKEMTHEO],
+      ["MA_QUOCTICH", p?.MA_QUOCTICH],
+      ["MA_DANTOC", p?.MA_DANTOC],
+      ["MA_KHUVUC", p?.MA_KHUVUC],
+      ["NGHE_NGHIEP", p?.NGHE_NGHIEP],
+      ["NOI_LAM_VIEC", p?.NOI_LAM_VIEC],
+      ["CAN_NANG", p?.CAN_NANG],
+      ["NGAY_TTOAN", p?.NGAY_TTOAN],
+      ["TIEN_TONG", p?.TIEN_TONG],
+      ["TIEN_BHYT", p?.TIEN_BHYT],
+      ["TIEN_BNTT", p?.TIEN_BNTT],
+    ];
+    for (const [k, v] of knownFields) {
+      if (v && !map.has(k)) {
+        map.set(k, v);
+      }
+    }
+    return Array.from(map.entries()).map(([key, value]) => ({
+      key,
+      label: XML1_FIELD_LABELS[key] || key,
+      value,
+    }));
+  }, [activeDossier]);
+
+  const filteredDossierAdminFields = useMemo(() => {
+    const q = patientFieldSearch.trim().toLowerCase();
+    if (!q) return dossierAdminFields;
+    return dossierAdminFields.filter(
+      (f) =>
+        f.key.toLowerCase().includes(q) ||
+        f.label.toLowerCase().includes(q) ||
+        f.value.toLowerCase().includes(q),
+    );
+  }, [dossierAdminFields, patientFieldSearch]);
+
+  const formatAdminValue = (key: string, val: string): { display: string; raw: string } => {
+    if (!val) return { display: "—", raw: "" };
+    if (
+      key.startsWith("NGAY_") ||
+      key.endsWith("_TU") ||
+      key.endsWith("_DEN") ||
+      key.includes("LIEN_TUC") ||
+      key.includes("CUNG_CT")
+    ) {
+      const formatted = formatXmlDateTime(val) || formatXmlDate(val);
+      if (formatted && formatted !== val) {
+        return { display: `${formatted} (${val})`, raw: val };
+      }
+    }
+    if (key.startsWith("TIEN_") && !isNaN(Number(val))) {
+      const num = Number(val);
+      return { display: `${num.toLocaleString("vi-VN")} đ`, raw: val };
+    }
+    return { display: val, raw: val };
+  };
+
+  const handleCopyPatientField = (key: string, val: string) => {
+    navigator.clipboard.writeText(val);
+    setCopiedPatientField(key);
+    setTimeout(() => setCopiedPatientField(null), 1500);
+  };
+
+  const handleCopyAllDossierAdmin = () => {
+    if (!activeDossier) return;
+    const text = [
+      `=== THÔNG TIN HÀNH CHÍNH BỆNH NHÂN (XML1) ===`,
+      `Mã LK: ${activeDossier.maLk}`,
+      `Bệnh nhân: ${activeDossier.patient?.HO_TEN || "—"}`,
+      ...dossierAdminFields.map((f) => `${f.label} [${f.key}]: ${f.value}`),
+    ].join("\n");
+    navigator.clipboard.writeText(text);
+    setCopiedAllDossierAdmin(true);
+    setTimeout(() => setCopiedAllDossierAdmin(false), 2000);
+  };
 
   // Cập nhật độ rộng scroll của bảng khi đổi tab, tìm kiếm hoặc đổi chế độ xem
   useEffect(() => {
@@ -439,6 +570,127 @@ export function PatientDossierView({
                     })()}
                   </div>
                 </div>
+
+                {/* Nút bật/tắt xem toàn bộ thông tin hành chính XML1 */}
+                <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-teal-100 dark:border-slate-700/60">
+                  <button
+                    type="button"
+                    onClick={() => setShowFullPatientInfo((prev) => !prev)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-teal-300 dark:border-cyan-800 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs font-bold text-teal-800 dark:text-cyan-300 hover:bg-teal-50 dark:hover:bg-slate-700/80 transition shadow-xs cursor-pointer"
+                    title="Bật/tắt hiển thị toàn bộ các trường thông tin hành chính từ bảng XML1"
+                  >
+                    <span>📋</span>
+                    <span>
+                      {showFullPatientInfo
+                        ? "▲ Thu gọn thông tin hành chính"
+                        : "📋 Xem toàn bộ thông tin hành chính (XML1) ▼"}
+                    </span>
+                    <span className="text-[10px] opacity-70">
+                      ({dossierAdminFields.length} trường)
+                    </span>
+                  </button>
+
+                  {showFullPatientInfo && (
+                    <button
+                      type="button"
+                      onClick={handleCopyAllDossierAdmin}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 transition shadow-xs cursor-pointer"
+                    >
+                      <span>
+                        {copiedAllDossierAdmin ? "✅ Đã sao chép!" : "📋 Sao chép toàn bộ XML1"}
+                      </span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Bảng chi tiết toàn bộ thông tin hành chính XML1 khi mở rộng */}
+                {showFullPatientInfo && (
+                  <div className="mt-3 rounded-2xl border border-teal-200 dark:border-cyan-900/60 bg-white dark:bg-slate-900 p-3.5 space-y-3 animate-in fade-in shadow-xs">
+                    {/* Header ô tìm kiếm */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          value={patientFieldSearch}
+                          onChange={(e) => setPatientFieldSearch(e.target.value)}
+                          placeholder="Tìm nhanh trường hành chính (VD: cccd, địa chỉ, nghề nghiệp, tiền, chẩn đoán, khoa...)"
+                          className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 px-3 py-1.5 pl-8 text-xs text-slate-900 dark:text-slate-100 focus:border-teal-500 focus:outline-none"
+                        />
+                        <span className="absolute left-2.5 top-1.5 text-slate-400 text-xs">🔍</span>
+                        {patientFieldSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setPatientFieldSearch("")}
+                            className="absolute right-2.5 top-1.5 text-slate-400 hover:text-slate-600 text-xs"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                      <span className="text-xs font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                        Hiển thị <b>{filteredDossierAdminFields.length}</b>/
+                        {dossierAdminFields.length} trường
+                      </span>
+                    </div>
+
+                    {/* Danh sách các trường hành chính dạng bảng cuộn */}
+                    <div className="max-h-80 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
+                      <table className="w-full text-left border-collapse">
+                        <thead className="bg-slate-100 dark:bg-slate-800 sticky top-0 text-[10px] uppercase font-bold text-slate-600 dark:text-slate-300">
+                          <tr>
+                            <th className="px-3 py-2 w-1/3">Tên thông tin</th>
+                            <th className="px-2.5 py-2 w-1/4">Thẻ XML</th>
+                            <th className="px-3 py-2">Giá trị</th>
+                            <th className="px-2 py-2 w-10 text-center">Sao chép</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono text-xs">
+                          {filteredDossierAdminFields.length === 0 ? (
+                            <tr>
+                              <td
+                                colSpan={4}
+                                className="px-3 py-8 text-center text-slate-400 italic font-sans"
+                              >
+                                Không tìm thấy trường hành chính nào khớp với từ khóa
+                              </td>
+                            </tr>
+                          ) : (
+                            filteredDossierAdminFields.map((f) => {
+                              const formatted = formatAdminValue(f.key, f.value);
+                              const isCopied = copiedPatientField === f.key;
+                              return (
+                                <tr
+                                  key={f.key}
+                                  className="hover:bg-teal-50/50 dark:hover:bg-slate-800/60 transition-colors"
+                                >
+                                  <td className="px-3 py-2 font-sans font-semibold text-slate-800 dark:text-slate-200">
+                                    {f.label}
+                                  </td>
+                                  <td className="px-2.5 py-2 text-[11px] text-teal-700 dark:text-cyan-400 font-bold">
+                                    {f.key}
+                                  </td>
+                                  <td className="px-3 py-2 text-slate-900 dark:text-slate-100 break-all select-all font-medium">
+                                    {formatted.display}
+                                  </td>
+                                  <td className="px-2 py-2 text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopyPatientField(f.key, f.value)}
+                                      className="p-1 rounded text-slate-400 hover:text-teal-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+                                      title={`Sao chép ${f.key}: ${f.value}`}
+                                    >
+                                      {isCopied ? "✅" : "📋"}
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
 
                 {/* Danh sách các cảnh báo (khi bấm vào nút cảnh báo phía trên) */}
                 {showWarningPanel && activeDossier.hasWarnings && (

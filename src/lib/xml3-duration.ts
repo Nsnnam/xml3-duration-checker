@@ -232,6 +232,54 @@ function textOfGeneral(parent: Element, tag: string): string {
   return parent.getElementsByTagName(tag)[0]?.textContent?.trim() ?? "";
 }
 
+export const XML1_FIELD_LABELS: Record<string, string> = {
+  MA_LK: "Mã liên kết",
+  MA_BN: "Mã bệnh nhân",
+  HO_TEN: "Họ và tên bệnh nhân",
+  SO_CCCD: "Số CCCD / Định danh",
+  NGAY_SINH: "Ngày sinh",
+  NAM_SINH: "Năm sinh",
+  GIOI_TINH: "Giới tính",
+  DIA_CHI: "Địa chỉ thường trú",
+  MA_THE_BHYT: "Mã thẻ BHYT",
+  MA_THE: "Mã thẻ BHYT",
+  MA_DKBD: "Mã nơi ĐK KCB ban đầu",
+  GT_THE_TU: "Giá trị thẻ từ ngày",
+  GT_THE_DEN: "Giá trị thẻ đến ngày",
+  MIEN_CUNG_CT: "Miễn cùng chi trả từ ngày",
+  NAM_NAM_LIEN_TUC: "Thời điểm đủ 5 năm liên tục",
+  MA_DOITUONG_KCB: "Mã đối tượng KCB",
+  MA_CSKCB: "Mã cơ sở KCB",
+  MA_NOI_CHUYEN: "Mã cơ sở chuyển đến/đi",
+  MA_TAI_NAN: "Mã tai nạn",
+  NGAY_VAO: "Thời gian vào viện",
+  NGAY_RA: "Thời gian ra viện",
+  SO_NGAY_DTRI: "Số ngày điều trị",
+  MA_KHOA: "Mã khoa điều trị ra viện",
+  KET_QUA_DTRI: "Kết quả điều trị",
+  TINH_TRANG_RV: "Tình trạng ra viện",
+  CHAN_DOAN_VAO: "Chẩn đoán khi vào viện",
+  CHAN_DOAN_RV: "Chẩn đoán khi ra viện (Cột 26)",
+  MA_BENH: "Mã bệnh chính",
+  MA_BENH_CHINH: "Mã bệnh chính",
+  TEN_BENH: "Tên bệnh chính",
+  MA_BENHKEMTHEO: "Mã bệnh kèm theo",
+  MA_BENH_KT: "Mã bệnh kèm theo",
+  MA_QUOCTICH: "Mã quốc tịch",
+  MA_DANTOC: "Mã dân tộc",
+  MA_KHUVUC: "Mã khu vực sống",
+  NGHE_NGHIEP: "Nghề nghiệp",
+  NOI_LAM_VIEC: "Nơi làm việc",
+  CAN_NANG: "Cân nặng (kg)",
+  NGAY_TTOAN: "Ngày thanh toán",
+  TIEN_TONG: "Tổng chi phí KCB",
+  TIEN_BHYT: "Chi phí BHYT thanh toán",
+  TIEN_BNTT: "Bệnh nhân tự trả",
+  TIEN_BNCT: "Bệnh nhân cùng chi trả",
+  TIEN_NGUONKHAC: "Nguồn kinh phí khác",
+  TIEN_NGOAIDS: "Chi phí ngoài danh mục",
+};
+
 export type PatientInfo = {
   MA_LK: string;
   MA_BN: string;
@@ -255,6 +303,24 @@ export type PatientInfo = {
   CHAN_DOAN_VAO?: string;
   MA_BENHKEMTHEO?: string;
   MA_BENH_CHINH?: string;
+  GT_THE_TU?: string;
+  GT_THE_DEN?: string;
+  MA_KHUVUC?: string;
+  MA_QUOCTICH?: string;
+  MA_DANTOC?: string;
+  NGHE_NGHIEP?: string;
+  NOI_LAM_VIEC?: string;
+  MA_NOI_CHUYEN?: string;
+  MA_TAI_NAN?: string;
+  SO_NGAY_DTRI?: string;
+  NGAY_TTOAN?: string;
+  CAN_NANG?: string;
+  NAM_NAM_LIEN_TUC?: string;
+  MIEN_CUNG_CT?: string;
+  TIEN_TONG?: string;
+  TIEN_BHYT?: string;
+  TIEN_BNTT?: string;
+  rawFields?: Record<string, string>;
 };
 
 /**
@@ -520,6 +586,15 @@ function readXml1Patients(doc: Document): Map<string, PatientInfo> {
     const maBn = directTextOf(node, "MA_BN") || textOfGeneral(node, "MA_BN");
     const hoTen = directTextOf(node, "HO_TEN") || textOfGeneral(node, "HO_TEN");
     if (maLk && (maBn || hoTen)) {
+      const rawFields: Record<string, string> = {};
+      for (const child of Array.from(node.children)) {
+        const tag = child.tagName;
+        const val = child.textContent?.trim() ?? "";
+        if (tag && val) {
+          rawFields[tag] = val;
+        }
+      }
+
       const patient: PatientInfo = {
         MA_LK: maLk,
         MA_BN: maBn,
@@ -556,6 +631,25 @@ function readXml1Patients(doc: Document): Map<string, PatientInfo> {
           directTextOf(node, "MA_BENH_KT") ||
           textOfGeneral(node, "MA_BENH_KT"),
         MA_BENH_CHINH: directTextOf(node, "MA_BENH_CHINH") || textOfGeneral(node, "MA_BENH_CHINH"),
+        GT_THE_TU: directTextOf(node, "GT_THE_TU") || textOfGeneral(node, "GT_THE_TU"),
+        GT_THE_DEN: directTextOf(node, "GT_THE_DEN") || textOfGeneral(node, "GT_THE_DEN"),
+        MA_KHUVUC: directTextOf(node, "MA_KHUVUC") || textOfGeneral(node, "MA_KHUVUC"),
+        MA_QUOCTICH: directTextOf(node, "MA_QUOCTICH") || textOfGeneral(node, "MA_QUOCTICH"),
+        MA_DANTOC: directTextOf(node, "MA_DANTOC") || textOfGeneral(node, "MA_DANTOC"),
+        NGHE_NGHIEP: directTextOf(node, "NGHE_NGHIEP") || textOfGeneral(node, "NGHE_NGHIEP"),
+        NOI_LAM_VIEC: directTextOf(node, "NOI_LAM_VIEC") || textOfGeneral(node, "NOI_LAM_VIEC"),
+        MA_NOI_CHUYEN: directTextOf(node, "MA_NOI_CHUYEN") || textOfGeneral(node, "MA_NOI_CHUYEN"),
+        MA_TAI_NAN: directTextOf(node, "MA_TAI_NAN") || textOfGeneral(node, "MA_TAI_NAN"),
+        SO_NGAY_DTRI: directTextOf(node, "SO_NGAY_DTRI") || textOfGeneral(node, "SO_NGAY_DTRI"),
+        NGAY_TTOAN: directTextOf(node, "NGAY_TTOAN") || textOfGeneral(node, "NGAY_TTOAN"),
+        CAN_NANG: directTextOf(node, "CAN_NANG") || textOfGeneral(node, "CAN_NANG"),
+        NAM_NAM_LIEN_TUC:
+          directTextOf(node, "NAM_NAM_LIEN_TUC") || textOfGeneral(node, "NAM_NAM_LIEN_TUC"),
+        MIEN_CUNG_CT: directTextOf(node, "MIEN_CUNG_CT") || textOfGeneral(node, "MIEN_CUNG_CT"),
+        TIEN_TONG: directTextOf(node, "TIEN_TONG") || textOfGeneral(node, "TIEN_TONG"),
+        TIEN_BHYT: directTextOf(node, "TIEN_BHYT") || textOfGeneral(node, "TIEN_BHYT"),
+        TIEN_BNTT: directTextOf(node, "TIEN_BNTT") || textOfGeneral(node, "TIEN_BNTT"),
+        rawFields,
       };
       patients.set(maLk, patient);
     }
