@@ -1232,6 +1232,8 @@ function CheckerView({
     return counts;
   }, [onlyWarnings, filteredWarnings, filteredRecords, analysis]);
 
+  const [showMetricsGrid, setShowMetricsGrid] = useState(false);
+
   return (
     <div className="space-y-6">
       <section className="space-y-4">
@@ -1388,103 +1390,139 @@ function CheckerView({
 
       {analysis && (
         <>
-          <section className="grid grid-cols-2 gap-2.5 md:grid-cols-4 xl:grid-cols-7">
-            <Metric
-              label="File đã nạp"
-              value={analysis.files.length}
-              onClick={() => onSummaryFocus("files")}
-            />
-            <Metric
-              label="FILEHOSO XML3"
-              value={analysis.tableFiles}
-              tone="teal"
-              onClick={() => onSummaryFocus("xml3")}
-            />
-            <Metric
-              label="Dòng theo bộ lọc"
-              value={filteredRecords.length}
-              tone="teal"
-              onClick={() => onSummaryFocus("rows")}
-            />
-            <Metric
-              label="Cảnh báo XML3"
-              value={filteredWarnings.length}
-              tone="rose"
-              onClick={() => onSummaryFocus("warnings")}
-            />
-            <Metric
-              label="XML1 · Bệnh nhân"
-              value={analysis.xml1Warnings.length}
-              tone="amber"
-              onClick={() => onSummaryFocus("xml1")}
-            />
-            <Metric
-              label="XML2 · TT_THAU"
-              value={analysis.xml2Warnings.length}
-              tone="rose"
-              onClick={() => onSummaryFocus("xml2")}
-            />
-            <Metric
-              label="XML3 · TT_THAU"
-              value={analysis.ttThauWarnings}
-              tone="rose"
-              onClick={() => onSummaryFocus("ttThau")}
-            />
-            <Metric
-              label="XML3 · MÃ_MÁY"
-              value={filteredRecords.filter((record) => record.hasMaMayWarning).length}
-              tone="rose"
-              onClick={() => onSummaryFocus("maMay")}
-            />
-            <Metric
-              label="XML4 · KET_LUAN"
-              value={analysis.xml4Warnings.length}
-              tone="amber"
-              onClick={() => onSummaryFocus("xml4")}
-            />
-            <Metric
-              label="Mã bệnh Z00.0"
-              value={analysis.z000Warnings ? analysis.z000Warnings.length : 0}
-              tone="rose"
-              onClick={() => onSummaryFocus("z000")}
-            />
-            <Metric
-              label="Sai thứ tự"
-              value={filteredRecords.filter((record) => record.hasOrderWarning).length}
-              tone="rose"
-              onClick={() => onSummaryFocus("order")}
-            />
-            <Metric
-              label="Trùng mốc"
-              value={filteredRecords.filter((record) => record.hasEqualWarning).length}
-              tone="rose"
-              onClick={() => onSummaryFocus("equal")}
-            />
-            <Metric
-              label="Giường trong ngày"
-              value={filteredRecords.filter((record) => record.hasBedWarning).length}
-              tone="rose"
-              onClick={() => onSummaryFocus("bed")}
-            />
-            <Metric
-              label="Thiếu thời gian"
-              value={filteredRecords.filter((record) => record.status === "missing").length}
-              tone="amber"
-              onClick={() => onSummaryFocus("missing")}
-            />
-            <Metric
-              label="Thời gian lỗi"
-              value={filteredRecords.filter((record) => record.status === "invalid").length}
-              tone="amber"
-              onClick={() => onSummaryFocus("invalid")}
-            />
-            <Metric
-              label="Thời gian âm"
-              value={filteredRecords.filter((record) => record.status === "negative").length}
-              tone="slate"
-              onClick={() => onSummaryFocus("negative")}
-            />
-          </section>
+          {/* Thanh tóm tắt nạp file siêu gọn & nút bật/tắt thẻ chi tiết */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-teal-100 bg-white/90 px-4 py-2.5 shadow-xs">
+            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-700">
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-teal-50 px-2.5 py-1 text-teal-900 border border-teal-200/70">
+                <span>📁</span>
+                <span>File đã nạp:</span>
+                <b className="font-mono font-black">{analysis.files.length}</b>
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-teal-50 px-2.5 py-1 text-teal-900 border border-teal-200/70">
+                <span>📄</span>
+                <span>Hồ sơ XML3:</span>
+                <b className="font-mono font-black">
+                  {analysis.tableFiles.toLocaleString("vi-VN")}
+                </b>
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-teal-50 px-2.5 py-1 text-teal-900 border border-teal-200/70">
+                <span>📊</span>
+                <span>Dòng theo bộ lọc:</span>
+                <b className="font-mono font-black">
+                  {filteredRecords.length.toLocaleString("vi-VN")}
+                </b>
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowMetricsGrid((prev) => !prev)}
+              className="rounded-xl border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-700 hover:bg-slate-50 transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+              title="Nhấn để ẩn hoặc hiển thị lưới 16 thẻ thống kê chi tiết phía trên"
+            >
+              <span>{showMetricsGrid ? "▲ Ẩn thẻ thống kê" : "▼ Hiện thẻ thống kê chi tiết"}</span>
+            </button>
+          </div>
+
+          {/* Lưới thẻ Metric chi tiết (Ẩn mặc định để tối ưu không gian & tránh trùng thông tin) */}
+          {showMetricsGrid && (
+            <section className="grid grid-cols-2 gap-2.5 md:grid-cols-4 xl:grid-cols-7 animate-in fade-in duration-150">
+              <Metric
+                label="File đã nạp"
+                value={analysis.files.length}
+                onClick={() => onSummaryFocus("files")}
+              />
+              <Metric
+                label="FILEHOSO XML3"
+                value={analysis.tableFiles}
+                tone="teal"
+                onClick={() => onSummaryFocus("xml3")}
+              />
+              <Metric
+                label="Dòng theo bộ lọc"
+                value={filteredRecords.length}
+                tone="teal"
+                onClick={() => onSummaryFocus("rows")}
+              />
+              <Metric
+                label="Cảnh báo XML3"
+                value={filteredWarnings.length}
+                tone="rose"
+                onClick={() => onSummaryFocus("warnings")}
+              />
+              <Metric
+                label="XML1 · Bệnh nhân"
+                value={analysis.xml1Warnings.length}
+                tone="amber"
+                onClick={() => onSummaryFocus("xml1")}
+              />
+              <Metric
+                label="XML2 · TT_THAU"
+                value={analysis.xml2Warnings.length}
+                tone="rose"
+                onClick={() => onSummaryFocus("xml2")}
+              />
+              <Metric
+                label="XML3 · TT_THAU"
+                value={analysis.ttThauWarnings}
+                tone="rose"
+                onClick={() => onSummaryFocus("ttThau")}
+              />
+              <Metric
+                label="XML3 · MÃ_MÁY"
+                value={filteredRecords.filter((record) => record.hasMaMayWarning).length}
+                tone="rose"
+                onClick={() => onSummaryFocus("maMay")}
+              />
+              <Metric
+                label="XML4 · KET_LUAN"
+                value={analysis.xml4Warnings.length}
+                tone="amber"
+                onClick={() => onSummaryFocus("xml4")}
+              />
+              <Metric
+                label="Mã bệnh Z00.0"
+                value={analysis.z000Warnings ? analysis.z000Warnings.length : 0}
+                tone="rose"
+                onClick={() => onSummaryFocus("z000")}
+              />
+              <Metric
+                label="Sai thứ tự"
+                value={filteredRecords.filter((record) => record.hasOrderWarning).length}
+                tone="rose"
+                onClick={() => onSummaryFocus("order")}
+              />
+              <Metric
+                label="Trùng mốc"
+                value={filteredRecords.filter((record) => record.hasEqualWarning).length}
+                tone="rose"
+                onClick={() => onSummaryFocus("equal")}
+              />
+              <Metric
+                label="Giường trong ngày"
+                value={filteredRecords.filter((record) => record.hasBedWarning).length}
+                tone="rose"
+                onClick={() => onSummaryFocus("bed")}
+              />
+              <Metric
+                label="Thiếu thời gian"
+                value={filteredRecords.filter((record) => record.status === "missing").length}
+                tone="amber"
+                onClick={() => onSummaryFocus("missing")}
+              />
+              <Metric
+                label="Thời gian lỗi"
+                value={filteredRecords.filter((record) => record.status === "invalid").length}
+                tone="amber"
+                onClick={() => onSummaryFocus("invalid")}
+              />
+              <Metric
+                label="Thời gian âm"
+                value={filteredRecords.filter((record) => record.status === "negative").length}
+                tone="slate"
+                onClick={() => onSummaryFocus("negative")}
+              />
+            </section>
+          )}
 
           <section
             id="alert-detail"

@@ -17,6 +17,8 @@ export const APP_META = {
         "Trích xuất Chẩn đoán chính từ cột 26 CHAN_DOAN_RV trong bảng XML1, lấy mã bệnh đầu tiên trước dấu chấm phẩy (;) kèm mô tả.",
         "Bỏ popup hover khi di chuột; bổ sung nút nhỏ '👁️ Xem' tại ô trạng thái của dòng cảnh báo để mở modal chi tiết bệnh nhân cố định giữa màn hình, hỗ trợ bôi đen copy văn bản, nút sao chép tóm tắt và mở nhanh hồ sơ 15 bảng.",
         "Phân loại cảnh báo theo 8 nhóm màu sắc trực quan (Vượt max, Thiếu min/≤0, Mã máy, TT_THAU, Trình tự/Trùng, Mã Z00.0, Giường, Kết luận XML4) và tích hợp thanh Filter Chips lọc nhanh trên bảng dữ liệu.",
+        "Khắc phục triệt để thanh cuộn ngang trong bảng tra cứu hồ sơ: loại bỏ container lồng nhau gây trôi scrollbar xuống tận đáy trang; bổ sung thanh cuộn ngang phụ ở đỉnh bảng, nút trượt ngang nhanh (◀ Sang trái / Sang phải ▶) và ghim cố định cột số thứ tự bên trái.",
+        "Ẩn mặc định lưới 16 thẻ thống kê cồng kềnh phía trên để tối ưu tối đa không gian hiển thị, đưa bảng cảnh báo lên ngay đầu màn hình và tránh trùng lặp thông tin với thanh phân loại lỗi.",
       ],
     },
     {

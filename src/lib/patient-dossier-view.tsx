@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   type PatientDossier,
   XML_TABLE_META,
@@ -26,6 +26,11 @@ export function PatientDossierView({
   const [tableSearch, setTableSearch] = useState("");
   const [showWarningPanel, setShowWarningPanel] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState(false);
+
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const isSyncingScroll = useRef(false);
+  const [tableScrollWidth, setTableScrollWidth] = useState(0);
 
   // Lọc danh sách bệnh nhân
   const filteredPatients = useMemo(() => {
@@ -82,6 +87,45 @@ export function PatientDossierView({
       Object.values(row).some((val) => String(val).toLowerCase().includes(q)),
     );
   }, [currentTableData, tableSearch]);
+
+  // Cập nhật độ rộng scroll của bảng khi đổi tab, tìm kiếm hoặc đổi chế độ xem
+  useEffect(() => {
+    if (tableContainerRef.current) {
+      setTableScrollWidth(tableContainerRef.current.scrollWidth);
+      tableContainerRef.current.scrollLeft = 0;
+      if (topScrollRef.current) {
+        topScrollRef.current.scrollLeft = 0;
+      }
+    }
+  }, [activeTableKey, filteredTableRows, viewMode]);
+
+  const handleScrollTable = () => {
+    if (isSyncingScroll.current) return;
+    isSyncingScroll.current = true;
+    if (topScrollRef.current && tableContainerRef.current) {
+      topScrollRef.current.scrollLeft = tableContainerRef.current.scrollLeft;
+    }
+    requestAnimationFrame(() => {
+      isSyncingScroll.current = false;
+    });
+  };
+
+  const handleScrollTop = () => {
+    if (isSyncingScroll.current) return;
+    isSyncingScroll.current = true;
+    if (tableContainerRef.current && topScrollRef.current) {
+      tableContainerRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+    }
+    requestAnimationFrame(() => {
+      isSyncingScroll.current = false;
+    });
+  };
+
+  const handleScrollHorizontally = (offset: number) => {
+    if (tableContainerRef.current) {
+      tableContainerRef.current.scrollBy({ left: offset, behavior: "smooth" });
+    }
+  };
 
   const handleCopyRawXml = () => {
     if (!currentTableData?.rawXml) return;
@@ -153,7 +197,7 @@ export function PatientDossierView({
       {/* Main Grid: 2 cột (Danh sách BN & Chi tiết 15 bảng) */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Cột trái: Danh sách bệnh nhân (4 cột) */}
-        <div className="lg:col-span-4 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm flex flex-col h-[820px]">
+        <div className="lg:col-span-4 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm flex flex-col h-[calc(100vh-140px)] min-h-[620px]">
           {/* Ô tìm kiếm bệnh nhân */}
           <div className="space-y-3 pb-3 border-b border-slate-100 dark:border-slate-800">
             <div className="relative">
@@ -267,7 +311,7 @@ export function PatientDossierView({
         </div>
 
         {/* Cột phải: Chi tiết hồ sơ 15 bảng (8 cột) */}
-        <div className="lg:col-span-8 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm flex flex-col h-[820px] overflow-hidden">
+        <div className="lg:col-span-8 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm flex flex-col h-[calc(100vh-140px)] min-h-[620px] overflow-hidden">
           {activeDossier ? (
             <div className="flex flex-col h-full space-y-4">
               {/* Thẻ hành chính tổng hợp bệnh nhân */}
@@ -576,68 +620,111 @@ export function PatientDossierView({
                       </div>
                     </div>
 
-                    {/* Lọc trong bảng (nếu ở view mode table) */}
+                    {/* Lọc trong bảng & Nút cuộn nhanh */}
                     {viewMode === "table" && currentTableData.rows.length > 0 && (
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={tableSearch}
-                          onChange={(e) => setTableSearch(e.target.value)}
-                          placeholder={`Lọc nhanh trong bảng ${activeTableKey}...`}
-                          className="w-full max-w-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none"
-                        />
-                        <span className="text-xs text-slate-400">
-                          Hiển thị {filteredTableRows.length}/{currentTableData.rows.length} dòng
-                        </span>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                          <input
+                            type="text"
+                            value={tableSearch}
+                            onChange={(e) => setTableSearch(e.target.value)}
+                            placeholder={`Lọc nhanh trong bảng ${activeTableKey}...`}
+                            className="w-full max-w-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none"
+                          />
+                          <span className="text-xs text-slate-400 whitespace-nowrap">
+                            Hiển thị {filteredTableRows.length}/{currentTableData.rows.length} dòng
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] text-slate-500 font-semibold hidden sm:inline">
+                            ↔ Cuộn cột:
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleScrollHorizontally(-350)}
+                            className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2.5 py-1 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition shadow-xs"
+                            title="Cuộn bảng sang trái 350px"
+                          >
+                            ◀ Sang trái
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleScrollHorizontally(350)}
+                            className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2.5 py-1 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition shadow-xs"
+                            title="Cuộn bảng sang phải 350px"
+                          >
+                            Sang phải ▶
+                          </button>
+                        </div>
                       </div>
                     )}
 
-                    {/* Vùng hiển thị Data Grid hoặc Raw XML */}
-                    <div className="flex-1 min-h-0 overflow-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
+                    {/* Thanh cuộn ngang phụ ở đỉnh bảng: Kéo ngang ngay lập tức mà không cần cuộn xuống */}
+                    {viewMode === "table" && tableScrollWidth > 0 && (
+                      <div
+                        ref={topScrollRef}
+                        onScroll={handleScrollTop}
+                        className="overflow-x-auto overflow-y-hidden border border-b-0 border-slate-200 dark:border-slate-800 bg-slate-100/90 dark:bg-slate-900 rounded-t-2xl scrollbar-thin h-3.5"
+                        title="Thanh cuộn ngang phụ: Kéo để xem các cột bên phải ngay lập tức"
+                      >
+                        <div style={{ width: `${tableScrollWidth}px`, height: "1px" }} />
+                      </div>
+                    )}
+
+                    {/* Vùng hiển thị Data Grid hoặc Raw XML: cuộn dọc & ngang cùng một container */}
+                    <div
+                      ref={tableContainerRef}
+                      onScroll={handleScrollTable}
+                      className={`flex-1 min-h-0 overflow-x-auto overflow-y-auto border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 ${
+                        viewMode === "table" && tableScrollWidth > 0
+                          ? "rounded-b-2xl border-t-0"
+                          : "rounded-2xl"
+                      }`}
+                    >
                       {viewMode === "table" ? (
                         currentTableData.rows.length === 0 ? (
                           <div className="p-8 text-center text-xs text-slate-400">
                             Bảng này không có bản ghi nào.
                           </div>
                         ) : (
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-xs text-left">
-                              <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-900 text-[11px] font-bold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
-                                <tr>
-                                  <th className="px-3 py-2.5 w-12 text-center">#</th>
+                          <table className="w-full text-xs text-left border-collapse min-w-max">
+                            <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-900 text-[11px] font-bold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800 shadow-xs select-none">
+                              <tr>
+                                <th className="px-3 py-2.5 w-12 text-center sticky left-0 bg-slate-100 dark:bg-slate-900 z-20 border-r border-slate-200 dark:border-slate-800">
+                                  #
+                                </th>
+                                {currentTableData.headers.map((h) => (
+                                  <th
+                                    key={h}
+                                    className="px-3 py-2.5 font-mono whitespace-nowrap border-r border-slate-200 dark:border-slate-800 last:border-r-0"
+                                  >
+                                    {h}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                              {filteredTableRows.map((row, idx) => (
+                                <tr
+                                  key={idx}
+                                  className="hover:bg-teal-50/40 dark:hover:bg-slate-800/60 transition"
+                                >
+                                  <td className="px-3 py-2 text-center text-slate-400 font-mono text-[11px] sticky left-0 bg-white dark:bg-slate-950 z-10 border-r border-slate-100 dark:border-slate-800/60">
+                                    {idx + 1}
+                                  </td>
                                   {currentTableData.headers.map((h) => (
-                                    <th
+                                    <td
                                       key={h}
-                                      className="px-3 py-2.5 font-mono whitespace-nowrap border-r border-slate-200 dark:border-slate-800 last:border-r-0"
+                                      className="px-3 py-2 font-mono whitespace-nowrap border-r border-slate-100 dark:border-slate-800/60 last:border-r-0 max-w-[280px] truncate"
+                                      title={row[h]}
                                     >
-                                      {h}
-                                    </th>
+                                      {row[h] || "—"}
+                                    </td>
                                   ))}
                                 </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                                {filteredTableRows.map((row, idx) => (
-                                  <tr
-                                    key={idx}
-                                    className="hover:bg-teal-50/40 dark:hover:bg-slate-800/60 transition"
-                                  >
-                                    <td className="px-3 py-2 text-center text-slate-400 font-mono text-[11px]">
-                                      {idx + 1}
-                                    </td>
-                                    {currentTableData.headers.map((h) => (
-                                      <td
-                                        key={h}
-                                        className="px-3 py-2 font-mono whitespace-nowrap border-r border-slate-100 dark:border-slate-800/60 last:border-r-0 max-w-[280px] truncate"
-                                        title={row[h]}
-                                      >
-                                        {row[h] || "—"}
-                                      </td>
-                                    ))}
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
+                              ))}
+                            </tbody>
+                          </table>
                         )
                       ) : (
                         /* Chế độ xem Raw XML */
