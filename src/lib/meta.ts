@@ -1,11 +1,22 @@
 export const APP_META = {
   name: "NsN_XMLcheck",
-  version: "1.9.0",
-  date: "2026-09-01",
+  version: "2.0.0",
+  date: "2026-09-14",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.0.0",
+      date: "2026-09-14",
+      changes: [
+        "Sửa định dạng ngày giờ hiển thị theo chuẩn Việt Nam: DD/MM/YYYY HH:mm thay vì bị đảo MM/DD/YYYY.",
+        "Thêm popup hovercard khi rê chuột vào bất kỳ dòng cảnh báo lỗi XML nào: hiển thị tức thời thông tin hành chính bệnh nhân (từ XML1), ngày vào/ngày ra viện, chi tiết mốc thời gian XML3 (NGAY_YL, NGAY_TH_YL, NGAY_KQ, số phút thực hiện) và nội dung cảnh báo.",
+        "Bổ sung hệ thống Kho Giao diện (Theme Gallery) kỹ thuật số & hiện đại đẳng cấp (Clinical Teal, Cyber Digital Neon 4.0, Luxury Obsidian Gold, Ocean Digital, Pure Minimalist) đồng bộ 100% màu sắc bố cục.",
+        "Tích hợp bộ chọn Font chữ tiếng Việt với Be Vietnam Pro là font chủ đạo mặc định (kèm Inter, Plus Jakarta Sans, Lexend, Roboto), lưu cấu hình vào localStorage.",
+        "Bổ sung module 'Hồ sơ & Xem XML 15 bảng': tìm kiếm và xem hồ sơ từng bệnh nhân (cả BN có lỗi và không có lỗi), phân tách chi tiết theo 15 tab chuẩn BHYT QĐ 130/4210, hỗ trợ 2 chế độ Data Grid (bảng dữ liệu lọc tìm kiếm) và Raw XML (cú pháp XML gốc, sao chép, tải về).",
+      ],
+    },
     {
       version: "1.9.0",
       date: "2026-09-01",

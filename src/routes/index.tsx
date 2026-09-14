@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { exportWarningList, exportXml3Report, createXml3ReportWorkbook } from "../lib/export.ts";
 import {
   exportLibraryTemplate,
@@ -6,7 +6,7 @@ import {
   importLibraryFromExcel,
 } from "../lib/library-excel.ts";
 import { APP_META } from "../lib/meta.ts";
-import { formatTimestampForFilename, formatXmlDateTime } from "../lib/timezone.ts";
+import { formatTimestampForFilename, formatXmlDateTime, formatXmlDate } from "../lib/timezone.ts";
 import {
   DEFAULT_GROUP_CODES,
   DURATION_LIMIT_MINUTES,
@@ -36,9 +36,21 @@ import {
   type AllTabsColumnConfig,
   type ParsedBackupResult,
 } from "../lib/backup.ts";
+import { PatientHoverCard, type HoverCardData } from "../lib/patient-hover-card.tsx";
+import { PatientDossierView } from "../lib/patient-dossier-view.tsx";
+import { ThemeFontModal } from "../lib/theme-font-modal.tsx";
+import {
+  loadSavedTheme,
+  saveTheme,
+  loadSavedFont,
+  saveFont,
+  applyThemeAndFont,
+  type ThemeId,
+  type FontId,
+} from "../lib/theme-manager.ts";
 import coffeeQr from "../assets/coffee-qr.jpg";
 
-type View = "checker" | "library" | "settings" | "guide" | "about" | "support";
+type View = "checker" | "dossier" | "library" | "settings" | "guide" | "about" | "support";
 type AlertTab = "XML1" | "XML2" | "XML3" | "XML4";
 const SERVICE_RULES_KEY = "nsn-xmlcheck-service-rules";
 const DRUG_RULES_KEY = "nsn-xmlcheck-drug-rules";
@@ -208,6 +220,35 @@ export function HomePage() {
   const [telegramConfig, setTelegramConfig] = useState<TelegramConfig>(loadTelegramConfig);
   const [columnsConfig, setColumnsConfig] = useState<AllTabsColumnConfig>(loadColumnsConfig);
   const [showColumnModal, setShowColumnModal] = useState(false);
+  const [theme, setTheme] = useState<ThemeId>(loadSavedTheme);
+  const [font, setFont] = useState<FontId>(loadSavedFont);
+  const [showThemeModal, setShowThemeModal] = useState(false);
+  const [hoverData, setHoverData] = useState<HoverCardData | null>(null);
+  const [selectedDossierMaLk, setSelectedDossierMaLk] = useState<string | null>(null);
+  const hoverTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    applyThemeAndFont(theme, font);
+  }, [theme, font]);
+
+  const handleRowHover = (data: HoverCardData | null) => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    if (!data) {
+      hoverTimeoutRef.current = window.setTimeout(() => {
+        setHoverData(null);
+      }, 200);
+      return;
+    }
+    hoverTimeoutRef.current = window.setTimeout(() => {
+      setHoverData(data);
+    }, 180);
+  };
+
+  const handleOpenDossier = (maLk: string) => {
+    setSelectedDossierMaLk(maLk);
+    setView("dossier");
+    setHoverData(null);
+  };
 
   // Lưu columnsConfig vào localStorage khi thay đổi
   const saveColsConfig = (next: AllTabsColumnConfig) => {
@@ -622,8 +663,20 @@ export function HomePage() {
   const currentTabCols = columnsConfig[alertTab] || getDefaultTabState(alertTab);
 
   return (
-    <div className="min-h-screen bg-[#f5faf9] text-slate-900">
-      <header className="border-b border-teal-900/10 bg-gradient-to-r from-[#0f766e] via-[#0d9488] to-[#0891b2] text-white">
+    <div
+      style={{
+        backgroundColor: "var(--app-bg, #f8fafc)",
+        color: "var(--app-text, #0f172a)",
+      }}
+      className="min-h-screen transition-colors duration-200"
+    >
+      <header
+        style={{
+          background: "var(--app-header-bg, linear-gradient(135deg, #0f766e, #059669))",
+          color: "var(--app-header-text, #ffffff)",
+        }}
+        className="border-b shadow-sm"
+      >
         <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4 px-4 py-4 md:px-8">
           <div className="flex items-center gap-3">
             <div className="grid h-11 w-11 place-content-center rounded-2xl bg-white/15 text-2xl shadow-inner">
@@ -633,8 +686,9 @@ export function HomePage() {
               <h1 className="text-lg font-bold tracking-tight md:text-xl">
                 {APP_META.name} · v{APP_META.version}
               </h1>
-              <p className="text-xs text-teal-50">
-                Kiểm tra thời gian (tối thiểu & tối đa), TT_THAU XML2/XML3 & Import Excel thư viện
+              <p className="text-xs opacity-90">
+                Kiểm tra thời gian (tối thiểu &gt; 0 &amp; tối đa), TT_THAU XML2/XML3 &amp; Hồ sơ 15
+                bảng BHYT
               </p>
             </div>
           </div>
@@ -649,28 +703,50 @@ export function HomePage() {
         </div>
       </header>
 
-      <nav className="border-b border-slate-200 bg-white/90 shadow-sm sticky top-0 z-20">
-        <div className="mx-auto flex max-w-[1440px] gap-1 overflow-x-auto px-4 md:px-8">
-          {[
-            ["checker", "Kiểm tra thời gian"],
-            ["library", `Thư viện (${serviceRules.length} DV · ${drugRules.length} Thuốc)`],
-            ["settings", "Cấu hình & Backup"],
-            ["guide", "Hướng dẫn"],
-            ["about", "Phiên bản & tác giả"],
-            ["support", "Mời cà phê"],
-          ].map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setView(key as View)}
-              className={`whitespace-nowrap border-b-2 px-4 py-3 text-sm font-semibold transition ${
-                view === key
-                  ? "border-teal-600 text-teal-700 bg-teal-50/50"
-                  : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+      <nav
+        style={{
+          backgroundColor: "var(--app-card-bg, #ffffff)",
+          borderColor: "var(--app-card-border, #e2e8f0)",
+        }}
+        className="border-b shadow-sm sticky top-0 z-20"
+      >
+        <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-2 overflow-x-auto px-4 md:px-8">
+          <div className="flex gap-1 overflow-x-auto">
+            {[
+              ["checker", "⏱️ Kiểm tra thời gian"],
+              [
+                "dossier",
+                `📂 Hồ sơ & Xem XML 15 bảng${
+                  analysis?.dossiers?.length ? ` (${analysis.dossiers.length})` : ""
+                }`,
+              ],
+              ["library", `📚 Thư viện (${serviceRules.length} DV · ${drugRules.length} Thuốc)`],
+              ["settings", "⚙️ Cấu hình & Backup"],
+              ["guide", "📖 Hướng dẫn"],
+              ["about", "ℹ️ Phiên bản & tác giả"],
+              ["support", "☕ Mời cà phê"],
+            ].map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setView(key as View)}
+                className={`whitespace-nowrap border-b-2 px-3.5 py-3 text-xs md:text-sm font-semibold transition ${
+                  view === key
+                    ? "border-teal-600 dark:border-cyan-400 text-teal-700 dark:text-cyan-400 bg-teal-50/50 dark:bg-slate-800"
+                    : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => setShowThemeModal(true)}
+            className="whitespace-nowrap flex items-center gap-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 shadow-sm transition shrink-0"
+            title="Tùy biến bộ giao diện kỹ thuật số / hiện đại và font chữ tiếng Việt"
+          >
+            <span>🎨 Giao diện &amp; Font</span>
+          </button>
         </div>
       </nav>
 
@@ -722,6 +798,17 @@ export function HomePage() {
             hasTelegramConfig={Boolean(telegramConfig.botToken && telegramConfig.chatId)}
             onOpenLibrary={() => setView("library")}
             onOpenSettings={() => setView("settings")}
+            onHoverRow={handleRowHover}
+            onOpenDossier={handleOpenDossier}
+          />
+        )}
+
+        {view === "dossier" && (
+          <PatientDossierView
+            dossiers={analysis?.dossiers || []}
+            selectedMaLk={selectedDossierMaLk}
+            onSelectPatient={setSelectedDossierMaLk}
+            onBackToChecker={() => setView("checker")}
           />
         )}
 
@@ -841,6 +928,33 @@ export function HomePage() {
         />
       )}
 
+      {/* Hover Popup thông tin bệnh nhân */}
+      {hoverData && (
+        <PatientHoverCard
+          hoverData={hoverData}
+          onClose={() => setHoverData(null)}
+          onOpenDossier={handleOpenDossier}
+        />
+      )}
+
+      {/* Modal Kho Giao diện & Font chữ */}
+      {showThemeModal && (
+        <ThemeFontModal
+          isOpen={showThemeModal}
+          onClose={() => setShowThemeModal(false)}
+          currentTheme={theme}
+          currentFont={font}
+          onSelectTheme={(nextTheme) => {
+            setTheme(nextTheme);
+            saveTheme(nextTheme);
+          }}
+          onSelectFont={(nextFont) => {
+            setFont(nextFont);
+            saveFont(nextFont);
+          }}
+        />
+      )}
+
       <footer className="border-t border-slate-200 bg-white px-4 py-4 text-center text-xs text-slate-500">
         v{APP_META.version} · {APP_META.author} ·{" "}
         <button className="text-teal-700 underline" onClick={() => setView("support")}>
@@ -886,6 +1000,8 @@ function CheckerView({
   hasTelegramConfig,
   onOpenLibrary,
   onOpenSettings,
+  onHoverRow,
+  onOpenDossier,
 }: {
   files: File[];
   analysis: BatchAnalysis | null;
@@ -922,6 +1038,8 @@ function CheckerView({
   hasTelegramConfig: boolean;
   onOpenLibrary: () => void;
   onOpenSettings: () => void;
+  onHoverRow: (data: HoverCardData | null) => void;
+  onOpenDossier: (maLk: string) => void;
 }) {
   return (
     <div className="space-y-6">
@@ -1279,6 +1397,8 @@ function CheckerView({
                           record={record}
                           tabCols={currentTabCols}
                           onAddServiceRule={onAddServiceRule}
+                          onHoverRow={onHoverRow}
+                          onOpenDossier={onOpenDossier}
                         />
                       ))}
                     </tbody>
@@ -1293,6 +1413,8 @@ function CheckerView({
                 onUpdateColumnWidth={onUpdateColumnWidth}
                 onExport={() => onExportWarnings(alertTab, xmlWarnings[alertTab])}
                 onAddExcludedDrug={onAddExcludedDrug}
+                onHoverRow={onHoverRow}
+                onOpenDossier={onOpenDossier}
               />
             )}
           </section>
@@ -1380,6 +1502,8 @@ function WarningRow({
   record,
   tabCols,
   onAddServiceRule,
+  onHoverRow,
+  onOpenDossier,
 }: {
   record: Xml3Record;
   tabCols: TabColumnState;
@@ -1388,6 +1512,8 @@ function WarningRow({
     maxMinutes: number | null,
     minMinutes?: number | null,
   ) => void;
+  onHoverRow?: (data: HoverCardData | null) => void;
+  onOpenDossier?: (maLk: string) => void;
 }) {
   const isWarning =
     record.status === "warning" ||
@@ -1420,8 +1546,21 @@ function WarningRow({
 
   return (
     <tr
-      className={`border-t border-slate-200/70 align-top ${
-        isWarning ? "bg-rose-50/60 hover:bg-rose-100/50" : "hover:bg-slate-50/80"
+      onMouseEnter={(e) => {
+        if (!onHoverRow) return;
+        onHoverRow({
+          maLk: record.MA_LK,
+          patient: record.patient,
+          record,
+          warningMessage: record.detail,
+          source: "XML3",
+          x: Math.min(Math.max(10, e.clientX + 15), window.innerWidth - 445),
+          y: Math.min(Math.max(10, e.clientY - 20), window.innerHeight - 350),
+        });
+      }}
+      onMouseLeave={() => onHoverRow?.(null)}
+      className={`border-t border-slate-200/70 align-top transition-colors ${
+        isWarning ? "bg-rose-50/60 hover:bg-rose-100/60" : "hover:bg-slate-50/80"
       }`}
     >
       {isVisible("status") && (
@@ -1440,7 +1579,19 @@ function WarningRow({
           style={colWidth("maLk", 125)}
           className="px-3 py-2.5 font-mono font-bold text-teal-800 break-all"
         >
-          {record.MA_LK || "(trống)"}
+          <div className="flex items-center gap-1.5">
+            {onOpenDossier && record.MA_LK && (
+              <button
+                type="button"
+                onClick={() => onOpenDossier(record.MA_LK)}
+                title="Mở hồ sơ & xem XML 15 bảng của bệnh nhân này"
+                className="rounded p-0.5 text-slate-400 hover:text-teal-700 hover:bg-teal-50 transition"
+              >
+                📂
+              </button>
+            )}
+            <span>{record.MA_LK || "(trống)"}</span>
+          </div>
         </td>
       )}
       {isVisible("hoTen") && (
@@ -1604,6 +1755,8 @@ function ValidationTable({
   onUpdateColumnWidth,
   onExport,
   onAddExcludedDrug,
+  onHoverRow,
+  onOpenDossier,
 }: {
   source: AlertTab;
   warnings: ValidationWarning[];
@@ -1611,6 +1764,8 @@ function ValidationTable({
   onUpdateColumnWidth: (key: string, width: number) => void;
   onExport: () => void;
   onAddExcludedDrug: (code: string, name: string) => void;
+  onHoverRow?: (data: HoverCardData | null) => void;
+  onOpenDossier?: (maLk: string) => void;
 }) {
   const isVisible = (key: string) => tabCols.visible[key] !== false;
   const colWidth = (key: string, def: number) => ({
@@ -1662,7 +1817,20 @@ function ValidationTable({
               {warnings.map((warning, index) => (
                 <tr
                   key={`${source}-${warning.MA_LK}-${warning.detailIndex}-${index}`}
-                  className="border-t border-slate-100 bg-rose-50/60 hover:bg-rose-100/50 align-top"
+                  onMouseEnter={(e) => {
+                    if (!onHoverRow) return;
+                    onHoverRow({
+                      maLk: warning.MA_LK,
+                      patient: warning.patient,
+                      record: warning.record,
+                      warningMessage: warning.message,
+                      source,
+                      x: Math.min(Math.max(10, e.clientX + 15), window.innerWidth - 445),
+                      y: Math.min(Math.max(10, e.clientY - 20), window.innerHeight - 350),
+                    });
+                  }}
+                  onMouseLeave={() => onHoverRow?.(null)}
+                  className="border-t border-slate-100 bg-rose-50/60 hover:bg-rose-100/60 align-top transition-colors"
                 >
                   {source === "XML2" && isVisible("action") && (
                     <td style={colWidth("action", 115)} className="px-3 py-3">
@@ -1691,7 +1859,19 @@ function ValidationTable({
                       style={colWidth("maLk", 130)}
                       className="px-3 py-3 font-mono font-bold text-teal-800 break-all"
                     >
-                      {warning.MA_LK || "—"}
+                      <div className="flex items-center gap-1.5">
+                        {onOpenDossier && warning.MA_LK && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenDossier(warning.MA_LK)}
+                            title="Mở hồ sơ & xem XML 15 bảng của bệnh nhân này"
+                            className="rounded p-0.5 text-slate-400 hover:text-teal-700 hover:bg-teal-50 transition"
+                          >
+                            📂
+                          </button>
+                        )}
+                        <span>{warning.MA_LK || "—"}</span>
+                      </div>
                     </td>
                   )}
                   {isVisible("hoTen") && (

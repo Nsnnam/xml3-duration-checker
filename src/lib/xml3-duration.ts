@@ -60,6 +60,7 @@ export type Xml3Record = {
   TT_THAU: string;
   durationMinutes: number | null;
   serviceRule?: ServiceRule;
+  patient?: PatientInfo;
   hasOrderWarning: boolean;
   hasEqualWarning: boolean;
   hasBedWarning: boolean;
@@ -90,6 +91,7 @@ export type ValidationWarning = {
   TEN_DICH_VU: string;
   message: string;
   record?: Xml3Record;
+  patient?: PatientInfo;
 };
 
 export type Xml4Record = {
@@ -99,6 +101,25 @@ export type Xml4Record = {
   MA_DICH_VU: string;
   NGAY_KQ: string;
   KET_LUAN: string;
+};
+
+export type PatientTableData = {
+  tableType: string; // XML1, XML2, ..., XML15
+  tableName: string; // Tên hiển thị tiếng Việt
+  rawXml: string; // Chuỗi XML gốc
+  rows: Record<string, string>[]; // Dữ liệu từng dòng
+  headers: string[]; // Danh sách cột
+};
+
+export type PatientDossier = {
+  maLk: string;
+  patient: PatientInfo;
+  fileName: string;
+  tables: Record<string, PatientTableData>; // "XML1" -> PatientTableData
+  warnings: ValidationWarning[];
+  xml3Records: Xml3Record[];
+  hasWarnings: boolean;
+  warningCount: number;
 };
 
 export type Xml3Analysis = {
@@ -135,6 +156,9 @@ export type BatchAnalysis = {
   orderWarnings: number;
   bedWarnings: number;
   ttThauWarnings: number;
+  dossiers: PatientDossier[];
+  dossierMap: Map<string, PatientDossier>;
+  patients: Map<string, PatientInfo>;
 };
 
 export const XML3_FIELDS = [
@@ -187,14 +211,38 @@ function textOfGeneral(parent: Element, tag: string): string {
   return parent.getElementsByTagName(tag)[0]?.textContent?.trim() ?? "";
 }
 
-export type PatientInfo = { MA_LK: string; MA_BN: string; HO_TEN: string };
+export type PatientInfo = {
+  MA_LK: string;
+  MA_BN: string;
+  HO_TEN: string;
+  NGAY_VAO?: string;
+  NGAY_RA?: string;
+  NGAY_SINH?: string;
+  GIOI_TINH?: string;
+  DIA_CHI?: string;
+  MA_THE_BHYT?: string;
+  MA_DKBD?: string;
+  MA_BENH?: string;
+  TEN_BENH?: string;
+  SO_CCCD?: string;
+  MA_CSKCB?: string;
+  MA_KHOA?: string;
+  MA_DOITUONG_KCB?: string;
+  KET_QUA_DTRI?: string;
+  TINH_TRANG_RV?: string;
+};
 
 export function withPatientInfo(
   record: Xml3Record,
   patients: ReadonlyMap<string, PatientInfo>,
 ): Xml3Record {
   const patient = patients.get(record.MA_LK);
-  return { ...record, MA_BN: patient?.MA_BN ?? "", HO_TEN: patient?.HO_TEN ?? "" };
+  return {
+    ...record,
+    MA_BN: patient?.MA_BN ?? record.MA_BN ?? "",
+    HO_TEN: patient?.HO_TEN ?? record.HO_TEN ?? "",
+    patient: patient ?? record.patient,
+  };
 }
 
 function directTextOf(parent: Element, tag: string): string {
@@ -208,17 +256,49 @@ function directTextOf(parent: Element, tag: string): string {
 function readXml1Patients(doc: Document): Map<string, PatientInfo> {
   const patients = new Map<string, PatientInfo>();
   for (const node of Array.from(doc.getElementsByTagName("*"))) {
-    const patient = {
-      MA_LK: directTextOf(node, "MA_LK") || textOfGeneral(node, "MA_LK"),
-      MA_BN: directTextOf(node, "MA_BN") || textOfGeneral(node, "MA_BN"),
-      HO_TEN: directTextOf(node, "HO_TEN") || textOfGeneral(node, "HO_TEN"),
-    };
-    if (patient.MA_LK && (patient.MA_BN || patient.HO_TEN)) patients.set(patient.MA_LK, patient);
+    const maLk = directTextOf(node, "MA_LK") || textOfGeneral(node, "MA_LK");
+    const maBn = directTextOf(node, "MA_BN") || textOfGeneral(node, "MA_BN");
+    const hoTen = directTextOf(node, "HO_TEN") || textOfGeneral(node, "HO_TEN");
+    if (maLk && (maBn || hoTen)) {
+      const patient: PatientInfo = {
+        MA_LK: maLk,
+        MA_BN: maBn,
+        HO_TEN: hoTen,
+        NGAY_VAO: directTextOf(node, "NGAY_VAO") || textOfGeneral(node, "NGAY_VAO"),
+        NGAY_RA: directTextOf(node, "NGAY_RA") || textOfGeneral(node, "NGAY_RA"),
+        NGAY_SINH:
+          directTextOf(node, "NGAY_SINH") ||
+          textOfGeneral(node, "NGAY_SINH") ||
+          directTextOf(node, "NAM_SINH") ||
+          textOfGeneral(node, "NAM_SINH"),
+        GIOI_TINH: directTextOf(node, "GIOI_TINH") || textOfGeneral(node, "GIOI_TINH"),
+        DIA_CHI: directTextOf(node, "DIA_CHI") || textOfGeneral(node, "DIA_CHI"),
+        MA_THE_BHYT:
+          directTextOf(node, "MA_THE_BHYT") ||
+          textOfGeneral(node, "MA_THE_BHYT") ||
+          directTextOf(node, "MA_THE") ||
+          textOfGeneral(node, "MA_THE"),
+        MA_DKBD: directTextOf(node, "MA_DKBD") || textOfGeneral(node, "MA_DKBD"),
+        MA_BENH: directTextOf(node, "MA_BENH") || textOfGeneral(node, "MA_BENH"),
+        TEN_BENH: directTextOf(node, "TEN_BENH") || textOfGeneral(node, "TEN_BENH"),
+        SO_CCCD: directTextOf(node, "SO_CCCD") || textOfGeneral(node, "SO_CCCD"),
+        MA_CSKCB: directTextOf(node, "MA_CSKCB") || textOfGeneral(node, "MA_CSKCB"),
+        MA_KHOA: directTextOf(node, "MA_KHOA") || textOfGeneral(node, "MA_KHOA"),
+        MA_DOITUONG_KCB:
+          directTextOf(node, "MA_DOITUONG_KCB") || textOfGeneral(node, "MA_DOITUONG_KCB"),
+        KET_QUA_DTRI: directTextOf(node, "KET_QUA_DTRI") || textOfGeneral(node, "KET_QUA_DTRI"),
+        TINH_TRANG_RV: directTextOf(node, "TINH_TRANG_RV") || textOfGeneral(node, "TINH_TRANG_RV"),
+      };
+      patients.set(maLk, patient);
+    }
   }
   return patients;
 }
 
-function readXml1Warnings(doc: Document): ValidationWarning[] {
+function readXml1Warnings(
+  doc: Document,
+  patients: ReadonlyMap<string, PatientInfo> = new Map(),
+): ValidationWarning[] {
   const warnings: ValidationWarning[] = [];
   const rows = Array.from(doc.getElementsByTagName("*"))
     .filter((node) => directTextOf(node, "MA_LK"))
@@ -233,15 +313,17 @@ function readXml1Warnings(doc: Document): ValidationWarning[] {
     const maLk = directTextOf(node, "MA_LK") || textOfGeneral(node, "MA_LK");
     const hoTen = directTextOf(node, "HO_TEN") || textOfGeneral(node, "HO_TEN");
     const maBn = directTextOf(node, "MA_BN") || textOfGeneral(node, "MA_BN");
+    const patient = patients.get(maLk);
 
     const base = {
       source: "XML1" as const,
       detailIndex,
       MA_LK: maLk,
-      HO_TEN: hoTen,
-      MA_BN: maBn,
+      HO_TEN: hoTen || patient?.HO_TEN || "",
+      MA_BN: maBn || patient?.MA_BN || "",
       MA_DICH_VU: "",
       TEN_DICH_VU: "",
+      patient: patient ?? { MA_LK: maLk, MA_BN: maBn, HO_TEN: hoTen },
     };
     if (value && !/^\d{9,12}$/.test(value)) {
       warnings.push({
@@ -325,6 +407,7 @@ export function readXml2Warnings(
         MA_DICH_VU: maThuoc,
         TEN_DICH_VU: tenThuoc,
         message: `XML2. Chi tiết thứ ${detailIndex}: Thiếu thông tin TT_THAU`,
+        patient: patient ?? { MA_LK: maLk, MA_BN: "", HO_TEN: "" },
       });
     }
   });
@@ -370,6 +453,8 @@ function createXml4Warnings(
         MA_DICH_VU: match.MA_DICH_VU,
         TEN_DICH_VU: match.TEN_DICH_VU || match.TEN_VAT_TU || "",
         message: `XML 4. Chi tiết thứ ${index + 1}: Thiếu thông tin KET_LUAN khi XML3 MA_NHOM = 2. Mã dịch vụ: ${match.MA_DICH_VU || "—"}. Tên dịch vụ: ${match.TEN_DICH_VU || match.TEN_VAT_TU || "—"}`,
+        record: match,
+        patient: patient ?? match.patient,
       },
     ];
   });
@@ -515,7 +600,11 @@ function chronologyIssues(fields: Record<Xml3Field, string>): string[] {
 }
 
 export function evaluateRecord(
-  fields: Record<Xml3Field, string>,
+  fields: Record<Xml3Field, string> & {
+    MA_BN?: string;
+    HO_TEN?: string;
+    patient?: PatientInfo;
+  },
   fileName: string,
   serviceRules: ReadonlyMap<string, ServiceRule> = new Map(),
 ): Xml3Record {
@@ -591,8 +680,9 @@ export function evaluateRecord(
 
   return {
     ...fields,
-    MA_BN: "",
-    HO_TEN: "",
+    MA_BN: fields.MA_BN || "",
+    HO_TEN: fields.HO_TEN || "",
+    patient: fields.patient,
     fileName,
     table: "XML3",
     durationMinutes,
@@ -627,12 +717,13 @@ function toXml3Warning(record: Xml3Record, index: number): ValidationWarning {
     source: "XML3",
     detailIndex: Number(record.STT) || index + 1,
     MA_LK: record.MA_LK,
-    HO_TEN: record.HO_TEN,
-    MA_BN: record.MA_BN,
+    HO_TEN: record.HO_TEN || record.patient?.HO_TEN || "",
+    MA_BN: record.MA_BN || record.patient?.MA_BN || "",
     MA_DICH_VU: record.MA_DICH_VU || record.MA_VAT_TU,
     TEN_DICH_VU: record.TEN_DICH_VU || record.TEN_VAT_TU,
     message: record.detail,
     record,
+    patient: record.patient,
   };
 }
 
@@ -641,6 +732,187 @@ function decodeFileContent(content: string, label: string): Document {
   if (!value) throw new Error(`${label}: thiếu NOIDUNGFILE`);
   const decoded = value.startsWith("<") ? value : base64ToUtf8(value);
   return parseXml(decoded, label);
+}
+
+export function decodeFileContentToString(content: string, label: string): string {
+  const value = content.trim();
+  if (!value) return "";
+  return value.startsWith("<") ? value : base64ToUtf8(value);
+}
+
+export const XML_TABLE_META: Record<
+  string,
+  { title: string; shortName: string; desc: string; icon: string }
+> = {
+  XML1: {
+    title: "Bảng 1: Chỉ tiêu tổng hợp khám chữa bệnh BHYT",
+    shortName: "Tổng hợp KCB",
+    desc: "Thông tin hành chính, ngày vào/ra, chẩn đoán, mã bệnh, nơi ĐKBD, chi phí tổng hợp",
+    icon: "📋",
+  },
+  XML2: {
+    title: "Bảng 2: Chỉ tiêu chi tiết thuốc thanh toán BHYT",
+    shortName: "Chi tiết Thuốc",
+    desc: "Mã thuốc, tên thuốc, hàm lượng, đường dùng, số lượng, đơn giá, TT_THAU, mã khoa",
+    icon: "💊",
+  },
+  XML3: {
+    title: "Bảng 3: Chỉ tiêu chi tiết DVKT & VTYT thanh toán BHYT",
+    shortName: "DVKT & Vật tư",
+    desc: "Mã DVKT, tên DV, thời gian YL - TH_YL - KQ, thời lượng, TT_THAU, mã nhóm",
+    icon: "🩺",
+  },
+  XML4: {
+    title: "Bảng 4: Chỉ tiêu chi tiết dịch vụ cận lâm sàng",
+    shortName: "Cận lâm sàng & CĐHA",
+    desc: "Mã dịch vụ CLS, kết quả, kết luận, ngày kết quả, mô tả hình ảnh",
+    icon: "🔬",
+  },
+  XML5: {
+    title: "Bảng 5: Chỉ tiêu chi tiết theo dõi diễn biến lâm sàng",
+    shortName: "Diễn biến lâm sàng",
+    desc: "Diễn biến bệnh theo ngày, tình trạng người bệnh, y lệnh điều trị",
+    icon: "📈",
+  },
+  XML6: {
+    title: "Bảng 6: Hồ sơ bệnh án phục hồi chức năng",
+    shortName: "Phục hồi chức năng",
+    desc: "Lượng giá chức năng, các kỹ thuật phục hồi chức năng đã thực hiện",
+    icon: "♿",
+  },
+  XML7: {
+    title: "Bảng 7: Khám chữa bệnh y học cổ truyền",
+    shortName: "Y học cổ truyền",
+    desc: "Vọng, văn, vấn, thiết, biện chứng luận trị, pháp điều trị YHCT",
+    icon: "🌿",
+  },
+  XML8: {
+    title: "Bảng 8: Tóm tắt bệnh án",
+    shortName: "Tóm tắt bệnh án",
+    desc: "Lý do vào viện, tóm tắt bệnh án, quá trình và hướng điều trị",
+    icon: "📑",
+  },
+  XML9: {
+    title: "Bảng 9: Giấy chứng sinh",
+    shortName: "Giấy chứng sinh",
+    desc: "Thông tin trẻ sơ sinh, cân nặng, tình trạng sức khỏe, người đỡ đẻ",
+    icon: "👶",
+  },
+  XML10: {
+    title: "Bảng 10: Giấy chứng nhận nghỉ dưỡng thai",
+    shortName: "Nghỉ dưỡng thai",
+    desc: "Thông tin thai phụ, tuổi thai, số ngày nghỉ, cơ sở cấp giấy",
+    icon: "🤰",
+  },
+  XML11: {
+    title: "Bảng 11: Giấy chứng nhận nghỉ việc hưởng BHXH",
+    shortName: "Nghỉ việc BHXH",
+    desc: "Chẩn đoán bệnh, số ngày nghỉ việc được hưởng bảo hiểm xã hội",
+    icon: "📄",
+  },
+  XML12: {
+    title: "Bảng 12: Giấy chuyển tuyến khám bệnh, chữa bệnh BHYT",
+    shortName: "Giấy chuyển tuyến",
+    desc: "Cơ sở chuyển đi, cơ sở chuyển đến, lý do chuyển tuyến, tóm tắt bệnh án",
+    icon: "🚑",
+  },
+  XML13: {
+    title: "Bảng 13: Giấy hẹn khám lại",
+    shortName: "Giấy hẹn khám lại",
+    desc: "Ngày hẹn khám lại, lý do hẹn, hướng dẫn người bệnh",
+    icon: "📅",
+  },
+  XML14: {
+    title: "Bảng 14: Thông tin bảng kê chi phí KCB",
+    shortName: "Bảng kê chi phí",
+    desc: "Chi tiết cơ cấu chi phí, mức hưởng BHYT, người bệnh cùng chi trả",
+    icon: "💰",
+  },
+  XML15: {
+    title: "Bảng 15: Thông tin giám định & phản hồi",
+    shortName: "Giám định & Phản hồi",
+    desc: "Kết quả giám định của cơ quan BHXH, mã lỗi, số tiền xuất toán / điều chỉnh",
+    icon: "⚖️",
+  },
+};
+
+export const ALL_XML_TABLE_KEYS = [
+  "XML1",
+  "XML2",
+  "XML3",
+  "XML4",
+  "XML5",
+  "XML6",
+  "XML7",
+  "XML8",
+  "XML9",
+  "XML10",
+  "XML11",
+  "XML12",
+  "XML13",
+  "XML14",
+  "XML15",
+];
+
+export function parseXmlTableContent(
+  xmlString: string,
+  tableType: string,
+): { rows: Record<string, string>[]; headers: string[]; rawXml: string } {
+  if (!xmlString) return { rows: [], headers: [], rawXml: "" };
+  try {
+    const doc = parseXml(xmlString, tableType);
+    const root = doc.documentElement;
+    if (!root) return { rows: [], headers: [], rawXml: xmlString };
+
+    const children = Array.from(root.children);
+    let rowElements: Element[] = [];
+
+    const hasComplexChildren = children.some((c) => c.children.length > 0);
+    if (hasComplexChildren) {
+      rowElements = children.filter((c) => c.children.length > 0);
+      if (
+        rowElements.length === 1 &&
+        rowElements[0].children.length > 1 &&
+        rowElements[0].children[0].children.length > 0
+      ) {
+        rowElements = Array.from(rowElements[0].children);
+      }
+    } else if (children.length > 0) {
+      rowElements = [root];
+    }
+
+    const headerSet = new Set<string>();
+    const rows: Record<string, string>[] = [];
+
+    for (const rowEl of rowElements) {
+      const rowData: Record<string, string> = {};
+      for (const child of Array.from(rowEl.children)) {
+        const tag = child.tagName;
+        rowData[tag] = child.textContent?.trim() ?? "";
+        headerSet.add(tag);
+      }
+      if (Object.keys(rowData).length > 0) {
+        rows.push(rowData);
+      }
+    }
+
+    return { rows, headers: Array.from(headerSet), rawXml: xmlString };
+  } catch {
+    return { rows: [], headers: [], rawXml: xmlString };
+  }
+}
+
+export function formatXmlString(xml: string): string {
+  if (!xml) return "";
+  let formatted = "";
+  let indent = "";
+  const tab = "  ";
+  xml.split(/>\s*</).forEach((node) => {
+    if (node.match(/^\/\w/)) indent = indent.substring(tab.length);
+    formatted += indent + "<" + node + ">\n";
+    if (node.match(/^<?\w[^>]*[^/]$/)) indent += tab;
+  });
+  return formatted.trim();
 }
 
 async function collectXml4Records(file: File): Promise<Xml4Record[]> {
@@ -691,7 +963,7 @@ export async function analyzeXml3File(
     if (type === "XML1") {
       const inner = decodeFileContent(content, `${file.name} XML1`);
       for (const [maLk, patient] of readXml1Patients(inner)) patients.set(maLk, patient);
-      xml1Warnings.push(...readXml1Warnings(inner));
+      xml1Warnings.push(...readXml1Warnings(inner, patients));
     }
     if (type === "XML2") {
       const inner = decodeFileContent(content, `${file.name} XML2`);
@@ -776,19 +1048,133 @@ export async function analyzeXml3Files(
   const xml2Warnings: ValidationWarning[] = [];
   const xml3Warnings: ValidationWarning[] = [];
   const xml4Records: Xml4Record[] = [];
+  const dossierMap = new Map<string, PatientDossier>();
 
+  // Pass 1: Thu thập bệnh nhân từ XML1 và CLS từ XML4
   for (const file of files) {
     try {
-      for (const [maLk, patient] of await collectXml1Patients(file))
+      for (const [maLk, patient] of await collectXml1Patients(file)) {
         sharedPatients.set(maLk, patient);
+      }
       xml4Records.push(...(await collectXml4Records(file)));
     } catch {
-      // The normal analysis pass below records the user-facing file error.
+      // Bỏ qua lỗi pass 1 để pass chính báo chi tiết
     }
   }
 
+  // Pass 2: Phân tích XML3 và thu thập các bảng XML (15 bảng)
   for (const file of files) {
     try {
+      const text = await file.text();
+      const outer = parseXml(text, file.name);
+      const fileNodes = Array.from(outer.getElementsByTagName("FILEHOSO"));
+
+      if (fileNodes.length > 0) {
+        for (const fileNode of fileNodes) {
+          const type = fileNode.getElementsByTagName("LOAIHOSO")[0]?.textContent?.trim() ?? "";
+          const content = fileNode.getElementsByTagName("NOIDUNGFILE")[0]?.textContent ?? "";
+          if (!type || !content) continue;
+          const decodedXml = decodeFileContentToString(content, `${file.name} ${type}`);
+          const parsed = parseXmlTableContent(decodedXml, type);
+
+          let maLks = Array.from(new Set(parsed.rows.map((r) => r.MA_LK).filter(Boolean)));
+          if (!maLks.length) {
+            try {
+              const innerDoc = parseXml(decodedXml, type);
+              const found =
+                directTextOf(innerDoc.documentElement, "MA_LK") ||
+                textOfGeneral(innerDoc.documentElement, "MA_LK");
+              if (found) maLks = [found];
+            } catch {
+              // ignore
+            }
+          }
+          if (!maLks.length) {
+            const filePatients = Array.from(sharedPatients.keys());
+            if (filePatients.length === 1) maLks = [filePatients[0]];
+          }
+
+          for (const maLk of maLks) {
+            let dossier = dossierMap.get(maLk);
+            if (!dossier) {
+              const pat = sharedPatients.get(maLk) || { MA_LK: maLk, MA_BN: "", HO_TEN: "" };
+              dossier = {
+                maLk,
+                patient: pat,
+                fileName: file.name,
+                tables: {},
+                warnings: [],
+                xml3Records: [],
+                hasWarnings: false,
+                warningCount: 0,
+              };
+              dossierMap.set(maLk, dossier);
+            }
+            const patientRows =
+              parsed.rows.length > 0 && parsed.rows.some((r) => r.MA_LK)
+                ? parsed.rows.filter((r) => !r.MA_LK || r.MA_LK === maLk)
+                : parsed.rows;
+
+            dossier.tables[type] = {
+              tableType: type,
+              tableName: XML_TABLE_META[type]?.shortName || type,
+              rawXml: decodedXml,
+              rows: patientRows,
+              headers: parsed.headers,
+            };
+          }
+        }
+      } else {
+        // File đơn không có wrapper FILEHOSO
+        let guessedType = "XML3";
+        if (outer.getElementsByTagName("CHI_TIET_THUOC").length) guessedType = "XML2";
+        else if (outer.getElementsByTagName("CHI_TIET_CLS").length) guessedType = "XML4";
+        else if (
+          outer.getElementsByTagName("TONG_HOP").length ||
+          outer.getElementsByTagName("THONGTINBENHNHAN").length
+        )
+          guessedType = "XML1";
+
+        const parsed = parseXmlTableContent(text, guessedType);
+        let maLks = Array.from(new Set(parsed.rows.map((r) => r.MA_LK).filter(Boolean)));
+        if (!maLks.length) {
+          const found =
+            directTextOf(outer.documentElement, "MA_LK") ||
+            textOfGeneral(outer.documentElement, "MA_LK");
+          if (found) maLks = [found];
+        }
+
+        for (const maLk of maLks) {
+          let dossier = dossierMap.get(maLk);
+          if (!dossier) {
+            const pat = sharedPatients.get(maLk) || { MA_LK: maLk, MA_BN: "", HO_TEN: "" };
+            dossier = {
+              maLk,
+              patient: pat,
+              fileName: file.name,
+              tables: {},
+              warnings: [],
+              xml3Records: [],
+              hasWarnings: false,
+              warningCount: 0,
+            };
+            dossierMap.set(maLk, dossier);
+          }
+          const patientRows =
+            parsed.rows.length > 0 && parsed.rows.some((r) => r.MA_LK)
+              ? parsed.rows.filter((r) => !r.MA_LK || r.MA_LK === maLk)
+              : parsed.rows;
+
+          dossier.tables[guessedType] = {
+            tableType: guessedType,
+            tableName: XML_TABLE_META[guessedType]?.shortName || guessedType,
+            rawXml: text,
+            rows: patientRows,
+            headers: parsed.headers,
+          };
+        }
+      }
+
       const analysis = await analyzeXml3File(file, sharedPatients, serviceRuleMap, drugRuleMap);
       allRecords.push(...analysis.records);
       tableFiles += analysis.tableFiles;
@@ -801,13 +1187,54 @@ export async function analyzeXml3Files(
     }
   }
 
+  // Đảm bảo tất cả bệnh nhân trong sharedPatients đều có dossier
+  for (const [maLk, patient] of sharedPatients.entries()) {
+    let dossier = dossierMap.get(maLk);
+    if (!dossier) {
+      dossier = {
+        maLk,
+        patient,
+        fileName: files[0]?.name || "hoso.xml",
+        tables: {},
+        warnings: [],
+        xml3Records: [],
+        hasWarnings: false,
+        warningCount: 0,
+      };
+      dossierMap.set(maLk, dossier);
+    } else {
+      dossier.patient = { ...dossier.patient, ...patient };
+    }
+  }
+
+  const xml4Warnings = createXml4Warnings(allRecords, xml4Records, sharedPatients);
+  const allWarnings = [...xml1Warnings, ...xml2Warnings, ...xml3Warnings, ...xml4Warnings];
+
+  // Gắn cảnh báo và bản ghi XML3 vào từng hồ sơ bệnh nhân
+  for (const warning of allWarnings) {
+    const dossier = dossierMap.get(warning.MA_LK);
+    if (dossier) {
+      dossier.warnings.push(warning);
+      dossier.hasWarnings = true;
+      dossier.warningCount++;
+    }
+  }
+  for (const record of allRecords) {
+    const dossier = dossierMap.get(record.MA_LK);
+    if (dossier) {
+      dossier.xml3Records.push(record);
+    }
+  }
+
+  const dossiers = Array.from(dossierMap.values());
+
   return {
     records: allRecords,
     warnings: allRecords.filter(isWarning),
     xml1Warnings,
     xml2Warnings,
     xml3Warnings,
-    xml4Warnings: createXml4Warnings(allRecords, xml4Records, sharedPatients),
+    xml4Warnings,
     files: files.map((file) => file.name),
     errors: [...errors, ...logs],
     tableFiles,
@@ -817,5 +1244,8 @@ export async function analyzeXml3Files(
     orderWarnings: allRecords.filter((record) => record.hasOrderWarning).length,
     bedWarnings: allRecords.filter((record) => record.hasBedWarning).length,
     ttThauWarnings: allRecords.filter((record) => record.hasTtThauWarning).length,
+    dossiers,
+    dossierMap,
+    patients: sharedPatients,
   };
 }

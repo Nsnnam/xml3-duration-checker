@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.0.0] — 2026-09-14
+
+- Sửa định dạng ngày giờ hiển thị theo chuẩn Việt Nam: `DD/MM/YYYY HH:mm` và `DD/MM/YYYY` (thay vì bị hiển thị đảo `MM/DD/YYYY`).
+- Thêm chức năng Popup Hovercard thông tin bệnh nhân: khi rê chuột vào bất kỳ dòng cảnh báo lỗi XML nào (XML1, XML2, XML3, XML4), popup hiển thị tức thời thông tin hành chính bệnh nhân (họ tên, giới tính, CCCD, BHYT, địa chỉ, chẩn đoán bệnh từ XML1), ngày vào viện (`NGAY_VAO`), ngày ra viện (`NGAY_RA`), chi tiết các mốc thời gian XML3 (`NGAY_YL`, `NGAY_TH_YL`, `NGAY_KQ`, số phút thực hiện) và nội dung cảnh báo chi tiết, kèm nút mở trực tiếp hồ sơ bệnh nhân.
+- Bổ sung hệ thống Kho Giao diện (Theme Gallery) kỹ thuật số & hiện đại đẳng cấp: 5 theme preset chuẩn hóa toàn bộ bố cục trang (Clinical Teal, Cyber Digital Neon 4.0, Luxury Obsidian Gold, Ocean Digital, Pure Minimalist), đảm bảo 100% hài hòa màu sắc thẻ, nút bấm, bảng và thanh điều hướng.
+- Bổ sung bộ tùy chọn Font chữ tiếng Việt: với font chủ đạo mặc định là **Be Vietnam Pro** (kèm Inter, Plus Jakarta Sans, Lexend, Roboto), tự động lưu và khôi phục từ `localStorage`.
+- Bổ sung module **Hồ sơ & Xem XML 15 bảng**: cho phép tìm kiếm và xem hồ sơ chi tiết của từng bệnh nhân (bao gồm cả bệnh nhân có cảnh báo và bệnh nhân không có lỗi), phân tách theo 15 tab chuẩn bảng BHYT QĐ 130/QĐ 4210, cung cấp 2 chế độ hiển thị:
+  - **Bảng dữ liệu (Data Grid)**: bảng dữ liệu chi tiết có bộ lọc tìm kiếm nhanh theo trường nội bộ và đếm số bản ghi.
+  - **Mã XML gốc (Raw XML)**: hiển thị định dạng cú pháp XML gốc có thụt đầu dòng, hỗ trợ sao chép toàn bộ (Copy) và tải file XML về máy.
+
 ## [1.9.0] — 2026-09-01
 
 - Bổ sung quy ước thời gian tối thiểu (mặc định > 0 phút hoặc cấu hình riêng theo dịch vụ) trong thư viện và khi đánh giá XML3; cảnh báo khi thời lượng dưới ngưỡng tối thiểu.

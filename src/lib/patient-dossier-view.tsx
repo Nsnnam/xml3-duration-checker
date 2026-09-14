@@ -1,0 +1,557 @@
+import React, { useState, useMemo } from "react";
+import {
+  type PatientDossier,
+  XML_TABLE_META,
+  ALL_XML_TABLE_KEYS,
+  formatXmlString,
+} from "./xml3-duration.ts";
+import { formatXmlDateTime, formatXmlDate } from "./timezone.ts";
+
+export function PatientDossierView({
+  dossiers,
+  selectedMaLk,
+  onSelectPatient,
+  onBackToChecker,
+}: {
+  dossiers: PatientDossier[];
+  selectedMaLk: string | null;
+  onSelectPatient: (maLk: string) => void;
+  onBackToChecker: () => void;
+}) {
+  const [patientSearch, setPatientSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "warnings" | "clean">("all");
+  const [activeTableKey, setActiveTableKey] = useState<string>("XML1");
+  const [viewMode, setViewMode] = useState<"table" | "raw">("table");
+  const [tableSearch, setTableSearch] = useState("");
+  const [copyFeedback, setCopyFeedback] = useState(false);
+
+  // Lọc danh sách bệnh nhân
+  const filteredPatients = useMemo(() => {
+    const q = patientSearch.trim().toLowerCase();
+    return dossiers.filter((d) => {
+      // Filter status
+      if (statusFilter === "warnings" && !d.hasWarnings) return false;
+      if (statusFilter === "clean" && d.hasWarnings) return false;
+
+      // Filter query
+      if (!q) return true;
+      const p = d.patient;
+      return (
+        d.maLk.toLowerCase().includes(q) ||
+        (p?.HO_TEN && p.HO_TEN.toLowerCase().includes(q)) ||
+        (p?.MA_BN && p.MA_BN.toLowerCase().includes(q)) ||
+        (p?.SO_CCCD && p.SO_CCCD.toLowerCase().includes(q)) ||
+        (p?.MA_THE_BHYT && p.MA_THE_BHYT.toLowerCase().includes(q)) ||
+        (p?.MA_BENH && p.MA_BENH.toLowerCase().includes(q)) ||
+        (p?.TEN_BENH && p.TEN_BENH.toLowerCase().includes(q))
+      );
+    });
+  }, [dossiers, patientSearch, statusFilter]);
+
+  // Bệnh nhân đang được chọn
+  const activeDossier = useMemo(() => {
+    if (!dossiers.length) return null;
+    if (selectedMaLk) {
+      const found = dossiers.find((d) => d.maLk === selectedMaLk);
+      if (found) return found;
+    }
+    return filteredPatients[0] || dossiers[0] || null;
+  }, [dossiers, selectedMaLk, filteredPatients]);
+
+  // Đếm theo trạng thái
+  const counts = useMemo(() => {
+    const warningCount = dossiers.filter((d) => d.hasWarnings).length;
+    return {
+      all: dossiers.length,
+      warnings: warningCount,
+      clean: dossiers.length - warningCount,
+    };
+  }, [dossiers]);
+
+  // Dữ liệu bảng hiện tại
+  const currentTableData = activeDossier?.tables[activeTableKey];
+
+  // Lọc dòng trong bảng dữ liệu
+  const filteredTableRows = useMemo(() => {
+    if (!currentTableData?.rows) return [];
+    const q = tableSearch.trim().toLowerCase();
+    if (!q) return currentTableData.rows;
+    return currentTableData.rows.filter((row) =>
+      Object.values(row).some((val) => String(val).toLowerCase().includes(q)),
+    );
+  }, [currentTableData, tableSearch]);
+
+  const handleCopyRawXml = () => {
+    if (!currentTableData?.rawXml) return;
+    navigator.clipboard.writeText(currentTableData.rawXml);
+    setCopyFeedback(true);
+    setTimeout(() => setCopyFeedback(false), 2000);
+  };
+
+  const handleDownloadTableXml = () => {
+    if (!currentTableData?.rawXml || !activeDossier) return;
+    const blob = new Blob([currentTableData.rawXml], { type: "text/xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${activeTableKey}_${activeDossier.maLk}.xml`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  if (!dossiers.length) {
+    return (
+      <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-12 text-center shadow-sm">
+        <span className="text-4xl">📂</span>
+        <h3 className="mt-3 text-lg font-bold text-slate-900 dark:text-white">
+          Chưa có hồ sơ XML nào được nạp
+        </h3>
+        <p className="mt-1 text-xs text-slate-500 max-w-md mx-auto">
+          Vui lòng chuyển sang tab <b>Kiểm tra thời gian</b> và nạp các file XML hồ sơ bệnh án để
+          tra cứu và đối chiếu 15 bảng XML chi tiết.
+        </p>
+        <button
+          onClick={onBackToChecker}
+          className="mt-4 rounded-xl bg-teal-700 dark:bg-cyan-500 px-5 py-2 text-xs font-bold text-white hover:bg-teal-800 shadow-sm"
+        >
+          ← Đến trang nạp file XML
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header Banner */}
+      <div className="rounded-3xl border border-teal-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+          <div>
+            <div className="text-xs font-black uppercase tracking-wider text-teal-700 dark:text-cyan-400">
+              Tra cứu hồ sơ &amp; Đối chiếu dữ liệu
+            </div>
+            <h2 className="mt-1 text-2xl font-black text-slate-900 dark:text-white">
+              Tra cứu &amp; Xem XML Hồ sơ Bệnh nhân (15 bảng BHYT)
+            </h2>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 max-w-3xl">
+              Xem toàn diện tất cả hồ sơ bệnh nhân (cả bệnh nhân có lỗi và không có lỗi), diễn giải
+              chi tiết từng bảng XML theo 15 tab chuẩn Bộ Y tế, có hỗ trợ xem mã XML gốc.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onBackToChecker}
+              className="rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 shadow-sm"
+            >
+              ← Quay lại Cảnh báo
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Grid: 2 cột (Danh sách BN & Chi tiết 15 bảng) */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        {/* Cột trái: Danh sách bệnh nhân (4 cột) */}
+        <div className="lg:col-span-4 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm flex flex-col h-[820px]">
+          {/* Ô tìm kiếm bệnh nhân */}
+          <div className="space-y-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+            <div className="relative">
+              <input
+                type="text"
+                value={patientSearch}
+                onChange={(e) => setPatientSearch(e.target.value)}
+                placeholder="Tìm mã BN, họ tên, mã LK, CCCD, BHYT..."
+                className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2 pl-8 text-xs text-slate-900 dark:text-slate-100 focus:border-teal-500 focus:outline-none"
+              />
+              <span className="absolute left-2.5 top-2.5 text-slate-400 text-xs">🔍</span>
+              {patientSearch && (
+                <button
+                  onClick={() => setPatientSearch("")}
+                  className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 text-xs"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Bộ lọc tình trạng */}
+            <div className="flex gap-1">
+              <button
+                onClick={() => setStatusFilter("all")}
+                className={`flex-1 rounded-lg py-1 text-[11px] font-bold transition ${
+                  statusFilter === "all"
+                    ? "bg-slate-800 dark:bg-slate-700 text-white"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200"
+                }`}
+              >
+                Tất cả ({counts.all})
+              </button>
+              <button
+                onClick={() => setStatusFilter("warnings")}
+                className={`flex-1 rounded-lg py-1 text-[11px] font-bold transition ${
+                  statusFilter === "warnings"
+                    ? "bg-rose-600 text-white"
+                    : "bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400 hover:bg-rose-100"
+                }`}
+              >
+                ⚠️ Có lỗi ({counts.warnings})
+              </button>
+              <button
+                onClick={() => setStatusFilter("clean")}
+                className={`flex-1 rounded-lg py-1 text-[11px] font-bold transition ${
+                  statusFilter === "clean"
+                    ? "bg-emerald-600 text-white"
+                    : "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100"
+                }`}
+              >
+                ✅ Đạt ({counts.clean})
+              </button>
+            </div>
+          </div>
+
+          {/* Danh sách cuộn */}
+          <div className="mt-3 flex-1 overflow-y-auto space-y-2 pr-1">
+            {filteredPatients.length === 0 ? (
+              <div className="py-12 text-center text-xs text-slate-400">
+                Không tìm thấy bệnh nhân phù hợp
+              </div>
+            ) : (
+              filteredPatients.map((d) => {
+                const isSelected = activeDossier?.maLk === d.maLk;
+                const p = d.patient;
+                const tableCount = Object.keys(d.tables).length;
+                return (
+                  <div
+                    key={d.maLk}
+                    onClick={() => onSelectPatient(d.maLk)}
+                    className={`cursor-pointer rounded-2xl border p-3 transition-all duration-150 ${
+                      isSelected
+                        ? "border-teal-600 dark:border-cyan-400 bg-teal-50/50 dark:bg-cyan-950/20 shadow-sm"
+                        : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-800/40"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="font-bold text-xs text-slate-900 dark:text-white truncate">
+                        {p?.HO_TEN || "(Chưa có tên)"}
+                      </div>
+                      {d.hasWarnings ? (
+                        <span className="rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 px-2 py-0.5 text-[10px] font-bold whitespace-nowrap">
+                          ⚠️ {d.warningCount} lỗi
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 text-[10px] font-bold whitespace-nowrap">
+                          ✅ Đạt
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="mt-1 flex flex-wrap gap-2 text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                      <span>LK: {d.maLk}</span>
+                      {p?.MA_BN && <span>· BN: {p.MA_BN}</span>}
+                    </div>
+
+                    <div className="mt-1.5 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                      <span>
+                        Vào: <b>{formatXmlDate(p?.NGAY_VAO) || "—"}</b>
+                      </span>
+                      <span className="rounded-md bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 font-bold text-slate-700 dark:text-slate-200">
+                        {tableCount}/15 bảng
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Cột phải: Chi tiết hồ sơ 15 bảng (8 cột) */}
+        <div className="lg:col-span-8 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm flex flex-col h-[820px] overflow-hidden">
+          {activeDossier ? (
+            <div className="flex flex-col h-full space-y-4">
+              {/* Thẻ hành chính tổng hợp bệnh nhân */}
+              <div className="rounded-2xl border border-teal-200/70 dark:border-cyan-900/60 bg-gradient-to-r from-teal-50/60 to-slate-50 dark:from-slate-800/80 dark:to-slate-800/40 p-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-teal-100 dark:border-slate-700/60 pb-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">🧑‍⚕️</span>
+                      <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                        {activeDossier.patient?.HO_TEN || "(Bệnh nhân chưa có tên)"}
+                      </h3>
+                      {activeDossier.patient?.GIOI_TINH && (
+                        <span className="rounded-lg bg-teal-100 dark:bg-cyan-900/60 text-teal-800 dark:text-cyan-300 px-2 py-0.5 text-xs font-bold">
+                          {activeDossier.patient.GIOI_TINH === "1"
+                            ? "Nam"
+                            : activeDossier.patient.GIOI_TINH === "2"
+                              ? "Nữ"
+                              : activeDossier.patient.GIOI_TINH}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-3 text-xs font-mono text-slate-600 dark:text-slate-300">
+                      <span>
+                        Mã LK: <b>{activeDossier.maLk}</b>
+                      </span>
+                      {activeDossier.patient?.MA_BN && (
+                        <span>
+                          · Mã BN: <b>{activeDossier.patient.MA_BN}</b>
+                        </span>
+                      )}
+                      {activeDossier.patient?.NGAY_SINH && (
+                        <span>· NS: {formatXmlDate(activeDossier.patient.NGAY_SINH)}</span>
+                      )}
+                      {activeDossier.patient?.SO_CCCD && (
+                        <span>· CCCD: {activeDossier.patient.SO_CCCD}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {activeDossier.hasWarnings ? (
+                      <div className="rounded-xl bg-rose-100 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 px-3 py-1.5 text-xs font-bold text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
+                        <span>⚠️</span>
+                        <span>{activeDossier.warningCount} cảnh báo cần rà soát</span>
+                      </div>
+                    ) : (
+                      <div className="rounded-xl bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-3 py-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                        <span>✅</span>
+                        <span>Hồ sơ đạt chuẩn (không có cảnh báo)</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Các trường trọng tâm */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 text-xs">
+                  <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/40 p-2">
+                    <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-400 block">
+                      📥 Ngày vào viện
+                    </span>
+                    <b className="font-mono text-xs text-emerald-950 dark:text-emerald-200">
+                      {formatXmlDateTime(activeDossier.patient?.NGAY_VAO) || "—"}
+                    </b>
+                  </div>
+                  <div className="rounded-xl bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-900/40 p-2">
+                    <span className="text-[10px] uppercase font-bold text-sky-700 dark:text-sky-400 block">
+                      📤 Ngày ra viện
+                    </span>
+                    <b className="font-mono text-xs text-sky-950 dark:text-sky-200">
+                      {formatXmlDateTime(activeDossier.patient?.NGAY_RA) || "—"}
+                    </b>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-2">
+                    <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block">
+                      🪪 Thẻ BHYT &amp; ĐKBD
+                    </span>
+                    <div className="font-mono font-bold text-slate-800 dark:text-slate-200 truncate">
+                      {activeDossier.patient?.MA_THE_BHYT || "—"}
+                    </div>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-2">
+                    <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block">
+                      🩺 Chẩn đoán chính
+                    </span>
+                    <div
+                      className="font-medium text-slate-800 dark:text-slate-200 truncate"
+                      title={activeDossier.patient?.TEN_BENH}
+                    >
+                      {activeDossier.patient?.TEN_BENH || activeDossier.patient?.MA_BENH || "—"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Thanh 15 Tab Bảng XML */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-slate-200 dark:border-slate-800 scrollbar-thin">
+                {ALL_XML_TABLE_KEYS.map((tableKey) => {
+                  const meta = XML_TABLE_META[tableKey];
+                  const hasData = Boolean(activeDossier.tables[tableKey]);
+                  const rowCount = activeDossier.tables[tableKey]?.rows?.length ?? 0;
+                  const isActive = activeTableKey === tableKey;
+
+                  return (
+                    <button
+                      key={tableKey}
+                      onClick={() => {
+                        setActiveTableKey(tableKey);
+                        setTableSearch("");
+                      }}
+                      className={`whitespace-nowrap px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                        isActive
+                          ? "bg-teal-700 dark:bg-cyan-500 text-white shadow-sm"
+                          : hasData
+                            ? "bg-teal-50 dark:bg-slate-800 text-teal-900 dark:text-teal-200 hover:bg-teal-100"
+                            : "bg-slate-100 dark:bg-slate-800/40 text-slate-400 hover:bg-slate-200/60"
+                      }`}
+                    >
+                      <span>{meta?.icon || "📄"}</span>
+                      <span>{tableKey}</span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                          isActive
+                            ? "bg-white/20 text-white"
+                            : hasData
+                              ? "bg-teal-200/80 dark:bg-teal-900 text-teal-800 dark:text-teal-200"
+                              : "bg-slate-200 dark:bg-slate-700 text-slate-500"
+                        }`}
+                      >
+                        {rowCount}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Nội dung bảng XML đang chọn */}
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden space-y-3">
+                {currentTableData ? (
+                  <>
+                    {/* Header thông tin bảng & công cụ */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>{XML_TABLE_META[activeTableKey]?.icon}</span>
+                          <span>{XML_TABLE_META[activeTableKey]?.title || activeTableKey}</span>
+                        </h4>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                          {XML_TABLE_META[activeTableKey]?.desc} ·{" "}
+                          <b>{currentTableData.rows.length}</b> dòng dữ liệu
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* Chuyển chế độ xem */}
+                        <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-0.5 flex bg-slate-100 dark:bg-slate-800 text-xs">
+                          <button
+                            onClick={() => setViewMode("table")}
+                            className={`px-3 py-1 rounded-lg font-bold transition ${
+                              viewMode === "table"
+                                ? "bg-white dark:bg-slate-700 text-teal-800 dark:text-cyan-300 shadow-sm"
+                                : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
+                            }`}
+                          >
+                            📊 Bảng dữ liệu
+                          </button>
+                          <button
+                            onClick={() => setViewMode("raw")}
+                            className={`px-3 py-1 rounded-lg font-bold transition ${
+                              viewMode === "raw"
+                                ? "bg-white dark:bg-slate-700 text-teal-800 dark:text-cyan-300 shadow-sm"
+                                : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
+                            }`}
+                          >
+                            📄 XML Gốc
+                          </button>
+                        </div>
+
+                        {/* Thao tác Copy / Tải */}
+                        <button
+                          onClick={handleCopyRawXml}
+                          className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 shadow-sm"
+                        >
+                          {copyFeedback ? "✅ Đã chép!" : "📋 Sao chép XML"}
+                        </button>
+                        <button
+                          onClick={handleDownloadTableXml}
+                          className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 shadow-sm"
+                        >
+                          💾 Tải .xml
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Lọc trong bảng (nếu ở view mode table) */}
+                    {viewMode === "table" && currentTableData.rows.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={tableSearch}
+                          onChange={(e) => setTableSearch(e.target.value)}
+                          placeholder={`Lọc nhanh trong bảng ${activeTableKey}...`}
+                          className="w-full max-w-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none"
+                        />
+                        <span className="text-xs text-slate-400">
+                          Hiển thị {filteredTableRows.length}/{currentTableData.rows.length} dòng
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Vùng hiển thị Data Grid hoặc Raw XML */}
+                    <div className="flex-1 min-h-0 overflow-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
+                      {viewMode === "table" ? (
+                        currentTableData.rows.length === 0 ? (
+                          <div className="p-8 text-center text-xs text-slate-400">
+                            Bảng này không có bản ghi nào.
+                          </div>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-xs text-left">
+                              <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-900 text-[11px] font-bold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
+                                <tr>
+                                  <th className="px-3 py-2.5 w-12 text-center">#</th>
+                                  {currentTableData.headers.map((h) => (
+                                    <th
+                                      key={h}
+                                      className="px-3 py-2.5 font-mono whitespace-nowrap border-r border-slate-200 dark:border-slate-800 last:border-r-0"
+                                    >
+                                      {h}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                                {filteredTableRows.map((row, idx) => (
+                                  <tr
+                                    key={idx}
+                                    className="hover:bg-teal-50/40 dark:hover:bg-slate-800/60 transition"
+                                  >
+                                    <td className="px-3 py-2 text-center text-slate-400 font-mono text-[11px]">
+                                      {idx + 1}
+                                    </td>
+                                    {currentTableData.headers.map((h) => (
+                                      <td
+                                        key={h}
+                                        className="px-3 py-2 font-mono whitespace-nowrap border-r border-slate-100 dark:border-slate-800/60 last:border-r-0 max-w-[280px] truncate"
+                                        title={row[h]}
+                                      >
+                                        {row[h] || "—"}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )
+                      ) : (
+                        /* Chế độ xem Raw XML */
+                        <pre className="p-4 text-xs font-mono leading-5 text-slate-800 dark:text-cyan-300 whitespace-pre-wrap overflow-auto h-full selection:bg-teal-200">
+                          {formatXmlString(currentTableData.rawXml)}
+                        </pre>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  /* Bảng không có dữ liệu */
+                  <div className="flex-1 flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-8 text-center">
+                    <span className="text-3xl opacity-40">📄</span>
+                    <h4 className="mt-2 text-sm font-bold text-slate-700 dark:text-slate-300">
+                      Không tìm thấy dữ liệu bảng {activeTableKey}
+                    </h4>
+                    <p className="mt-1 text-xs text-slate-400 max-w-sm">
+                      Hồ sơ XML của bệnh nhân này không chứa bảng {activeTableKey} (
+                      {XML_TABLE_META[activeTableKey]?.shortName}).
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-xs text-slate-400">
+              Chọn bệnh nhân bên trái để xem hồ sơ 15 bảng XML
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

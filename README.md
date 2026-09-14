@@ -1,6 +1,6 @@
 # NsN_XMLcheck
 
-**NsN_XMLcheck** là công cụ web độc lập của **Nguyễn Sơn Nam (Nsnnam)** để đọc file XML hồ sơ chứa 15 bảng, giải mã `NOIDUNGFILE` theo Base64, lấy các dòng `CHI_TIET_DVKT` của XML3, kiểm tra cảnh báo thời lượng (thời gian tối thiểu & tối đa) theo `MA_NHOM`, cảnh báo thông tin thầu `TT_THAU` trên XML2 và XML3, hỗ trợ quản lý thư viện dịch vụ & thuốc loại trừ độc lập, nhập/xuất file Excel mẫu danh mục, tùy biến ẩn/hiện và kéo thả độ rộng cột trên toàn bộ các tab, sao lưu backup và gửi báo cáo qua Telegram.
+**NsN_XMLcheck** là công cụ web độc lập của **Nguyễn Sơn Nam (Nsnnam)** để đọc file XML hồ sơ chứa 15 bảng, giải mã `NOIDUNGFILE` theo Base64, lấy các dòng `CHI_TIET_DVKT` của XML3, kiểm tra cảnh báo thời lượng (thời gian tối thiểu & tối đa) theo `MA_NHOM`, cảnh báo thông tin thầu `TT_THAU` trên XML2 và XML3, hỗ trợ xem hồ sơ 15 bảng XML (XML1–XML15) của từng bệnh nhân, hovercard thông tin bệnh nhân, bộ giao diện kỹ thuật số đẳng cấp & font tiếng Việt Be Vietnam Pro, quản lý thư viện dịch vụ & thuốc loại trừ, nhập/xuất file Excel mẫu danh mục, tùy biến ẩn/hiện và kéo thả độ rộng cột trên toàn bộ các tab, sao lưu backup và gửi báo cáo qua Telegram.
 
 > Ứng dụng này **không liên quan đến tra cứu hoặc đánh giá mã ICD**. Dữ liệu được xử lý ngay trong trình duyệt và không tải lên máy chủ.
 
@@ -10,6 +10,11 @@
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | Nạp dữ liệu | Chọn một hoặc nhiều file `.xml` XML1–XML15 Base64                                                                                              |
 | Phân tích   | Giải mã `NOIDUNGFILE`, nhận diện XML3 và đọc `CHI_TIET_DVKT`                                                                                   |
+| Hồ sơ 15 Bảng| Mục **Hồ sơ & Xem XML 15 bảng**: tra cứu từng bệnh nhân (lỗi & không lỗi), xem chi tiết 15 tab XML (XML1–XML15) dạng Data Grid & Raw XML          |
+| Hovercard   | Rê chuột vào dòng cảnh báo: hiển thị popup thông tin bệnh nhân (XML1: ngày vào, ngày ra), thời gian XML3 (chỉ định, thực hiện, KQ) & chi tiết lỗi |
+| Giao diện   | Kho Giao diện kỹ thuật số & hiện đại (Clinical Teal, Cyber Digital Neon 4.0, Luxury Obsidian Gold, Ocean Digital, Pure Minimalist)             |
+| Font chữ    | Hỗ trợ chọn font chữ tiếng Việt tối ưu hiển thị, với **Be Vietnam Pro** là font chủ đạo mặc định (kèm Inter, Plus Jakarta Sans, Lexend, Roboto)   |
+| Định dạng VN| Hiển thị ngày giờ theo chuẩn Việt Nam **`DD/MM/YYYY HH:mm`** và **`DD/MM/YYYY`** thay vì bị đảo định dạng                                      |
 | Thời lượng  | Tính `NGAY_KQ − NGAY_TH_YL`: cảnh báo khi **thời lượng ≤ 0 phút** (hoặc dưới thời gian tối thiểu) hoặc **> 70 phút** (hoặc vượt tối đa)        |
 | Quy ước Min | Quy ước thời gian tối thiểu mặc định `> 0` phút (tối thiểu 1 phút); cho phép cấu hình ngưỡng tối thiểu riêng theo từng mã dịch vụ kỹ thuật   |
 | Trình tự    | Kiểm tra `NGAY_YL → NGAY_TH_YL → NGAY_KQ` trên mọi mã nhóm; cảnh báo mốc ngược hoặc trùng                                                      |
@@ -69,7 +74,7 @@ Artifact được tạo tại `releases/web/` và `releases/single-page/xml3-dur
 
 ## Phiên bản
 
-Phiên bản hiện tại: **1.9.0** · ngày **2026-09-01** · múi giờ **Asia/Ho_Chi_Minh (GMT+7)**. Xem [CHANGELOG.md](CHANGELOG.md) để biết lịch sử thay đổi.
+Phiên bản hiện tại: **2.0.0** · ngày **2026-09-14** · múi giờ **Asia/Ho_Chi_Minh (GMT+7)**. Xem [CHANGELOG.md](CHANGELOG.md) để biết lịch sử thay đổi.
 
 ## Tác giả và hỗ trợ
 

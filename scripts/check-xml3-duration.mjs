@@ -9,8 +9,10 @@ import {
   evaluateRecord,
   isWarning,
   readXml2Warnings,
+  ALL_XML_TABLE_KEYS,
+  XML_TABLE_META,
 } from "../src/lib/xml3-duration.ts";
-import { formatXmlDateTime } from "../src/lib/timezone.ts";
+import { formatXmlDateTime, formatXmlDate } from "../src/lib/timezone.ts";
 import {
   parseBackupJson,
   createLibraryBackupContent,
@@ -36,7 +38,7 @@ assert.deepEqual(getChronologyIssues("202608280900", "202608280900", "2026082809
 assert.deepEqual(getChronologyIssues("202608280900", "202608280930", "202608280930"), [
   "NGAY_TH_YL = NGAY_KQ",
 ]);
-assert.equal(formatXmlDateTime("202608280930"), "08/28/2026 09:30");
+assert.equal(formatXmlDateTime("202608280930"), "28/08/2026 09:30");
 assert.deepEqual(DEFAULT_GROUP_CODES, ["2", "3", "8", "18"]);
 assert.equal(GROUP_OPTIONS.length, 18);
 
@@ -396,6 +398,15 @@ assert.deepEqual(parsedFull.groupCodes, ["2", "3", "8", "18", "10"]);
 assert.equal(parsedFull.telegramConfig?.botToken, "123:ABC");
 assert.equal(parsedFull.columnsConfig?.XML1?.widths?.detailIndex, 100);
 
+// 6. Kiểm tra định dạng ngày giờ Việt Nam (DD/MM/YYYY HH:mm)
+assert.equal(formatXmlDateTime("202609062155"), "06/09/2026 21:55");
+assert.equal(formatXmlDate("20260906"), "06/09/2026");
+
+// 7. Kiểm tra Thư viện 15 bảng XML
+assert.equal(ALL_XML_TABLE_KEYS.length, 15);
+assert.equal(XML_TABLE_META.XML1.shortName, "Tổng hợp KCB");
+assert.equal(XML_TABLE_META.XML15.shortName, "Giám định & Phản hồi");
+
 console.log(
-  "All tests passed: XML2/XML3 TT_THAU validation, drug exclusion, chronology, library backup/restore: OK",
+  "All tests passed: XML2/XML3 TT_THAU validation, drug exclusion, chronology, library backup/restore, VN date format, 15 XML tables: OK",
 );

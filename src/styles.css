@@ -61,6 +61,7 @@
 }
 
 :root {
+  --app-font-family: "Be Vietnam Pro", system-ui, -apple-system, sans-serif;
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.129 0.042 264.695);
@@ -137,7 +138,8 @@
   }
 
   body {
-    background-color: var(--color-background);
-    color: var(--color-foreground);
+    font-family: var(--app-font-family, "Be Vietnam Pro", system-ui, -apple-system, sans-serif);
+    background-color: var(--app-bg, var(--color-background));
+    color: var(--app-text, var(--color-foreground));
   }
 }

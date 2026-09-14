@@ -42,6 +42,34 @@
 - Người dùng có thể bấm nút **`⚙️ Tùy chỉnh cột`** ở mọi tab cảnh báo (**XML1, XML2, XML3, XML4**) để chọn ẩn hoặc hiện bất kỳ cột nào.
 - Kéo thả trực tiếp tại viền phải tiêu đề từng cột để điều chỉnh độ rộng linh hoạt. Kích thước và trạng thái ẩn/hiện được tự động lưu theo từng tab vào trình duyệt.
 
+## Tra cứu & Xem hồ sơ 15 bảng XML
+
+- Chuyển sang tab **`📂 Hồ sơ & Xem XML 15 bảng`** hoặc bấm biểu tượng **`📂`** cạnh cột `MA_LK` trên bảng cảnh báo để mở ngay hồ sơ bệnh nhân.
+- Cho phép tra cứu bất kỳ bệnh nhân nào (cả bệnh nhân có cảnh báo lỗi và bệnh nhân sạch lỗi đạt chuẩn).
+- Chọn xem từng bảng trong số **15 bảng XML** theo chuẩn BHYT QĐ 130 / QĐ 4210 (XML1: Tổng hợp KCB, XML2: Thuốc, XML3: DVKT & VTYT, XML4: Cận lâm sàng, XML5: Diễn biến lâm sàng, XML6: Phục hồi chức năng, XML7: Y học cổ truyền, XML8: Tóm tắt bệnh án, XML9: Giấy chứng sinh, XML10: Nghỉ dưỡng thai, XML11: Nghỉ việc BHXH, XML12: Chuyển tuyến, XML13: Hẹn khám lại, XML14: Bảng kê chi phí, XML15: Giám định & phản hồi).
+- Hỗ trợ 2 chế độ hiển thị:
+  - **Bảng dữ liệu (Data Grid)**: bảng trực quan có bộ lọc tìm kiếm nội bộ theo từng trường thông tin.
+  - **Mã XML gốc (Raw XML)**: xem mã XML gốc có định dạng thụt lề, hỗ trợ nút **Sao chép** (Copy) và nút **Tải file XML**.
+
+## Hovercard Xem nhanh Thông tin Bệnh nhân
+
+- Khi di chuột (hover) vào bất kỳ dòng cảnh báo nào trong các tab **XML1, XML2, XML3, XML4**, một popup thông minh sẽ lập tức xuất hiện hiển thị:
+  - Thông tin hành chính bệnh nhân (họ tên, giới tính, CCCD, số thẻ BHYT, nơi ĐKBĐ, chẩn đoán bệnh từ XML1).
+  - Quá trình điều trị viện phí: Ngày vào viện (`NGAY_VAO`) và Ngày ra viện (`NGAY_RA`).
+  - Đối với cảnh báo XML3: hiển thị chi tiết thời gian chỉ định (`NGAY_YL`), thực hiện (`NGAY_TH_YL`), trả kết quả (`NGAY_KQ`), tổng số phút thực hiện và so sánh với thời gian nằm viện.
+  - Nội dung cảnh báo vi phạm chi tiết và nút **`🔍 Xem hồ sơ 15 bảng`** để nhảy thẳng sang hồ sơ bệnh nhân.
+
+## Kho Giao diện (Theme Gallery) & Font chữ Tiếng Việt
+
+- Bấm nút **`🎨 Giao diện & Font`** trên thanh điều hướng để mở bảng tùy biến phong cách:
+  - **Kho giao diện hiện đại & kỹ thuật số**: 5 bộ theme preset được thiết kế hài hòa 100% về màu sắc giữa tiêu đề, bảng, thẻ và nút bấm:
+    1. *Clinical Teal*: Chuẩn Y tế Hiện đại (Light, ngọc bích trang nhã).
+    2. *Cyber Digital*: Kỹ thuật số Y tế Neon (Dark Obsidian 4.0, Cyan Neon phát quang).
+    3. *Luxury Obsidian*: Doanh nghiệp Đẳng cấp (Dark Obsidian, Vàng Gold hoàng gia).
+    4. *Ocean Digital*: Xanh Đại Dương Kỹ thuật số (Light, tươi mới, thanh thoát).
+    5. *Pure Minimalist*: Trắng Tối giản Hiện đại (Slate xám tinh gọn).
+  - **Bộ chọn Font chữ**: Với font chữ chủ đạo là **Be Vietnam Pro** (kèm Inter, Plus Jakarta Sans, Lexend, Roboto), hiển thị tiếng Việt sắc nét, chuẩn y tế và tự động lưu lựa chọn vào trình duyệt.
+
 ## Sao lưu (Backup) & Gửi Telegram
 
 - Cho phép tải file backup JSON riêng cho Thư viện hoặc toàn bộ cấu hình trang (bao gồm cả cấu hình cột và thuốc loại trừ).
