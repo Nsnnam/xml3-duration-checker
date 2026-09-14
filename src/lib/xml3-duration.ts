@@ -251,7 +251,173 @@ export type PatientInfo = {
   MA_DOITUONG_KCB?: string;
   KET_QUA_DTRI?: string;
   TINH_TRANG_RV?: string;
+  CHAN_DOAN_RV?: string;
+  CHAN_DOAN_VAO?: string;
+  MA_BENHKEMTHEO?: string;
+  MA_BENH_CHINH?: string;
 };
+
+/**
+ * Trích xuất chẩn đoán chính từ cột 26 trong bảng XML1 (CHAN_DOAN_RV).
+ * Lấy mã bệnh từ chi tiết mã bệnh đầu tiên (trước dấu ;) ở cột CHAN_DOAN_RV.
+ */
+export function extractPrimaryDiagnosis(
+  chanDoanRv?: string,
+  fallbackMaBenh?: string,
+  fallbackTenBenh?: string,
+): { code: string; full: string } {
+  const raw = chanDoanRv ? chanDoanRv.trim() : "";
+  if (raw) {
+    // Chi tiết mã bệnh đầu tiên (trước dấu ;)
+    const firstPart = raw.split(";")[0]?.trim() ?? "";
+    if (firstPart) {
+      // Tìm xem có mã ICD ở đầu không (VD: "I10", "K29.7", "Z00.0", "A00.1 - Tả")
+      const match = firstPart.match(/^([A-Za-z][0-9][0-9A-Za-z.]*)/);
+      if (match) {
+        return {
+          code: match[1],
+          full: firstPart,
+        };
+      }
+      return {
+        code: firstPart,
+        full: firstPart,
+      };
+    }
+  }
+  const code = fallbackMaBenh ? fallbackMaBenh.trim() : "";
+  const full = fallbackTenBenh ? fallbackTenBenh.trim() : code;
+  return { code, full };
+}
+
+export type WarningCategory =
+  "all" | "overMax" | "underMin" | "maMay" | "ttThau" | "order" | "z000" | "bed" | "ketLuan";
+
+export type WarningCategoryMeta = {
+  id: WarningCategory;
+  label: string;
+  badgeText: string;
+  badgeClass: string;
+  chipClass: string;
+  activeChipClass: string;
+  icon: string;
+};
+
+export const WARNING_CATEGORY_CONFIG: Record<WarningCategory, WarningCategoryMeta> = {
+  all: {
+    id: "all",
+    label: "Tất cả cảnh báo",
+    badgeText: "CẢNH BÁO",
+    badgeClass: "bg-rose-600 text-white",
+    chipClass: "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+    activeChipClass: "bg-slate-800 text-white border-slate-800 shadow-sm",
+    icon: "📋",
+  },
+  overMax: {
+    id: "overMax",
+    label: "Vượt thời lượng (>70p)",
+    badgeText: "VƯỢT MAX",
+    badgeClass: "bg-rose-600 text-white border border-rose-700 shadow-xs",
+    chipClass: "border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100",
+    activeChipClass: "bg-rose-600 text-white border-rose-600 shadow-sm",
+    icon: "🔴",
+  },
+  underMin: {
+    id: "underMin",
+    label: "Thời gian ≤ 0 / Thiếu",
+    badgeText: "THIẾU MIN",
+    badgeClass: "bg-amber-600 text-white border border-amber-700 shadow-xs",
+    chipClass: "border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100",
+    activeChipClass: "bg-amber-600 text-white border-amber-600 shadow-sm",
+    icon: "🟠",
+  },
+  maMay: {
+    id: "maMay",
+    label: "Mã máy (MA_MAY)",
+    badgeText: "MÃ MÁY",
+    badgeClass: "bg-indigo-600 text-white border border-indigo-700 shadow-xs",
+    chipClass: "border-indigo-200 bg-indigo-50 text-indigo-900 hover:bg-indigo-100",
+    activeChipClass: "bg-indigo-600 text-white border-indigo-600 shadow-sm",
+    icon: "🟣",
+  },
+  ttThau: {
+    id: "ttThau",
+    label: "Thiếu TT_THAU",
+    badgeText: "TT_THAU",
+    badgeClass: "bg-sky-600 text-white border border-sky-700 shadow-xs",
+    chipClass: "border-sky-200 bg-sky-50 text-sky-900 hover:bg-sky-100",
+    activeChipClass: "bg-sky-600 text-white border-sky-600 shadow-sm",
+    icon: "🔵",
+  },
+  order: {
+    id: "order",
+    label: "Sai thứ tự / Trùng mốc",
+    badgeText: "TRÌNH TỰ",
+    badgeClass: "bg-yellow-600 text-white border border-yellow-700 shadow-xs",
+    chipClass: "border-yellow-200 bg-yellow-50 text-yellow-900 hover:bg-yellow-100",
+    activeChipClass: "bg-yellow-600 text-white border-yellow-600 shadow-sm",
+    icon: "🟡",
+  },
+  z000: {
+    id: "z000",
+    label: "Mã bệnh Z00.0",
+    badgeText: "MÃ Z00.0",
+    badgeClass: "bg-fuchsia-600 text-white border border-fuchsia-700 shadow-xs",
+    chipClass: "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-900 hover:bg-fuchsia-100",
+    activeChipClass: "bg-fuchsia-600 text-white border-fuchsia-600 shadow-sm",
+    icon: "🌸",
+  },
+  bed: {
+    id: "bed",
+    label: "Trùng ngày giường",
+    badgeText: "GIƯỜNG",
+    badgeClass: "bg-stone-600 text-white border border-stone-700 shadow-xs",
+    chipClass: "border-stone-200 bg-stone-50 text-stone-900 hover:bg-stone-100",
+    activeChipClass: "bg-stone-600 text-white border-stone-600 shadow-sm",
+    icon: "🟤",
+  },
+  ketLuan: {
+    id: "ketLuan",
+    label: "Thiếu kết luận XML4",
+    badgeText: "KẾT LUẬN",
+    badgeClass: "bg-teal-700 text-white border border-teal-800 shadow-xs",
+    chipClass: "border-teal-200 bg-teal-50 text-teal-900 hover:bg-teal-100",
+    activeChipClass: "bg-teal-700 text-white border-teal-700 shadow-sm",
+    icon: "🟢",
+  },
+};
+
+export function getXml3RecordCategory(record: Xml3Record): WarningCategory {
+  if (record.hasZ000Warning) return "z000";
+  if (record.hasMaMayWarning) return "maMay";
+  if (record.hasTtThauWarning) return "ttThau";
+  if (record.hasBedWarning) return "bed";
+  if (record.hasOrderWarning || record.hasEqualWarning) return "order";
+  if (
+    record.status === "negative" ||
+    record.status === "missing" ||
+    record.status === "invalid" ||
+    (record.durationMinutes !== null && record.durationMinutes <= 0) ||
+    record.detail.includes("nhỏ hơn thời gian tối thiểu") ||
+    record.detail.includes("Thời lượng 0 phút")
+  ) {
+    return "underMin";
+  }
+  if (record.status === "warning" || record.detail.includes("Vượt")) {
+    return "overMax";
+  }
+  return "all";
+}
+
+export function getValidationWarningCategory(warning: ValidationWarning): WarningCategory {
+  if (warning.message.includes("Z00.0")) return "z000";
+  if (warning.source === "XML2" && warning.message.includes("TT_THAU")) return "ttThau";
+  if (warning.source === "XML4" && warning.message.includes("KET_LUAN")) return "ketLuan";
+  if (warning.message.includes("MA_MAY") || warning.message.includes("mã máy")) return "maMay";
+  if (warning.message.includes("giường") || warning.message.includes("GIUONG")) return "bed";
+  if (warning.message.includes("thứ tự") || warning.message.includes("trùng")) return "order";
+  return "all";
+}
 
 export function withPatientInfo(
   record: Xml3Record,
@@ -382,6 +548,14 @@ function readXml1Patients(doc: Document): Map<string, PatientInfo> {
           directTextOf(node, "MA_DOITUONG_KCB") || textOfGeneral(node, "MA_DOITUONG_KCB"),
         KET_QUA_DTRI: directTextOf(node, "KET_QUA_DTRI") || textOfGeneral(node, "KET_QUA_DTRI"),
         TINH_TRANG_RV: directTextOf(node, "TINH_TRANG_RV") || textOfGeneral(node, "TINH_TRANG_RV"),
+        CHAN_DOAN_RV: directTextOf(node, "CHAN_DOAN_RV") || textOfGeneral(node, "CHAN_DOAN_RV"),
+        CHAN_DOAN_VAO: directTextOf(node, "CHAN_DOAN_VAO") || textOfGeneral(node, "CHAN_DOAN_VAO"),
+        MA_BENHKEMTHEO:
+          directTextOf(node, "MA_BENHKEMTHEO") ||
+          textOfGeneral(node, "MA_BENHKEMTHEO") ||
+          directTextOf(node, "MA_BENH_KT") ||
+          textOfGeneral(node, "MA_BENH_KT"),
+        MA_BENH_CHINH: directTextOf(node, "MA_BENH_CHINH") || textOfGeneral(node, "MA_BENH_CHINH"),
       };
       patients.set(maLk, patient);
     }
@@ -1224,12 +1398,17 @@ async function collectXml4Records(file: File): Promise<Xml4Record[]> {
 async function collectXml1Patients(file: File): Promise<Map<string, PatientInfo>> {
   const outer = parseXml(await file.text(), file.name);
   const patients = new Map<string, PatientInfo>();
-  for (const fileNode of Array.from(outer.getElementsByTagName("FILEHOSO"))) {
-    const type = fileNode.getElementsByTagName("LOAIHOSO")[0]?.textContent?.trim() ?? "";
-    if (type !== "XML1") continue;
-    const content = fileNode.getElementsByTagName("NOIDUNGFILE")[0]?.textContent ?? "";
-    const inner = decodeFileContent(content, `${file.name} XML1`);
-    for (const [maLk, patient] of readXml1Patients(inner)) patients.set(maLk, patient);
+  const fileNodes = Array.from(outer.getElementsByTagName("FILEHOSO"));
+  if (fileNodes.length > 0) {
+    for (const fileNode of fileNodes) {
+      const type = fileNode.getElementsByTagName("LOAIHOSO")[0]?.textContent?.trim() ?? "";
+      if (type !== "XML1") continue;
+      const content = fileNode.getElementsByTagName("NOIDUNGFILE")[0]?.textContent ?? "";
+      const inner = decodeFileContent(content, `${file.name} XML1`);
+      for (const [maLk, patient] of readXml1Patients(inner)) patients.set(maLk, patient);
+    }
+  } else {
+    for (const [maLk, patient] of readXml1Patients(outer)) patients.set(maLk, patient);
   }
   return patients;
 }

@@ -4,6 +4,7 @@ import {
   XML_TABLE_META,
   ALL_XML_TABLE_KEYS,
   formatXmlString,
+  extractPrimaryDiagnosis,
 } from "./xml3-duration.ts";
 import { formatXmlDateTime, formatXmlDate } from "./timezone.ts";
 
@@ -23,6 +24,7 @@ export function PatientDossierView({
   const [activeTableKey, setActiveTableKey] = useState<string>("XML1");
   const [viewMode, setViewMode] = useState<"table" | "raw">("table");
   const [tableSearch, setTableSearch] = useState("");
+  const [showWarningPanel, setShowWarningPanel] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState(false);
 
   // Lọc danh sách bệnh nhân
@@ -307,10 +309,22 @@ export function PatientDossierView({
 
                   <div className="flex items-center gap-2">
                     {activeDossier.hasWarnings ? (
-                      <div className="rounded-xl bg-rose-100 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 px-3 py-1.5 text-xs font-bold text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setShowWarningPanel((prev) => !prev)}
+                        className={`rounded-xl px-3 py-1.5 text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer border ${
+                          showWarningPanel
+                            ? "bg-rose-600 text-white border-rose-700"
+                            : "bg-rose-100 hover:bg-rose-200 dark:bg-rose-950/60 dark:hover:bg-rose-900/80 border-rose-300 dark:border-rose-700 text-rose-800 dark:text-rose-200"
+                        }`}
+                        title="Nhấn để xem danh sách các bảng lỗi và chuyển nhanh tới bảng bị cảnh báo"
+                      >
                         <span>⚠️</span>
                         <span>{activeDossier.warningCount} cảnh báo cần rà soát</span>
-                      </div>
+                        <span className="text-[10px] opacity-80 font-normal">
+                          {showWarningPanel ? "▲ Đóng" : "▼ Xem các bảng lỗi"}
+                        </span>
+                      </button>
                     ) : (
                       <div className="rounded-xl bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-3 py-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
                         <span>✅</span>
@@ -350,14 +364,86 @@ export function PatientDossierView({
                     <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block">
                       🩺 Chẩn đoán chính
                     </span>
-                    <div
-                      className="font-medium text-slate-800 dark:text-slate-200 truncate"
-                      title={activeDossier.patient?.TEN_BENH}
-                    >
-                      {activeDossier.patient?.TEN_BENH || activeDossier.patient?.MA_BENH || "—"}
-                    </div>
+                    {(() => {
+                      const xml1ChanDoan = activeDossier.tables["XML1"]?.rows[0]?.CHAN_DOAN_RV;
+                      const diag = extractPrimaryDiagnosis(
+                        activeDossier.patient?.CHAN_DOAN_RV || xml1ChanDoan,
+                        activeDossier.patient?.MA_BENH,
+                        activeDossier.patient?.TEN_BENH,
+                      );
+                      return (
+                        <div
+                          className="font-bold text-xs text-teal-800 dark:text-cyan-300 truncate"
+                          title={diag.full ? `${diag.code} - ${diag.full}` : diag.code || "—"}
+                        >
+                          {diag.code ? (
+                            <span className="flex items-center gap-1 truncate">
+                              <span className="rounded bg-teal-100 dark:bg-cyan-900/60 text-teal-900 dark:text-cyan-200 px-1.5 py-0.2 font-mono font-black text-[11px]">
+                                {diag.code}
+                              </span>
+                              {diag.full && diag.full !== diag.code && (
+                                <span className="font-normal text-slate-600 dark:text-slate-300 truncate text-[11px]">
+                                  {diag.full.replace(diag.code, "").replace(/^[\s:-]+/, "")}
+                                </span>
+                              )}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 font-normal">—</span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
+
+                {/* Danh sách các cảnh báo (khi bấm vào nút cảnh báo phía trên) */}
+                {showWarningPanel && activeDossier.hasWarnings && (
+                  <div className="mt-3 rounded-2xl border border-rose-300 dark:border-rose-800 bg-rose-50/90 dark:bg-rose-950/50 p-3 space-y-2 text-xs">
+                    <div className="flex items-center justify-between border-b border-rose-200 dark:border-rose-900/80 pb-1.5">
+                      <span className="font-bold text-rose-900 dark:text-rose-200 flex items-center gap-1.5">
+                        <span>⚠️</span> Danh sách bảng XML có cảnh báo (
+                        {activeDossier.warnings.length} lỗi):
+                      </span>
+                      <button
+                        onClick={() => setShowWarningPanel(false)}
+                        className="text-rose-700 hover:text-rose-900 text-xs font-bold px-1"
+                      >
+                        ✕ Đóng
+                      </button>
+                    </div>
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                      {activeDossier.warnings.map((w, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between gap-3 p-2 rounded-xl bg-white dark:bg-slate-900 border border-rose-200/80 dark:border-rose-900/50 shadow-xs"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="rounded-md bg-rose-600 text-white font-mono font-bold px-2 py-0.5 text-[10px] whitespace-nowrap">
+                              {w.source}
+                            </span>
+                            <span className="font-mono text-slate-500 text-[11px] whitespace-nowrap">
+                              #{w.detailIndex}
+                            </span>
+                            <span className="text-slate-800 dark:text-slate-200 text-xs truncate">
+                              {w.message}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveTableKey(w.source);
+                              setViewMode("table");
+                              setTableSearch("");
+                            }}
+                            className="rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200 px-2.5 py-1 text-[11px] font-bold whitespace-nowrap shadow-xs transition"
+                          >
+                            Xem bảng {w.source} →
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Thanh 15 Tab Bảng XML */}
@@ -367,6 +453,27 @@ export function PatientDossierView({
                   const hasData = Boolean(activeDossier.tables[tableKey]);
                   const rowCount = activeDossier.tables[tableKey]?.rows?.length ?? 0;
                   const isActive = activeTableKey === tableKey;
+                  const tableWarnings = activeDossier.warnings.filter((w) => w.source === tableKey);
+                  const hasWarning = tableWarnings.length > 0;
+
+                  let tabClasses = "";
+                  if (isActive) {
+                    if (hasWarning) {
+                      tabClasses =
+                        "bg-rose-600 text-white shadow-md ring-2 ring-rose-400 font-black";
+                    } else {
+                      tabClasses = "bg-teal-700 dark:bg-cyan-500 text-white shadow-sm font-bold";
+                    }
+                  } else if (hasWarning) {
+                    tabClasses =
+                      "bg-rose-50 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200 hover:bg-rose-100 dark:hover:bg-rose-900/60 font-bold";
+                  } else if (hasData) {
+                    tabClasses =
+                      "bg-teal-50 dark:bg-slate-800 text-teal-900 dark:text-teal-200 hover:bg-teal-100 font-bold";
+                  } else {
+                    tabClasses =
+                      "bg-slate-100 dark:bg-slate-800/40 text-slate-400 hover:bg-slate-200/60";
+                  }
 
                   return (
                     <button
@@ -375,23 +482,33 @@ export function PatientDossierView({
                         setActiveTableKey(tableKey);
                         setTableSearch("");
                       }}
-                      className={`whitespace-nowrap px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                        isActive
-                          ? "bg-teal-700 dark:bg-cyan-500 text-white shadow-sm"
-                          : hasData
-                            ? "bg-teal-50 dark:bg-slate-800 text-teal-900 dark:text-teal-200 hover:bg-teal-100"
-                            : "bg-slate-100 dark:bg-slate-800/40 text-slate-400 hover:bg-slate-200/60"
-                      }`}
+                      className={`whitespace-nowrap px-3 py-2 rounded-xl text-xs transition flex items-center gap-1.5 ${tabClasses}`}
+                      title={
+                        hasWarning
+                          ? `${tableKey} có ${tableWarnings.length} cảnh báo lỗi`
+                          : undefined
+                      }
                     >
-                      <span>{meta?.icon || "📄"}</span>
+                      <span>{hasWarning ? "⚠️" : meta?.icon || "📄"}</span>
                       <span>{tableKey}</span>
+                      {hasWarning && (
+                        <span
+                          className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold uppercase tracking-wider ${
+                            isActive ? "bg-white text-rose-700" : "bg-rose-600 text-white"
+                          }`}
+                        >
+                          {tableWarnings.length} lỗi
+                        </span>
+                      )}
                       <span
                         className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
                           isActive
                             ? "bg-white/20 text-white"
-                            : hasData
-                              ? "bg-teal-200/80 dark:bg-teal-900 text-teal-800 dark:text-teal-200"
-                              : "bg-slate-200 dark:bg-slate-700 text-slate-500"
+                            : hasWarning
+                              ? "bg-rose-200/70 text-rose-900"
+                              : hasData
+                                ? "bg-teal-200/80 dark:bg-teal-900 text-teal-800 dark:text-teal-200"
+                                : "bg-slate-200 dark:bg-slate-700 text-slate-500"
                         }`}
                       >
                         {rowCount}

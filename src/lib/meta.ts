@@ -3,12 +3,22 @@ export const APP_META = {
   title: "NsN_XMLcheck",
   description:
     "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, MA_MAY chuẩn XX.3[xxx].Z, cảnh báo Z00.0 & Hồ sơ 15 bảng BHYT",
-  version: "2.2.0",
+  version: "2.3.0",
   date: "2026-09-14",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.3.0",
+      date: "2026-09-14",
+      changes: [
+        "Cải tiến tra cứu hồ sơ bệnh nhân: Nhấn vào badge cảnh báo để hiển thị danh sách các bảng lỗi, tô nổi bật các tab XML có lỗi kèm số lượng lỗi và nút chuyển trực tiếp đến từng bảng XML.",
+        "Trích xuất Chẩn đoán chính từ cột 26 CHAN_DOAN_RV trong bảng XML1, lấy mã bệnh đầu tiên trước dấu chấm phẩy (;) kèm mô tả.",
+        "Bỏ popup hover khi di chuột; bổ sung nút nhỏ '👁️ Xem' tại ô trạng thái của dòng cảnh báo để mở modal chi tiết bệnh nhân cố định giữa màn hình, hỗ trợ bôi đen copy văn bản, nút sao chép tóm tắt và mở nhanh hồ sơ 15 bảng.",
+        "Phân loại cảnh báo theo 8 nhóm màu sắc trực quan (Vượt max, Thiếu min/≤0, Mã máy, TT_THAU, Trình tự/Trùng, Mã Z00.0, Giường, Kết luận XML4) và tích hợp thanh Filter Chips lọc nhanh trên bảng dữ liệu.",
+      ],
+    },
     {
       version: "2.2.0",
       date: "2026-09-14",

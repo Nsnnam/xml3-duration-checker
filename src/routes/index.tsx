@@ -15,12 +15,16 @@ import {
   isValidMaMay,
   isMandatoryMachineService,
   DEFAULT_MANDATORY_MACHINE_SERVICES,
+  getXml3RecordCategory,
+  getValidationWarningCategory,
+  WARNING_CATEGORY_CONFIG,
   type BatchAnalysis,
   type Xml3Record,
   type ServiceRule,
   type DrugRule,
   type MachineServiceRule,
   type ValidationWarning,
+  type WarningCategory,
 } from "../lib/xml3-duration.ts";
 import {
   loadTelegramConfig,
@@ -266,31 +270,18 @@ export function HomePage() {
   const [theme, setTheme] = useState<ThemeId>(loadSavedTheme);
   const [font, setFont] = useState<FontId>(loadSavedFont);
   const [showThemeModal, setShowThemeModal] = useState(false);
-  const [hoverData, setHoverData] = useState<HoverCardData | null>(null);
+  const [detailModalData, setDetailModalData] = useState<HoverCardData | null>(null);
   const [selectedDossierMaLk, setSelectedDossierMaLk] = useState<string | null>(null);
-  const hoverTimeoutRef = useRef<number | null>(null);
+  const [warningCategoryFilter, setWarningCategoryFilter] = useState<WarningCategory>("all");
 
   useEffect(() => {
     applyThemeAndFont(theme, font);
   }, [theme, font]);
 
-  const handleRowHover = (data: HoverCardData | null) => {
-    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-    if (!data) {
-      hoverTimeoutRef.current = window.setTimeout(() => {
-        setHoverData(null);
-      }, 200);
-      return;
-    }
-    hoverTimeoutRef.current = window.setTimeout(() => {
-      setHoverData(data);
-    }, 180);
-  };
-
   const handleOpenDossier = (maLk: string) => {
     setSelectedDossierMaLk(maLk);
     setView("dossier");
-    setHoverData(null);
+    setDetailModalData(null);
   };
 
   // Lưu columnsConfig vào localStorage khi thay đổi
@@ -401,18 +392,26 @@ export function HomePage() {
   );
 
   const records = useMemo(() => {
-    const source = onlyWarnings ? filteredWarnings : filteredRecords;
-    if (summaryFocus === "order") return source.filter((record) => record.hasOrderWarning);
-    if (summaryFocus === "equal") return source.filter((record) => record.hasEqualWarning);
-    if (summaryFocus === "bed") return source.filter((record) => record.hasBedWarning);
-    if (summaryFocus === "ttThau") return source.filter((record) => record.hasTtThauWarning);
-    if (summaryFocus === "maMay") return source.filter((record) => record.hasMaMayWarning);
-    if (summaryFocus === "z000") return source.filter((record) => record.hasZ000Warning);
-    if (summaryFocus === "missing") return source.filter((record) => record.status === "missing");
-    if (summaryFocus === "invalid") return source.filter((record) => record.status === "invalid");
-    if (summaryFocus === "negative") return source.filter((record) => record.status === "negative");
+    let source = onlyWarnings ? filteredWarnings : filteredRecords;
+    if (summaryFocus === "order") source = source.filter((record) => record.hasOrderWarning);
+    else if (summaryFocus === "equal") source = source.filter((record) => record.hasEqualWarning);
+    else if (summaryFocus === "bed") source = source.filter((record) => record.hasBedWarning);
+    else if (summaryFocus === "ttThau") source = source.filter((record) => record.hasTtThauWarning);
+    else if (summaryFocus === "maMay") source = source.filter((record) => record.hasMaMayWarning);
+    else if (summaryFocus === "z000") source = source.filter((record) => record.hasZ000Warning);
+    else if (summaryFocus === "missing")
+      source = source.filter((record) => record.status === "missing");
+    else if (summaryFocus === "invalid")
+      source = source.filter((record) => record.status === "invalid");
+    else if (summaryFocus === "negative")
+      source = source.filter((record) => record.status === "negative");
+
+    if (warningCategoryFilter !== "all") {
+      source = source.filter((record) => getXml3RecordCategory(record) === warningCategoryFilter);
+    }
+
     return source;
-  }, [filteredRecords, filteredWarnings, onlyWarnings, summaryFocus]);
+  }, [filteredRecords, filteredWarnings, onlyWarnings, summaryFocus, warningCategoryFilter]);
 
   function focusSummary(focus: SummaryFocus) {
     setSummaryFocus(focus);
@@ -425,7 +424,17 @@ export function HomePage() {
       } else {
         setAlertTab("XML3");
       }
-    } else setAlertTab("XML3");
+      setWarningCategoryFilter("z000");
+    } else {
+      setAlertTab("XML3");
+      if (focus === "order" || focus === "equal") setWarningCategoryFilter("order");
+      else if (focus === "bed") setWarningCategoryFilter("bed");
+      else if (focus === "ttThau") setWarningCategoryFilter("ttThau");
+      else if (focus === "maMay") setWarningCategoryFilter("maMay");
+      else if (focus === "missing" || focus === "invalid" || focus === "negative")
+        setWarningCategoryFilter("underMin");
+      else if (focus === "warnings") setWarningCategoryFilter("all");
+    }
     requestAnimationFrame(() =>
       document
         .getElementById("alert-detail")
@@ -930,7 +939,9 @@ export function HomePage() {
             hasTelegramConfig={Boolean(telegramConfig.botToken && telegramConfig.chatId)}
             onOpenLibrary={() => setView("library")}
             onOpenSettings={() => setView("settings")}
-            onHoverRow={handleRowHover}
+            warningCategoryFilter={warningCategoryFilter}
+            onWarningCategoryFilterChange={setWarningCategoryFilter}
+            onOpenDetail={setDetailModalData}
             onOpenDossier={handleOpenDossier}
           />
         )}
@@ -1074,11 +1085,11 @@ export function HomePage() {
         />
       )}
 
-      {/* Hover Popup thông tin bệnh nhân */}
-      {hoverData && (
+      {/* Modal chi tiết bệnh nhân (khi click nút Xem) */}
+      {detailModalData && (
         <PatientHoverCard
-          hoverData={hoverData}
-          onClose={() => setHoverData(null)}
+          hoverData={detailModalData}
+          onClose={() => setDetailModalData(null)}
           onOpenDossier={handleOpenDossier}
         />
       )}
@@ -1147,7 +1158,9 @@ function CheckerView({
   hasTelegramConfig,
   onOpenLibrary,
   onOpenSettings,
-  onHoverRow,
+  warningCategoryFilter,
+  onWarningCategoryFilterChange,
+  onOpenDetail,
   onOpenDossier,
 }: {
   files: File[];
@@ -1186,9 +1199,39 @@ function CheckerView({
   hasTelegramConfig: boolean;
   onOpenLibrary: () => void;
   onOpenSettings: () => void;
-  onHoverRow: (data: HoverCardData | null) => void;
+  warningCategoryFilter: WarningCategory;
+  onWarningCategoryFilterChange: (cat: WarningCategory) => void;
+  onOpenDetail: (data: HoverCardData) => void;
   onOpenDossier: (maLk: string) => void;
 }) {
+  const categoryCounts = useMemo(() => {
+    const list = onlyWarnings ? filteredWarnings : filteredRecords;
+    const counts: Record<WarningCategory, number> = {
+      all: list.length,
+      overMax: 0,
+      underMin: 0,
+      maMay: 0,
+      ttThau: 0,
+      order: 0,
+      z000: 0,
+      bed: 0,
+      ketLuan: 0,
+    };
+    for (const r of list) {
+      const cat = getXml3RecordCategory(r);
+      if (cat !== "all") {
+        counts[cat] = (counts[cat] || 0) + 1;
+      }
+    }
+    if (analysis?.z000Warnings) {
+      counts.z000 = Math.max(counts.z000, analysis.z000Warnings.length);
+    }
+    if (analysis?.xml4Warnings) {
+      counts.ketLuan = analysis.xml4Warnings.length;
+    }
+    return counts;
+  }, [onlyWarnings, filteredWarnings, filteredRecords, analysis]);
+
   return (
     <div className="space-y-6">
       <section className="space-y-4">
@@ -1527,6 +1570,61 @@ function CheckerView({
               ))}
             </div>
 
+            {/* Thanh Filter Chips phân loại cảnh báo theo màu sắc */}
+            <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50/50 px-5 py-2.5 md:px-6">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mr-1 flex items-center gap-1">
+                <span>🏷️</span> Phân loại lỗi:
+              </span>
+              {(
+                [
+                  "all",
+                  "overMax",
+                  "underMin",
+                  "maMay",
+                  "ttThau",
+                  "order",
+                  "z000",
+                  "bed",
+                ] as WarningCategory[]
+              ).map((catKey) => {
+                const cfg = WARNING_CATEGORY_CONFIG[catKey];
+                const count = categoryCounts[catKey] ?? 0;
+                const isActive = warningCategoryFilter === catKey;
+                return (
+                  <button
+                    key={catKey}
+                    type="button"
+                    onClick={() => {
+                      if (alertTab !== "XML3" && catKey !== "z000") {
+                        onAlertTabChange("XML3");
+                      }
+                      if (
+                        catKey === "z000" &&
+                        analysis?.z000Warnings &&
+                        analysis.z000Warnings.length > 0
+                      ) {
+                        onAlertTabChange(analysis.z000Warnings[0].source);
+                      }
+                      onWarningCategoryFilterChange(isActive && catKey !== "all" ? "all" : catKey);
+                    }}
+                    className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold transition shadow-xs ${
+                      isActive ? cfg.activeChipClass : cfg.chipClass
+                    }`}
+                  >
+                    <span>{cfg.icon}</span>
+                    <span>{cfg.label}</span>
+                    <span
+                      className={`rounded-full px-1.5 py-0.2 text-[10px] font-black ${
+                        isActive ? "bg-white/25 text-white" : "bg-black/5 text-slate-700"
+                      }`}
+                    >
+                      {count.toLocaleString("vi-VN")}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
             {alertTab === "XML3" ? (
               records.length === 0 ? (
                 <div className="px-6 py-12 text-center text-sm text-slate-500">
@@ -1559,7 +1657,7 @@ function CheckerView({
                           record={record}
                           tabCols={currentTabCols}
                           onAddServiceRule={onAddServiceRule}
-                          onHoverRow={onHoverRow}
+                          onOpenDetail={onOpenDetail}
                           onOpenDossier={onOpenDossier}
                         />
                       ))}
@@ -1575,7 +1673,7 @@ function CheckerView({
                 onUpdateColumnWidth={onUpdateColumnWidth}
                 onExport={() => onExportWarnings(alertTab, xmlWarnings[alertTab] || [])}
                 onAddExcludedDrug={onAddExcludedDrug}
-                onHoverRow={onHoverRow}
+                onOpenDetail={onOpenDetail}
                 onOpenDossier={onOpenDossier}
               />
             )}
@@ -1664,7 +1762,7 @@ function WarningRow({
   record,
   tabCols,
   onAddServiceRule,
-  onHoverRow,
+  onOpenDetail,
   onOpenDossier,
 }: {
   record: Xml3Record;
@@ -1674,9 +1772,12 @@ function WarningRow({
     maxMinutes: number | null,
     minMinutes?: number | null,
   ) => void;
-  onHoverRow?: (data: HoverCardData | null) => void;
+  onOpenDetail?: (data: HoverCardData) => void;
   onOpenDossier?: (maLk: string) => void;
 }) {
+  const cat = getXml3RecordCategory(record);
+  const catMeta = WARNING_CATEGORY_CONFIG[cat];
+
   const isWarning =
     record.status === "warning" ||
     record.status === "tt-thau-warning" ||
@@ -1701,7 +1802,7 @@ function WarningRow({
             : record.hasMaMayWarning
               ? "MÃ MÁY"
               : record.status === "warning"
-                ? "CB"
+                ? "VƯỢT MAX"
                 : record.status === "ok"
                   ? "ĐẠT"
                   : record.status.toUpperCase();
@@ -1715,32 +1816,37 @@ function WarningRow({
 
   return (
     <tr
-      onMouseEnter={(e) => {
-        if (!onHoverRow) return;
-        onHoverRow({
-          maLk: record.MA_LK,
-          patient: record.patient,
-          record,
-          warningMessage: record.detail,
-          source: "XML3",
-          x: Math.min(Math.max(10, e.clientX + 15), window.innerWidth - 445),
-          y: Math.min(Math.max(10, e.clientY - 20), window.innerHeight - 350),
-        });
-      }}
-      onMouseLeave={() => onHoverRow?.(null)}
       className={`border-t border-slate-200/70 align-top transition-colors ${
         isWarning ? "bg-rose-50/60 hover:bg-rose-100/60" : "hover:bg-slate-50/80"
       }`}
     >
       {isVisible("status") && (
-        <td style={colWidth("status", 85)} className="px-3 py-2.5">
+        <td style={colWidth("status", 85)} className="px-3 py-2.5 text-center">
           <span
-            className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-black ${
-              isWarning ? "bg-rose-600 text-white" : "bg-slate-100 text-slate-600"
+            className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-tight ${
+              isWarning ? catMeta.badgeClass : "bg-slate-100 text-slate-600"
             }`}
           >
             {label}
           </span>
+          {onOpenDetail && (
+            <button
+              type="button"
+              onClick={() =>
+                onOpenDetail({
+                  maLk: record.MA_LK,
+                  patient: record.patient,
+                  record,
+                  warningMessage: record.detail,
+                  source: "XML3",
+                })
+              }
+              className="mt-1.5 inline-flex items-center justify-center gap-1 rounded-md border border-slate-300 dark:border-slate-600 bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 px-1.5 py-0.5 text-[10px] font-bold text-slate-700 dark:text-slate-200 transition shadow-xs w-full"
+              title="Xem thông tin hành chính, mốc thời gian & chi tiết cảnh báo"
+            >
+              <span>👁️</span> Xem
+            </button>
+          )}
         </td>
       )}
       {isVisible("maLk") && (
@@ -1945,7 +2051,7 @@ function ValidationTable({
   onUpdateColumnWidth,
   onExport,
   onAddExcludedDrug,
-  onHoverRow,
+  onOpenDetail,
   onOpenDossier,
 }: {
   source: AlertTab;
@@ -1954,7 +2060,7 @@ function ValidationTable({
   onUpdateColumnWidth: (key: string, width: number) => void;
   onExport: () => void;
   onAddExcludedDrug: (code: string, name: string) => void;
-  onHoverRow?: (data: HoverCardData | null) => void;
+  onOpenDetail?: (data: HoverCardData) => void;
   onOpenDossier?: (maLk: string) => void;
 }) {
   const isVisible = (key: string) => tabCols.visible[key] !== false;
@@ -2004,108 +2110,126 @@ function ValidationTable({
               </tr>
             </thead>
             <tbody>
-              {warnings.map((warning, index) => (
-                <tr
-                  key={`${source}-${warning.MA_LK}-${warning.detailIndex}-${index}`}
-                  onMouseEnter={(e) => {
-                    if (!onHoverRow) return;
-                    onHoverRow({
-                      maLk: warning.MA_LK,
-                      patient: warning.patient,
-                      record: warning.record,
-                      warningMessage: warning.message,
-                      source,
-                      x: Math.min(Math.max(10, e.clientX + 15), window.innerWidth - 445),
-                      y: Math.min(Math.max(10, e.clientY - 20), window.innerHeight - 350),
-                    });
-                  }}
-                  onMouseLeave={() => onHoverRow?.(null)}
-                  className="border-t border-slate-100 bg-rose-50/60 hover:bg-rose-100/60 align-top transition-colors"
-                >
-                  {source === "XML2" && isVisible("action") && (
-                    <td style={colWidth("action", 115)} className="px-3 py-3">
-                      {warning.MA_DICH_VU && (
-                        <button
-                          type="button"
-                          onClick={() => onAddExcludedDrug(warning.MA_DICH_VU, warning.TEN_DICH_VU)}
-                          className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-800 hover:bg-amber-100 shadow-sm whitespace-nowrap"
-                          title="Thêm thuốc này vào danh mục loại trừ XML2"
-                        >
-                          🛡️ Loại trừ thuốc
-                        </button>
-                      )}
-                    </td>
-                  )}
-                  {isVisible("detailIndex") && (
-                    <td
-                      style={colWidth("detailIndex", 95)}
-                      className="px-3 py-3 font-mono font-bold"
-                    >
-                      {warning.detailIndex}
-                    </td>
-                  )}
-                  {isVisible("maLk") && (
-                    <td
-                      style={colWidth("maLk", 130)}
-                      className="px-3 py-3 font-mono font-bold text-teal-800 break-all"
-                    >
-                      <div className="flex items-center gap-1.5">
-                        {onOpenDossier && warning.MA_LK && (
+              {warnings.map((warning, index) => {
+                const warningCat = getValidationWarningCategory(warning);
+                const warningCatMeta = WARNING_CATEGORY_CONFIG[warningCat];
+                return (
+                  <tr
+                    key={`${source}-${warning.MA_LK}-${warning.detailIndex}-${index}`}
+                    className="border-t border-slate-100 bg-rose-50/60 hover:bg-rose-100/60 align-top transition-colors"
+                  >
+                    {source === "XML2" && isVisible("action") && (
+                      <td style={colWidth("action", 115)} className="px-3 py-3">
+                        {warning.MA_DICH_VU && (
                           <button
                             type="button"
-                            onClick={() => onOpenDossier(warning.MA_LK)}
-                            title="Mở hồ sơ & xem XML 15 bảng của bệnh nhân này"
-                            className="rounded p-0.5 text-slate-400 hover:text-teal-700 hover:bg-teal-50 transition"
+                            onClick={() =>
+                              onAddExcludedDrug(warning.MA_DICH_VU, warning.TEN_DICH_VU)
+                            }
+                            className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-800 hover:bg-amber-100 shadow-sm whitespace-nowrap"
+                            title="Thêm thuốc này vào danh mục loại trừ XML2"
                           >
-                            📂
+                            🛡️ Loại trừ thuốc
                           </button>
                         )}
-                        <span>{warning.MA_LK || "—"}</span>
-                      </div>
-                    </td>
-                  )}
-                  {isVisible("hoTen") && (
-                    <td
-                      style={colWidth("hoTen", 170)}
-                      className="px-3 py-3 font-semibold text-slate-800 break-words"
-                    >
-                      {warning.HO_TEN || "Chưa có họ tên"}
-                    </td>
-                  )}
-                  {isVisible("maBn") && (
-                    <td
-                      style={colWidth("maBn", 120)}
-                      className="px-3 py-3 font-mono font-bold break-all"
-                    >
-                      {warning.MA_BN || "—"}
-                    </td>
-                  )}
-                  {isVisible(source === "XML2" ? "maThuoc" : "maDichVu") && (
-                    <td
-                      style={colWidth(source === "XML2" ? "maThuoc" : "maDichVu", 130)}
-                      className="px-3 py-3 font-mono"
-                    >
-                      {warning.MA_DICH_VU || "—"}
-                    </td>
-                  )}
-                  {isVisible(source === "XML2" ? "tenThuoc" : "tenDichVu") && (
-                    <td
-                      style={colWidth(source === "XML2" ? "tenThuoc" : "tenDichVu", 220)}
-                      className="px-3 py-3 font-medium text-slate-800 break-words"
-                    >
-                      {warning.TEN_DICH_VU || "—"}
-                    </td>
-                  )}
-                  {isVisible("message") && (
-                    <td
-                      style={colWidth("message", 400)}
-                      className="px-3 py-3 text-slate-700 font-semibold text-rose-800 break-words leading-relaxed"
-                    >
-                      {warning.message}
-                    </td>
-                  )}
-                </tr>
-              ))}
+                      </td>
+                    )}
+                    {isVisible("detailIndex") && (
+                      <td
+                        style={colWidth("detailIndex", 95)}
+                        className="px-3 py-3 font-mono font-bold"
+                      >
+                        <div>{warning.detailIndex}</div>
+                        {onOpenDetail && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onOpenDetail({
+                                maLk: warning.MA_LK,
+                                patient: warning.patient,
+                                record: warning.record,
+                                warningMessage: warning.message,
+                                source,
+                              })
+                            }
+                            className="mt-1.5 inline-flex items-center justify-center gap-1 rounded-md border border-slate-300 dark:border-slate-600 bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 px-1.5 py-0.5 text-[10px] font-bold text-slate-700 dark:text-slate-200 transition shadow-xs"
+                            title="Xem chi tiết bệnh nhân"
+                          >
+                            <span>👁️</span> Xem
+                          </button>
+                        )}
+                      </td>
+                    )}
+                    {isVisible("maLk") && (
+                      <td
+                        style={colWidth("maLk", 130)}
+                        className="px-3 py-3 font-mono font-bold text-teal-800 break-all"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          {onOpenDossier && warning.MA_LK && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenDossier(warning.MA_LK)}
+                              title="Mở hồ sơ & xem XML 15 bảng của bệnh nhân này"
+                              className="rounded p-0.5 text-slate-400 hover:text-teal-700 hover:bg-teal-50 transition"
+                            >
+                              📂
+                            </button>
+                          )}
+                          <span>{warning.MA_LK || "—"}</span>
+                        </div>
+                      </td>
+                    )}
+                    {isVisible("hoTen") && (
+                      <td
+                        style={colWidth("hoTen", 170)}
+                        className="px-3 py-3 font-semibold text-slate-800 break-words"
+                      >
+                        {warning.HO_TEN || "Chưa có họ tên"}
+                      </td>
+                    )}
+                    {isVisible("maBn") && (
+                      <td
+                        style={colWidth("maBn", 120)}
+                        className="px-3 py-3 font-mono font-bold break-all"
+                      >
+                        {warning.MA_BN || "—"}
+                      </td>
+                    )}
+                    {isVisible(source === "XML2" ? "maThuoc" : "maDichVu") && (
+                      <td
+                        style={colWidth(source === "XML2" ? "maThuoc" : "maDichVu", 130)}
+                        className="px-3 py-3 font-mono"
+                      >
+                        {warning.MA_DICH_VU || "—"}
+                      </td>
+                    )}
+                    {isVisible(source === "XML2" ? "tenThuoc" : "tenDichVu") && (
+                      <td
+                        style={colWidth(source === "XML2" ? "tenThuoc" : "tenDichVu", 220)}
+                        className="px-3 py-3 font-medium text-slate-800 break-words"
+                      >
+                        {warning.TEN_DICH_VU || "—"}
+                      </td>
+                    )}
+                    {isVisible("message") && (
+                      <td
+                        style={colWidth("message", 400)}
+                        className="px-3 py-3 text-slate-700 font-semibold text-rose-800 break-words leading-relaxed"
+                      >
+                        <div className="mb-1 flex items-center gap-1.5">
+                          <span
+                            className={`inline-block rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-tight ${warningCatMeta.badgeClass}`}
+                          >
+                            {warningCatMeta.badgeText}
+                          </span>
+                        </div>
+                        <div>{warning.message}</div>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
