@@ -32,19 +32,21 @@ function fitColumns(sheet: ExcelJS.Worksheet) {
 
 function detailRows(records: Xml3Record[]) {
   return records.map((record) => ({
-    Trạng_thái: record.hasOrderWarning
-      ? "SAI THỨ TỰ"
-      : record.hasEqualWarning
-        ? "TRÙNG MỐC"
-        : record.hasBedWarning
-          ? "GIƯỜNG"
-          : record.hasTtThauWarning
-            ? "TT_THAU"
-            : record.status === "warning"
-              ? "CB"
-              : record.status === "ok"
-                ? "Đạt"
-                : record.status,
+    Trạng_thái: record.hasZ000Warning
+      ? "Z00.0"
+      : record.hasOrderWarning
+        ? "SAI THỨ TỰ"
+        : record.hasEqualWarning
+          ? "TRÙNG MỐC"
+          : record.hasBedWarning
+            ? "GIƯỜNG"
+            : record.hasTtThauWarning
+              ? "TT_THAU"
+              : record.status === "warning"
+                ? "CB"
+                : record.status === "ok"
+                  ? "Đạt"
+                  : record.status,
     MA_LK: record.MA_LK,
     HO_TEN: record.HO_TEN,
     MA_BN: record.MA_BN,
@@ -97,7 +99,8 @@ export async function createXml3ReportWorkbook(
           record.hasOrderWarning ||
           record.hasEqualWarning ||
           record.hasBedWarning ||
-          record.hasTtThauWarning,
+          record.hasTtThauWarning ||
+          Boolean(record.hasZ000Warning),
       ).length,
     },
     {
@@ -129,6 +132,10 @@ export async function createXml3ReportWorkbook(
       value: analysis.xml4Warnings.length,
     },
     {
+      label: "Cảnh báo mã bệnh Z00.0",
+      value: analysis.z000Warnings?.length ?? 0,
+    },
+    {
       label: "Dòng thiếu thời gian",
       value: records.filter((record) => record.status === "missing").length,
     },
@@ -156,7 +163,7 @@ export async function createXml3ReportWorkbook(
   styleSheet(detail);
   for (const row of detail.getRows(2, detail.rowCount) ?? []) {
     const statusVal = String(row.getCell(1).value);
-    if (["CB", "SAI THỨ TỰ", "TRÙNG MỐC", "GIƯỜNG", "TT_THAU"].includes(statusVal)) {
+    if (["CB", "Z00.0", "SAI THỨ TỰ", "TRÙNG MỐC", "GIƯỜNG", "TT_THAU"].includes(statusVal)) {
       row.eachCell(
         (cell) =>
           (cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFDE68A" } }),

@@ -1,11 +1,23 @@
 export const APP_META = {
   name: "NsN_XMLcheck",
-  version: "2.0.0",
+  title: "NsN_XMLcheck",
+  description:
+    "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, cảnh báo mã bệnh Z00.0 & Hồ sơ 15 bảng BHYT",
+  version: "2.1.0",
   date: "2026-09-14",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.1.0",
+      date: "2026-09-14",
+      changes: [
+        "Thêm cảnh báo kiểm tra tất cả các cột mã bệnh (MA_BENH, MA_BENH_CHINH, MA_BENH_KT, MA_BENHKEMTHEO, MA_BENH_YHCT...) của tất cả các bảng XML: cảnh báo mã khám sức khỏe Z00.0 không được thanh toán BHYT (định dạng chuẩn: 'XML xx. Chi tiết thứ x: Mã bệnh  'Z00.0' là mã khám sức khỏe không được thanh toán BHYT.').",
+        "Hỗ trợ hiển thị tab cảnh báo linh hoạt cho tất cả các bảng XML (XML1 đến XML15), tùy chỉnh ẩn/hiện và độ rộng cột đồng bộ.",
+        "Cập nhật metric tổng quan 'Mã bệnh Z00.0', xuất báo cáo Excel chi tiết và gửi thông báo Telegram bao gồm chỉ tiêu Z00.0.",
+      ],
+    },
     {
       version: "2.0.0",
       date: "2026-09-14",

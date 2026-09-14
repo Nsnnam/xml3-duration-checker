@@ -51,7 +51,7 @@ import {
 import coffeeQr from "../assets/coffee-qr.jpg";
 
 type View = "checker" | "dossier" | "library" | "settings" | "guide" | "about" | "support";
-type AlertTab = "XML1" | "XML2" | "XML3" | "XML4";
+type AlertTab = string;
 const SERVICE_RULES_KEY = "nsn-xmlcheck-service-rules";
 const DRUG_RULES_KEY = "nsn-xmlcheck-drug-rules";
 const COLUMNS_CONFIG_KEY = "nsn-xmlcheck-columns-config-v2";
@@ -64,7 +64,17 @@ type ColumnDef = {
   isWide?: boolean;
 };
 
-const TAB_COLUMNS: Record<AlertTab, ColumnDef[]> = {
+const DEFAULT_GENERIC_COLUMNS: ColumnDef[] = [
+  { key: "detailIndex", label: "Chi tiết thứ", defaultWidth: 95 },
+  { key: "maLk", label: "MA_LK", defaultWidth: 130 },
+  { key: "hoTen", label: "Họ và tên", defaultWidth: 170 },
+  { key: "maBn", label: "MA_BN", defaultWidth: 120 },
+  { key: "maDichVu", label: "Mã trường / DV", defaultWidth: 130 },
+  { key: "tenDichVu", label: "Tên thông tin / DV", defaultWidth: 200 },
+  { key: "message", label: "Nội dung cảnh báo", defaultWidth: 420 },
+];
+
+const TAB_COLUMNS: Record<string, ColumnDef[]> = {
   XML3: [
     { key: "status", label: "Trạng thái", defaultWidth: 85 },
     { key: "maLk", label: "MA_LK", defaultWidth: 125 },
@@ -113,10 +123,14 @@ const TAB_COLUMNS: Record<AlertTab, ColumnDef[]> = {
   ],
 };
 
+function getTabColumns(tab: string): ColumnDef[] {
+  return TAB_COLUMNS[tab] || DEFAULT_GENERIC_COLUMNS;
+}
+
 function getDefaultTabState(tab: AlertTab): TabColumnState {
   const widths: Record<string, number> = {};
   const visible: Record<string, boolean> = {};
-  for (const col of TAB_COLUMNS[tab]) {
+  for (const col of getTabColumns(tab)) {
     widths[col.key] = col.defaultWidth;
     visible[col.key] = true;
   }
@@ -139,11 +153,13 @@ function loadColumnsConfig(): AllTabsColumnConfig {
     if (saved) {
       const parsed = JSON.parse(saved);
       if (parsed && typeof parsed === "object") {
-        for (const tab of ["XML1", "XML2", "XML3", "XML4"] as AlertTab[]) {
-          if (parsed[tab]) {
+        for (const [tab, cfg] of Object.entries(parsed)) {
+          const tabCfg = cfg as TabColumnState;
+          if (tabCfg && typeof tabCfg === "object") {
+            const defState = defaults[tab] || getDefaultTabState(tab);
             defaults[tab] = {
-              widths: { ...defaults[tab].widths, ...(parsed[tab].widths || {}) },
-              visible: { ...defaults[tab].visible, ...(parsed[tab].visible || {}) },
+              widths: { ...defState.widths, ...(tabCfg.widths || {}) },
+              visible: { ...defState.visible, ...(tabCfg.visible || {}) },
             };
           }
         }
@@ -197,6 +213,7 @@ type SummaryFocus =
   | "equal"
   | "bed"
   | "ttThau"
+  | "z000"
   | "missing"
   | "invalid"
   | "negative"
@@ -286,7 +303,7 @@ export function HomePage() {
     setColumnsConfig((prev) => {
       const currentTab = prev[tab] || getDefaultTabState(tab);
       const nextVisible: Record<string, boolean> = {};
-      for (const col of TAB_COLUMNS[tab]) {
+      for (const col of getTabColumns(tab)) {
         nextVisible[col.key] = isVisible;
       }
       const nextTab: TabColumnState = { ...currentTab, visible: nextVisible };
@@ -325,7 +342,8 @@ export function HomePage() {
               record.hasOrderWarning ||
               record.hasEqualWarning ||
               record.hasBedWarning ||
-              record.hasTtThauWarning;
+              record.hasTtThauWarning ||
+              Boolean(record.hasZ000Warning);
             const query = patientQuery.trim().toLocaleLowerCase("vi-VN");
             const matchesPatient =
               !query ||
@@ -347,7 +365,8 @@ export function HomePage() {
           record.hasOrderWarning ||
           record.hasEqualWarning ||
           record.hasBedWarning ||
-          record.hasTtThauWarning,
+          record.hasTtThauWarning ||
+          Boolean(record.hasZ000Warning),
       ),
     [filteredRecords],
   );
@@ -358,6 +377,7 @@ export function HomePage() {
     if (summaryFocus === "equal") return source.filter((record) => record.hasEqualWarning);
     if (summaryFocus === "bed") return source.filter((record) => record.hasBedWarning);
     if (summaryFocus === "ttThau") return source.filter((record) => record.hasTtThauWarning);
+    if (summaryFocus === "z000") return source.filter((record) => record.hasZ000Warning);
     if (summaryFocus === "missing") return source.filter((record) => record.status === "missing");
     if (summaryFocus === "invalid") return source.filter((record) => record.status === "invalid");
     if (summaryFocus === "negative") return source.filter((record) => record.status === "negative");
@@ -369,7 +389,13 @@ export function HomePage() {
     if (focus === "xml1") setAlertTab("XML1");
     else if (focus === "xml2") setAlertTab("XML2");
     else if (focus === "xml4") setAlertTab("XML4");
-    else setAlertTab("XML3");
+    else if (focus === "z000") {
+      if (analysis?.z000Warnings && analysis.z000Warnings.length > 0) {
+        setAlertTab(analysis.z000Warnings[0].source);
+      } else {
+        setAlertTab("XML3");
+      }
+    } else setAlertTab("XML3");
     requestAnimationFrame(() =>
       document
         .getElementById("alert-detail")
@@ -377,12 +403,43 @@ export function HomePage() {
     );
   }
 
-  const xmlWarnings: Record<AlertTab, ValidationWarning[]> = {
-    XML1: analysis?.xml1Warnings ?? [],
-    XML2: analysis?.xml2Warnings ?? [],
-    XML3: analysis?.xml3Warnings ?? [],
-    XML4: analysis?.xml4Warnings ?? [],
-  };
+  const xmlWarnings = useMemo(() => {
+    const map: Record<string, ValidationWarning[]> = {
+      XML1: analysis?.xml1Warnings ?? [],
+      XML2: analysis?.xml2Warnings ?? [],
+      XML3: analysis?.xml3Warnings ?? [],
+      XML4: analysis?.xml4Warnings ?? [],
+    };
+    if (analysis?.allValidationWarnings) {
+      for (const w of analysis.allValidationWarnings) {
+        if (!map[w.source]) {
+          map[w.source] = [];
+        }
+        if (
+          w.source !== "XML1" &&
+          w.source !== "XML2" &&
+          w.source !== "XML3" &&
+          w.source !== "XML4"
+        ) {
+          map[w.source].push(w);
+        }
+      }
+    }
+    return map;
+  }, [analysis]);
+
+  const availableAlertTabs = useMemo(() => {
+    const base = ["XML1", "XML2", "XML3", "XML4"];
+    const extra = Object.keys(xmlWarnings).filter(
+      (t) => !base.includes(t) && (xmlWarnings[t]?.length ?? 0) > 0,
+    );
+    extra.sort((a, b) => {
+      const numA = parseInt(a.replace(/\D/g, ""), 10) || 99;
+      const numB = parseInt(b.replace(/\D/g, ""), 10) || 99;
+      return numA - numB;
+    });
+    return [...base, ...extra];
+  }, [xmlWarnings]);
 
   async function runAnalysis() {
     if (!files.length) {
@@ -588,6 +645,7 @@ export function HomePage() {
         `• Cảnh báo XML2 (Thiếu TT_THAU): <b>${targetAnalysis.xml2Warnings.length}</b>\n` +
         `• Cảnh báo XML3 (Thiếu TT_THAU): <b>${targetAnalysis.ttThauWarnings}</b>\n` +
         `• Cảnh báo XML4 (Thiếu KET_LUAN): <b>${targetAnalysis.xml4Warnings.length}</b>\n` +
+        `• Cảnh báo mã bệnh Z00.0: <b>${targetAnalysis.z000Warnings ? targetAnalysis.z000Warnings.length : 0}</b>\n` +
         `• Thời gian: <b>${new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}</b>`;
 
       const result = await sendTelegramDocument(
@@ -678,87 +736,67 @@ export function HomePage() {
         className="border-b shadow-sm"
       >
         <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4 px-4 py-4 md:px-8">
-          <div className="flex items-center gap-3">
-            <div className="grid h-11 w-11 place-content-center rounded-2xl bg-white/15 text-2xl shadow-inner">
-              ⏱
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🩺</span>
+              <h1 className="text-lg font-black tracking-tight">{APP_META.title}</h1>
+              <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold">
+                {APP_META.version}
+              </span>
             </div>
-            <div>
-              <h1 className="text-lg font-bold tracking-tight md:text-xl">
-                {APP_META.name} · v{APP_META.version}
-              </h1>
-              <p className="text-xs opacity-90">
-                Kiểm tra thời gian (tối thiểu &gt; 0 &amp; tối đa), TT_THAU XML2/XML3 &amp; Hồ sơ 15
-                bảng BHYT
-              </p>
-            </div>
+            <p className="mt-0.5 text-xs text-teal-100">{APP_META.description}</p>
           </div>
-          <div className="hidden items-center gap-2 text-xs md:flex">
-            <span className="rounded-full bg-white/15 px-3 py-1">Bảng 3 · DVKT, VTYT</span>
-            <span className="rounded-full bg-white/15 px-3 py-1">
-              Ngưỡng {DURATION_LIMIT_MINUTES} phút
-            </span>
-            <span className="rounded-full bg-white/15 px-3 py-1">Tối thiểu &gt; 0 phút</span>
-            <span className="rounded-full bg-white/15 px-3 py-1">GMT+7</span>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowThemeModal(true)}
+              className="rounded-xl border border-white/30 bg-white/10 px-3 py-1.5 text-xs font-bold text-white hover:bg-white/20 transition flex items-center gap-1.5 shadow-sm"
+              title="Kho giao diện & Tùy chỉnh font chữ"
+            >
+              <span>🎨 Giao diện & Font</span>
+            </button>
+            <nav className="flex rounded-xl bg-teal-900/40 p-1">
+              {(
+                [
+                  { id: "checker", label: "Kiểm tra XML", icon: "🔍" },
+                  {
+                    id: "dossier",
+                    label: `Hồ sơ BN (${analysis?.dossiers.length || 0})`,
+                    icon: "📂",
+                  },
+                  { id: "library", label: "Thư viện quy tắc", icon: "📚" },
+                  { id: "settings", label: "Cấu hình & Backup", icon: "⚙️" },
+                  { id: "guide", label: "Hướng dẫn", icon: "📖" },
+                  { id: "about", label: "Tác giả & Donate", icon: "☕" },
+                ] as const
+              ).map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setView(item.id)}
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                    view === item.id
+                      ? "bg-white text-teal-900 shadow-sm"
+                      : "text-teal-100 hover:text-white"
+                  }`}
+                >
+                  <span>{item.icon}</span>
+                  <span className="hidden sm:inline">{item.label}</span>
+                </button>
+              ))}
+            </nav>
           </div>
         </div>
       </header>
 
-      <nav
-        style={{
-          backgroundColor: "var(--app-card-bg, #ffffff)",
-          borderColor: "var(--app-card-border, #e2e8f0)",
-        }}
-        className="border-b shadow-sm sticky top-0 z-20"
-      >
-        <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-2 overflow-x-auto px-4 md:px-8">
-          <div className="flex gap-1 overflow-x-auto">
-            {[
-              ["checker", "⏱️ Kiểm tra thời gian"],
-              [
-                "dossier",
-                `📂 Hồ sơ & Xem XML 15 bảng${
-                  analysis?.dossiers?.length ? ` (${analysis.dossiers.length})` : ""
-                }`,
-              ],
-              ["library", `📚 Thư viện (${serviceRules.length} DV · ${drugRules.length} Thuốc)`],
-              ["settings", "⚙️ Cấu hình & Backup"],
-              ["guide", "📖 Hướng dẫn"],
-              ["about", "ℹ️ Phiên bản & tác giả"],
-              ["support", "☕ Mời cà phê"],
-            ].map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => setView(key as View)}
-                className={`whitespace-nowrap border-b-2 px-3.5 py-3 text-xs md:text-sm font-semibold transition ${
-                  view === key
-                    ? "border-teal-600 dark:border-cyan-400 text-teal-700 dark:text-cyan-400 bg-teal-50/50 dark:bg-slate-800"
-                    : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          <button
-            onClick={() => setShowThemeModal(true)}
-            className="whitespace-nowrap flex items-center gap-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 shadow-sm transition shrink-0"
-            title="Tùy biến bộ giao diện kỹ thuật số / hiện đại và font chữ tiếng Việt"
-          >
-            <span>🎨 Giao diện &amp; Font</span>
-          </button>
-        </div>
-      </nav>
-
-      <main className="mx-auto max-w-[1440px] px-4 py-6 md:px-8 md:py-8">
+      <main className="mx-auto max-w-[1440px] px-4 py-6 md:px-8 space-y-6">
         {notice && (
-          <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900 shadow-sm">
+          <div className="flex items-center justify-between rounded-2xl bg-teal-50 border border-teal-200 px-4 py-3 text-xs font-bold text-teal-900 animate-in fade-in">
             <span>{notice}</span>
             <button
               onClick={() => setNotice("")}
-              className="text-xs font-bold text-amber-700 hover:underline"
+              className="text-teal-600 hover:text-teal-800 ml-2"
             >
-              Đóng
+              ✕
             </button>
           </div>
         )}
@@ -773,6 +811,7 @@ export function HomePage() {
             groupCodes={groupCodes}
             patientQuery={patientQuery}
             alertTab={alertTab}
+            availableAlertTabs={availableAlertTabs}
             xmlWarnings={xmlWarnings}
             onlyWarnings={onlyWarnings}
             busy={busy}
@@ -919,7 +958,7 @@ export function HomePage() {
       {showColumnModal && (
         <ColumnCustomizerModal
           activeTab={alertTab}
-          tabColumns={TAB_COLUMNS[alertTab]}
+          tabColumns={getTabColumns(alertTab)}
           tabState={currentTabCols}
           onToggleColumn={(key) => toggleColumnVisibility(alertTab, key)}
           onSetAll={(val) => setAllTabColumnsVisibility(alertTab, val)}
@@ -977,6 +1016,7 @@ function CheckerView({
   groupCodes,
   patientQuery,
   alertTab,
+  availableAlertTabs,
   xmlWarnings,
   onlyWarnings,
   busy,
@@ -1011,7 +1051,8 @@ function CheckerView({
   groupCodes: string[];
   patientQuery: string;
   alertTab: AlertTab;
-  xmlWarnings: Record<AlertTab, ValidationWarning[]>;
+  availableAlertTabs: string[];
+  xmlWarnings: Record<string, ValidationWarning[]>;
   onlyWarnings: boolean;
   busy: boolean;
   currentTabCols: TabColumnState;
@@ -1246,6 +1287,12 @@ function CheckerView({
               onClick={() => onSummaryFocus("xml4")}
             />
             <Metric
+              label="Mã bệnh Z00.0"
+              value={analysis.z000Warnings ? analysis.z000Warnings.length : 0}
+              tone="rose"
+              onClick={() => onSummaryFocus("z000")}
+            />
+            <Metric
               label="Sai thứ tự"
               value={filteredRecords.filter((record) => record.hasOrderWarning).length}
               tone="rose"
@@ -1291,8 +1338,8 @@ function CheckerView({
               <div>
                 <h2 className="font-bold text-rose-900">Chi tiết cảnh báo & Dữ liệu XML</h2>
                 <p className="mt-1 text-xs text-slate-500">
-                  Hỗ trợ kéo thả chỉnh độ rộng cột và tùy chỉnh ẩn/hiện cột trên tất cả các tab
-                  (XML1–XML4).
+                  Hỗ trợ kéo thả chỉnh độ rộng cột và tùy chỉnh ẩn/hiện cột trên tất cả các tab cảnh
+                  báo.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -1326,12 +1373,14 @@ function CheckerView({
                 </button>
                 <button
                   disabled={
-                    alertTab === "XML3" ? !analysis.records.length : !xmlWarnings[alertTab].length
+                    alertTab === "XML3"
+                      ? !analysis.records.length
+                      : !(xmlWarnings[alertTab] && xmlWarnings[alertTab].length)
                   }
                   onClick={
                     alertTab === "XML3"
                       ? onExport
-                      : () => onExportWarnings(alertTab, xmlWarnings[alertTab])
+                      : () => onExportWarnings(alertTab, xmlWarnings[alertTab] || [])
                   }
                   className="rounded-lg bg-teal-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-40 shadow-sm"
                 >
@@ -1350,7 +1399,7 @@ function CheckerView({
             </div>
 
             <div className="flex gap-2 overflow-x-auto border-b border-slate-100 px-5 pt-3 md:px-6">
-              {(["XML1", "XML2", "XML3", "XML4"] as AlertTab[]).map((tab) => (
+              {availableAlertTabs.map((tab) => (
                 <button
                   key={tab}
                   onClick={() => onAlertTabChange(tab)}
@@ -1360,7 +1409,7 @@ function CheckerView({
                       : "border-transparent text-slate-400 hover:text-slate-700 hover:bg-slate-50"
                   }`}
                 >
-                  {tab} · {xmlWarnings[tab].length.toLocaleString("vi-VN")} cảnh báo
+                  {tab} · {(xmlWarnings[tab]?.length ?? 0).toLocaleString("vi-VN")} cảnh báo
                 </button>
               ))}
             </div>
@@ -1408,10 +1457,10 @@ function CheckerView({
             ) : (
               <ValidationTable
                 source={alertTab}
-                warnings={xmlWarnings[alertTab]}
+                warnings={xmlWarnings[alertTab] || []}
                 tabCols={currentTabCols}
                 onUpdateColumnWidth={onUpdateColumnWidth}
-                onExport={() => onExportWarnings(alertTab, xmlWarnings[alertTab])}
+                onExport={() => onExportWarnings(alertTab, xmlWarnings[alertTab] || [])}
                 onAddExcludedDrug={onAddExcludedDrug}
                 onHoverRow={onHoverRow}
                 onOpenDossier={onOpenDossier}
@@ -1521,21 +1570,24 @@ function WarningRow({
     record.hasOrderWarning ||
     record.hasEqualWarning ||
     record.hasBedWarning ||
-    record.hasTtThauWarning;
+    record.hasTtThauWarning ||
+    Boolean(record.hasZ000Warning);
 
-  const label = record.hasOrderWarning
-    ? "SAI THỨ TỰ"
-    : record.hasEqualWarning
-      ? "TRÙNG MỐC"
-      : record.hasBedWarning
-        ? "GIƯỜNG"
-        : record.hasTtThauWarning
-          ? "TT_THAU"
-          : record.status === "warning"
-            ? "CB"
-            : record.status === "ok"
-              ? "ĐẠT"
-              : record.status.toUpperCase();
+  const label = record.hasZ000Warning
+    ? "Z00.0"
+    : record.hasOrderWarning
+      ? "SAI THỨ TỰ"
+      : record.hasEqualWarning
+        ? "TRÙNG MỐC"
+        : record.hasBedWarning
+          ? "GIƯỜNG"
+          : record.hasTtThauWarning
+            ? "TT_THAU"
+            : record.status === "warning"
+              ? "CB"
+              : record.status === "ok"
+                ? "ĐẠT"
+                : record.status.toUpperCase();
 
   const isVisible = (key: string) => tabCols.visible[key] !== false;
   const colWidth = (key: string, def: number) => ({
@@ -1774,7 +1826,7 @@ function ValidationTable({
     maxWidth: `${tabCols.widths[key] || def}px`,
   });
 
-  const columns = TAB_COLUMNS[source] || [];
+  const columns = getTabColumns(source);
 
   return (
     <div>

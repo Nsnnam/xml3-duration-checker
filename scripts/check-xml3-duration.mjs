@@ -11,6 +11,10 @@ import {
   readXml2Warnings,
   ALL_XML_TABLE_KEYS,
   XML_TABLE_META,
+  isDiseaseCodeField,
+  hasZ000DiseaseCode,
+  formatZ000WarningMessage,
+  findZ000WarningsInRows,
 } from "../src/lib/xml3-duration.ts";
 import { formatXmlDateTime, formatXmlDate } from "../src/lib/timezone.ts";
 import {
@@ -407,6 +411,108 @@ assert.equal(ALL_XML_TABLE_KEYS.length, 15);
 assert.equal(XML_TABLE_META.XML1.shortName, "Tổng hợp KCB");
 assert.equal(XML_TABLE_META.XML15.shortName, "Giám định & Phản hồi");
 
+// 8. Kiểm tra cảnh báo mã bệnh Z00.0 trên tất cả các bảng XML
+assert.equal(isDiseaseCodeField("MA_BENH"), true);
+assert.equal(isDiseaseCodeField("MA_BENH_CHINH"), true);
+assert.equal(isDiseaseCodeField("MA_BENH_KT"), true);
+assert.equal(isDiseaseCodeField("MA_BENHKEMTHEO"), true);
+assert.equal(isDiseaseCodeField("MA_BENH_YHCT"), true);
+assert.equal(isDiseaseCodeField("MA_BENH_PHU"), true);
+assert.equal(isDiseaseCodeField("TEN_BENH"), false);
+assert.equal(isDiseaseCodeField("TEN_BENH_YHCT"), false);
+
+assert.equal(hasZ000DiseaseCode("Z00.0"), true);
+assert.equal(hasZ000DiseaseCode("Z000"), true);
+assert.equal(hasZ000DiseaseCode("z00.0"), true);
+assert.equal(hasZ000DiseaseCode("I10;Z00.0"), true);
+assert.equal(hasZ000DiseaseCode("Z00.0;E11"), true);
+assert.equal(hasZ000DiseaseCode("I10; Z00.0 ;E11"), true);
+assert.equal(hasZ000DiseaseCode("(Z00.0)"), true);
+assert.equal(hasZ000DiseaseCode("Z00.0/K29"), true);
+assert.equal(hasZ000DiseaseCode("Z00.01"), false);
+assert.equal(hasZ000DiseaseCode("Z00.1"), false);
+assert.equal(hasZ000DiseaseCode("Z00"), false);
+assert.equal(hasZ000DiseaseCode(""), false);
+assert.equal(hasZ000DiseaseCode(undefined), false);
+
+assert.equal(
+  formatZ000WarningMessage("XML1", 1),
+  "XML 1. Chi tiết thứ 1: Mã bệnh  'Z00.0' là mã khám sức khỏe không được thanh toán BHYT.",
+);
+assert.equal(
+  formatZ000WarningMessage("XML2", 3),
+  "XML 2. Chi tiết thứ 3: Mã bệnh  'Z00.0' là mã khám sức khỏe không được thanh toán BHYT.",
+);
+assert.equal(
+  formatZ000WarningMessage("XML3", 5),
+  "XML 3. Chi tiết thứ 5: Mã bệnh  'Z00.0' là mã khám sức khỏe không được thanh toán BHYT.",
+);
+assert.equal(
+  formatZ000WarningMessage("XML4", 2),
+  "XML 4. Chi tiết thứ 2: Mã bệnh  'Z00.0' là mã khám sức khỏe không được thanh toán BHYT.",
+);
+assert.equal(
+  formatZ000WarningMessage("XML5", 10),
+  "XML 5. Chi tiết thứ 10: Mã bệnh  'Z00.0' là mã khám sức khỏe không được thanh toán BHYT.",
+);
+
+// Kiểm tra XML3 evaluateRecord với mã bệnh Z00.0
+const xml3WithZ000 = evaluateRecord(
+  {
+    MA_LK: "LK-001",
+    STT: "1",
+    MA_DICH_VU: "DV01",
+    MA_VAT_TU: "",
+    TEN_DICH_VU: "Khám sức khỏe tổng quát",
+    TEN_VAT_TU: "",
+    MA_NHOM: "13",
+    MA_KHOA: "K01",
+    MA_GIUONG: "",
+    MA_BAC_SI: "BS01",
+    NGUOI_THUC_HIEN: "BS01",
+    MA_BENH: "Z00.0",
+    MA_BENH_YHCT: "",
+    NGAY_YL: "202608280800",
+    NGAY_TH_YL: "202608280810",
+    NGAY_KQ: "202608280830",
+    MA_MAY: "",
+    MA_HIEU_SP: "",
+    TT_THAU: "",
+  },
+  "test.xml",
+);
+assert.equal(xml3WithZ000.hasZ000Warning, true);
+assert.equal(isWarning(xml3WithZ000), true);
+assert.ok(
+  xml3WithZ000.detail.includes(
+    "XML 3. Chi tiết thứ 1: Mã bệnh  'Z00.0' là mã khám sức khỏe không được thanh toán BHYT.",
+  ),
+);
+
+// Kiểm tra findZ000WarningsInRows trên các bảng bất kỳ (ví dụ XML5 và XML1)
+const xml5Rows = [
+  { STT: "1", MA_LK: "LK-005", MA_BENH: "Z00.0", TEN_BENH: "Khám định kỳ" },
+  { STT: "2", MA_LK: "LK-005", MA_BENH: "I10", TEN_BENH: "Tăng huyết áp" },
+];
+const xml5Z000Warnings = findZ000WarningsInRows("XML5", xml5Rows);
+assert.equal(xml5Z000Warnings.length, 1);
+assert.equal(xml5Z000Warnings[0].source, "XML5");
+assert.equal(xml5Z000Warnings[0].detailIndex, 1);
+assert.equal(
+  xml5Z000Warnings[0].message,
+  "XML 5. Chi tiết thứ 1: Mã bệnh  'Z00.0' là mã khám sức khỏe không được thanh toán BHYT.",
+);
+
+const xml1Rows = [{ STT: "1", MA_LK: "LK-001", MA_BENH_CHINH: "I10", MA_BENH_KT: "Z00.0;E11" }];
+const xml1Z000Warnings = findZ000WarningsInRows("XML1", xml1Rows);
+assert.equal(xml1Z000Warnings.length, 1);
+assert.equal(xml1Z000Warnings[0].source, "XML1");
+assert.equal(xml1Z000Warnings[0].detailIndex, 1);
+assert.equal(
+  xml1Z000Warnings[0].message,
+  "XML 1. Chi tiết thứ 1: Mã bệnh  'Z00.0' là mã khám sức khỏe không được thanh toán BHYT.",
+);
+
 console.log(
-  "All tests passed: XML2/XML3 TT_THAU validation, drug exclusion, chronology, library backup/restore, VN date format, 15 XML tables: OK",
+  "All tests passed: XML2/XML3 TT_THAU validation, drug exclusion, chronology, library backup/restore, VN date format, 15 XML tables & Z00.0 validation: OK",
 );

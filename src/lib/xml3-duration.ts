@@ -65,6 +65,7 @@ export type Xml3Record = {
   hasEqualWarning: boolean;
   hasBedWarning: boolean;
   hasTtThauWarning: boolean;
+  hasZ000Warning?: boolean;
   orderIssues: string[];
   status:
     | "warning"
@@ -79,7 +80,7 @@ export type Xml3Record = {
   detail: string;
 };
 
-export type WarningSource = "XML1" | "XML2" | "XML3" | "XML4";
+export type WarningSource = string;
 
 export type ValidationWarning = {
   source: WarningSource;
@@ -101,6 +102,7 @@ export type Xml4Record = {
   MA_DICH_VU: string;
   NGAY_KQ: string;
   KET_LUAN: string;
+  MA_BENH?: string;
 };
 
 export type PatientTableData = {
@@ -131,6 +133,7 @@ export type Xml3Analysis = {
   xml2Warnings: ValidationWarning[];
   xml3Warnings: ValidationWarning[];
   xml4Warnings: ValidationWarning[];
+  z000Warnings: ValidationWarning[];
   missingTimes: number;
   invalidTimes: number;
   negativeTimes: number;
@@ -147,6 +150,8 @@ export type BatchAnalysis = {
   xml2Warnings: ValidationWarning[];
   xml3Warnings: ValidationWarning[];
   xml4Warnings: ValidationWarning[];
+  z000Warnings: ValidationWarning[];
+  allValidationWarnings: ValidationWarning[];
   files: string[];
   errors: string[];
   tableFiles: number;
@@ -253,6 +258,79 @@ function directTextOf(parent: Element, tag: string): string {
   );
 }
 
+export function isDiseaseCodeField(tag: string): boolean {
+  if (!tag) return false;
+  const upper = tag.trim().toUpperCase();
+  if (upper.startsWith("TEN_") || upper.includes("TEN_BENH")) {
+    return false;
+  }
+  if (
+    upper === "MA_BENH" ||
+    upper === "MA_BENH_CHINH" ||
+    upper === "MA_BENH_KT" ||
+    upper === "MA_BENHKEMTHEO" ||
+    upper === "MA_BENH_YHCT" ||
+    upper === "MA_BENH_PHU" ||
+    upper === "MA_BENH_MAN_TINH"
+  ) {
+    return true;
+  }
+  if (upper.includes("MA_BENH") || upper.includes("BENHKEMTHEO")) {
+    return true;
+  }
+  return false;
+}
+
+export function hasZ000DiseaseCode(value: string | undefined | null): boolean {
+  if (!value) return false;
+  const normalized = value.trim().toUpperCase();
+  if (!normalized) return false;
+  return /(^|[;,|\s/()+-])(Z00\.0|Z000)($|[;,|\s/()+-])/i.test(normalized);
+}
+
+export function formatZ000WarningMessage(tableType: string, detailIndex: number | string): string {
+  const tableNum = tableType.replace(/^XML[\s_]*/i, "") || tableType;
+  return `XML ${tableNum}. Chi tiết thứ ${detailIndex}: Mã bệnh  'Z00.0' là mã khám sức khỏe không được thanh toán BHYT.`;
+}
+
+export function findZ000WarningsInRows(
+  tableType: string,
+  rows: Record<string, string>[],
+  patients: ReadonlyMap<string, PatientInfo> = new Map(),
+): ValidationWarning[] {
+  const warnings: ValidationWarning[] = [];
+  rows.forEach((row, index) => {
+    let hasZ000 = false;
+    let foundVal = "";
+    for (const [key, val] of Object.entries(row)) {
+      if (isDiseaseCodeField(key) && hasZ000DiseaseCode(val)) {
+        hasZ000 = true;
+        foundVal = val;
+        break;
+      }
+    }
+    if (hasZ000) {
+      const maLk = row.MA_LK || "";
+      const patient = patients.get(maLk);
+      const stt = row.STT || row.stt || "";
+      const detailIndex = Number(stt) || index + 1;
+      const warning: ValidationWarning = {
+        source: tableType,
+        detailIndex,
+        MA_LK: maLk,
+        HO_TEN: row.HO_TEN || patient?.HO_TEN || "",
+        MA_BN: row.MA_BN || patient?.MA_BN || "",
+        MA_DICH_VU: row.MA_DICH_VU || row.MA_THUOC || foundVal || "Z00.0",
+        TEN_DICH_VU: row.TEN_DICH_VU || row.TEN_THUOC || row.TEN_BENH || "Khám sức khỏe",
+        message: formatZ000WarningMessage(tableType, detailIndex),
+        patient: patient ?? { MA_LK: maLk, MA_BN: row.MA_BN || "", HO_TEN: row.HO_TEN || "" },
+      };
+      warnings.push(warning);
+    }
+  });
+  return warnings;
+}
+
 function readXml1Patients(doc: Document): Map<string, PatientInfo> {
   const patients = new Map<string, PatientInfo>();
   for (const node of Array.from(doc.getElementsByTagName("*"))) {
@@ -337,6 +415,37 @@ function readXml1Warnings(
         message: `XML 1. Chi tiết thứ ${detailIndex}: MA_DKBD phải khác MA_CSKCB cho đối tượng khác 1.1`,
       });
     }
+
+    // Kiểm tra mã bệnh Z00.0 trong XML1
+    const maBenh =
+      directTextOf(node, "MA_BENH") ||
+      textOfGeneral(node, "MA_BENH") ||
+      directTextOf(node, "MA_BENH_CHINH") ||
+      textOfGeneral(node, "MA_BENH_CHINH");
+    const maBenhKt =
+      directTextOf(node, "MA_BENHKEMTHEO") ||
+      textOfGeneral(node, "MA_BENHKEMTHEO") ||
+      directTextOf(node, "MA_BENH_KT") ||
+      textOfGeneral(node, "MA_BENH_KT");
+    const maBenhYhct = directTextOf(node, "MA_BENH_YHCT") || textOfGeneral(node, "MA_BENH_YHCT");
+
+    const hasZ000InXml1 =
+      hasZ000DiseaseCode(maBenh) ||
+      hasZ000DiseaseCode(maBenhKt) ||
+      hasZ000DiseaseCode(maBenhYhct) ||
+      Array.from(node.children).some(
+        (child) => isDiseaseCodeField(child.tagName) && hasZ000DiseaseCode(child.textContent),
+      );
+
+    if (hasZ000InXml1) {
+      warnings.push({
+        ...base,
+        MA_DICH_VU: "Z00.0",
+        TEN_DICH_VU:
+          directTextOf(node, "TEN_BENH") || textOfGeneral(node, "TEN_BENH") || "Khám sức khỏe",
+        message: formatZ000WarningMessage("XML1", detailIndex),
+      });
+    }
   });
   return warnings;
 }
@@ -392,12 +501,12 @@ export function readXml2Warnings(
 
     // Kiểm tra xem mã thuốc có thuộc danh mục loại trừ XML2 không
     const cleanMaThuoc = maThuoc ? maThuoc.trim().toUpperCase() : "";
-    if (cleanMaThuoc && drugRuleMap.get(cleanMaThuoc)?.excluded) {
-      return; // Bỏ qua cảnh báo cho thuốc này
-    }
+    const isDrugExcludedFromTtThau = Boolean(
+      cleanMaThuoc && drugRuleMap.get(cleanMaThuoc)?.excluded,
+    );
 
     // Kiểm tra XML2 cột 15 TT_THAU bắt buộc không được để rỗng (null)
-    if (!ttThau || !ttThau.trim()) {
+    if (!isDrugExcludedFromTtThau && (!ttThau || !ttThau.trim())) {
       warnings.push({
         source: "XML2",
         detailIndex,
@@ -407,6 +516,37 @@ export function readXml2Warnings(
         MA_DICH_VU: maThuoc,
         TEN_DICH_VU: tenThuoc,
         message: `XML2. Chi tiết thứ ${detailIndex}: Thiếu thông tin TT_THAU`,
+        patient: patient ?? { MA_LK: maLk, MA_BN: "", HO_TEN: "" },
+      });
+    }
+
+    // Kiểm tra mã bệnh Z00.0 trong XML2
+    const maBenh =
+      directTextOf(node, "MA_BENH") ||
+      textOfGeneral(node, "MA_BENH") ||
+      directTextOf(node, "MA_BENH_CHINH") ||
+      textOfGeneral(node, "MA_BENH_CHINH") ||
+      directTextOf(node, "MA_BENHKEMTHEO") ||
+      textOfGeneral(node, "MA_BENHKEMTHEO") ||
+      directTextOf(node, "MA_BENH_KT") ||
+      textOfGeneral(node, "MA_BENH_KT");
+
+    const hasZ000InXml2 =
+      hasZ000DiseaseCode(maBenh) ||
+      Array.from(node.children).some(
+        (child) => isDiseaseCodeField(child.tagName) && hasZ000DiseaseCode(child.textContent),
+      );
+
+    if (hasZ000InXml2) {
+      warnings.push({
+        source: "XML2",
+        detailIndex,
+        MA_LK: maLk,
+        HO_TEN: patient?.HO_TEN || "",
+        MA_BN: patient?.MA_BN || "",
+        MA_DICH_VU: maThuoc || "Z00.0",
+        TEN_DICH_VU: tenThuoc || "Khám sức khỏe",
+        message: formatZ000WarningMessage("XML2", detailIndex),
         patient: patient ?? { MA_LK: maLk, MA_BN: "", HO_TEN: "" },
       });
     }
@@ -425,6 +565,15 @@ function readXml4Records(doc: Document, fileName: string): Xml4Record[] {
       MA_DICH_VU: directTextOf(item, "MA_DICH_VU") || textOfGeneral(item, "MA_DICH_VU"),
       NGAY_KQ: directTextOf(item, "NGAY_KQ") || textOfGeneral(item, "NGAY_KQ"),
       KET_LUAN: directTextOf(item, "KET_LUAN") || textOfGeneral(item, "KET_LUAN"),
+      MA_BENH:
+        directTextOf(item, "MA_BENH") ||
+        textOfGeneral(item, "MA_BENH") ||
+        directTextOf(item, "MA_BENH_CHINH") ||
+        textOfGeneral(item, "MA_BENH_CHINH") ||
+        directTextOf(item, "MA_BENH_KT") ||
+        textOfGeneral(item, "MA_BENH_KT") ||
+        directTextOf(item, "MA_BENHKEMTHEO") ||
+        textOfGeneral(item, "MA_BENHKEMTHEO"),
     }));
 }
 
@@ -433,31 +582,48 @@ function createXml4Warnings(
   xml4Records: Xml4Record[],
   patients: ReadonlyMap<string, PatientInfo>,
 ): ValidationWarning[] {
-  return xml4Records.flatMap((xml4, index) => {
-    if (xml4.NGAY_KQ.trim() && xml4.KET_LUAN.trim()) return [];
+  const warnings: ValidationWarning[] = [];
+  xml4Records.forEach((xml4, index) => {
+    const detailIndex = Number(xml4.STT) || index + 1;
+    const patient = patients.get(xml4.MA_LK);
+
+    // Kiểm tra Z00.0 trong XML4
+    if (hasZ000DiseaseCode(xml4.MA_BENH)) {
+      warnings.push({
+        source: "XML4",
+        detailIndex,
+        MA_LK: xml4.MA_LK,
+        HO_TEN: patient?.HO_TEN || "",
+        MA_BN: patient?.MA_BN || "",
+        MA_DICH_VU: xml4.MA_DICH_VU || "Z00.0",
+        TEN_DICH_VU: "Cận lâm sàng",
+        message: formatZ000WarningMessage("XML4", detailIndex),
+        patient: patient ?? { MA_LK: xml4.MA_LK, MA_BN: "", HO_TEN: "" },
+      });
+    }
+
+    if (xml4.NGAY_KQ.trim() && xml4.KET_LUAN.trim()) return;
     const match = xml3Records.find(
       (xml3) =>
         xml3.MA_NHOM.trim() === "2" &&
         xml3.MA_LK === xml4.MA_LK &&
         xml3.MA_DICH_VU === xml4.MA_DICH_VU,
     );
-    if (!match) return [];
-    const patient = patients.get(match.MA_LK);
-    return [
-      {
-        source: "XML4" as const,
-        detailIndex: index + 1,
-        MA_LK: match.MA_LK,
-        HO_TEN: match.HO_TEN || patient?.HO_TEN || "",
-        MA_BN: match.MA_BN || patient?.MA_BN || "",
-        MA_DICH_VU: match.MA_DICH_VU,
-        TEN_DICH_VU: match.TEN_DICH_VU || match.TEN_VAT_TU || "",
-        message: `XML 4. Chi tiết thứ ${index + 1}: Thiếu thông tin KET_LUAN khi XML3 MA_NHOM = 2. Mã dịch vụ: ${match.MA_DICH_VU || "—"}. Tên dịch vụ: ${match.TEN_DICH_VU || match.TEN_VAT_TU || "—"}`,
-        record: match,
-        patient: patient ?? match.patient,
-      },
-    ];
+    if (!match) return;
+    warnings.push({
+      source: "XML4" as const,
+      detailIndex,
+      MA_LK: match.MA_LK,
+      HO_TEN: match.HO_TEN || patient?.HO_TEN || "",
+      MA_BN: match.MA_BN || patient?.MA_BN || "",
+      MA_DICH_VU: match.MA_DICH_VU,
+      TEN_DICH_VU: match.TEN_DICH_VU || match.TEN_VAT_TU || "",
+      message: `XML 4. Chi tiết thứ ${detailIndex}: Thiếu thông tin KET_LUAN khi XML3 MA_NHOM = 2. Mã dịch vụ: ${match.MA_DICH_VU || "—"}. Tên dịch vụ: ${match.TEN_DICH_VU || match.TEN_VAT_TU || "—"}`,
+      record: match,
+      patient: patient ?? match.patient,
+    });
   });
+  return warnings;
 }
 
 function readXml3Records(
@@ -678,6 +844,20 @@ export function evaluateRecord(
     details.unshift("XML3: TT_THAU không được để trống khi mã nhóm bằng 10 hoặc 11");
   }
 
+  const extraFields = fields as Record<string, string>;
+  const hasZ000Warning =
+    hasZ000DiseaseCode(fields.MA_BENH) ||
+    hasZ000DiseaseCode(fields.MA_BENH_YHCT) ||
+    hasZ000DiseaseCode(extraFields.MA_BENH_CHINH) ||
+    hasZ000DiseaseCode(extraFields.MA_BENH_KT) ||
+    hasZ000DiseaseCode(extraFields.MA_BENHKEMTHEO);
+
+  if (hasZ000Warning) {
+    if (status === "ok") status = "warning";
+    const stt = fields.STT || "1";
+    details.unshift(formatZ000WarningMessage("XML3", stt));
+  }
+
   return {
     ...fields,
     MA_BN: fields.MA_BN || "",
@@ -691,6 +871,7 @@ export function evaluateRecord(
     hasEqualWarning,
     hasBedWarning: false,
     hasTtThauWarning,
+    hasZ000Warning: Boolean(hasZ000Warning),
     orderIssues,
     status,
     detail: details.join(" · "),
@@ -708,7 +889,8 @@ export function isWarning(record: Xml3Record): boolean {
     record.hasOrderWarning ||
     record.hasEqualWarning ||
     record.hasBedWarning ||
-    record.hasTtThauWarning
+    record.hasTtThauWarning ||
+    Boolean(record.hasZ000Warning)
   );
 }
 
@@ -1003,6 +1185,12 @@ export async function analyzeXml3File(
   const warnings = records.filter(isWarning);
   const xml3Warnings = warnings.map(toXml3Warning);
   const xml4Warnings = createXml4Warnings(records, xml4Records, patients);
+  const z000Warnings = [
+    ...xml1Warnings.filter((w) => w.message.includes("Z00.0")),
+    ...xml2Warnings.filter((w) => w.message.includes("Z00.0")),
+    ...xml3Warnings.filter((w) => w.message.includes("Z00.0")),
+    ...xml4Warnings.filter((w) => w.message.includes("Z00.0")),
+  ];
   const missingTimes = records.filter((record) => record.status === "missing").length;
   const invalidTimes = records.filter((record) => record.status === "invalid").length;
   const negativeTimes = records.filter((record) => record.status === "negative").length;
@@ -1011,7 +1199,7 @@ export async function analyzeXml3File(
   const ttThauWarnings = records.filter((record) => record.hasTtThauWarning).length;
 
   log.push(
-    `XML3: ${records.length} dòng; cảnh báo: ${warnings.length}; thứ tự: ${orderWarnings}; giường: ${bedWarnings}; TT_THAU (nhóm 10/11): ${ttThauWarnings}; XML1: ${xml1Warnings.length}; XML2: ${xml2Warnings.length}; XML4: ${xml4Warnings.length}; thiếu thời gian: ${missingTimes}; không hợp lệ: ${invalidTimes}; âm: ${negativeTimes}`,
+    `XML3: ${records.length} dòng; cảnh báo: ${warnings.length}; thứ tự: ${orderWarnings}; giường: ${bedWarnings}; TT_THAU (nhóm 10/11): ${ttThauWarnings}; Z00.0: ${z000Warnings.length}; XML1: ${xml1Warnings.length}; XML2: ${xml2Warnings.length}; XML4: ${xml4Warnings.length}; thiếu thời gian: ${missingTimes}; không hợp lệ: ${invalidTimes}; âm: ${negativeTimes}`,
   );
   return {
     fileName: file.name,
@@ -1022,6 +1210,7 @@ export async function analyzeXml3File(
     xml2Warnings,
     xml3Warnings,
     xml4Warnings,
+    z000Warnings,
     missingTimes,
     invalidTimes,
     negativeTimes,
@@ -1208,15 +1397,74 @@ export async function analyzeXml3Files(
   }
 
   const xml4Warnings = createXml4Warnings(allRecords, xml4Records, sharedPatients);
-  const allWarnings = [...xml1Warnings, ...xml2Warnings, ...xml3Warnings, ...xml4Warnings];
+
+  const allValidationWarnings: ValidationWarning[] = [];
+  const addedWarningKeys = new Set<string>();
+
+  const registerWarning = (w: ValidationWarning) => {
+    const key = `${w.source}|${w.MA_LK}|${w.detailIndex}|${w.message}`;
+    if (!addedWarningKeys.has(key)) {
+      addedWarningKeys.add(key);
+      allValidationWarnings.push(w);
+    }
+  };
+
+  for (const w of xml1Warnings) registerWarning(w);
+  for (const w of xml2Warnings) registerWarning(w);
+  for (const w of xml3Warnings) registerWarning(w);
+  for (const w of xml4Warnings) registerWarning(w);
+
+  // Quét toàn bộ 15 bảng XML trong các hồ sơ để tìm cảnh báo Z00.0
+  const z000Warnings: ValidationWarning[] = [];
+  const addedZ000Keys = new Set<string>();
+
+  const registerZ000 = (w: ValidationWarning) => {
+    const key = `${w.source}|${w.MA_LK}|${w.detailIndex}`;
+    if (!addedZ000Keys.has(key)) {
+      addedZ000Keys.add(key);
+      z000Warnings.push(w);
+    }
+  };
+
+  for (const w of xml1Warnings) if (w.message.includes("Z00.0")) registerZ000(w);
+  for (const w of xml2Warnings) if (w.message.includes("Z00.0")) registerZ000(w);
+  for (const w of xml3Warnings) if (w.message.includes("Z00.0")) registerZ000(w);
+  for (const w of xml4Warnings) if (w.message.includes("Z00.0")) registerZ000(w);
+
+  for (const dossier of dossierMap.values()) {
+    for (const [tableType, tableData] of Object.entries(dossier.tables)) {
+      const z000List = findZ000WarningsInRows(tableType, tableData.rows, sharedPatients);
+      for (const zw of z000List) {
+        const zKey = `${zw.source}|${zw.MA_LK}|${zw.detailIndex}`;
+        if (!addedZ000Keys.has(zKey)) {
+          addedZ000Keys.add(zKey);
+          z000Warnings.push(zw);
+          registerWarning(zw);
+          if (tableType === "XML1") xml1Warnings.push(zw);
+          else if (tableType === "XML2") xml2Warnings.push(zw);
+          else if (tableType === "XML3") xml3Warnings.push(zw);
+          else if (tableType === "XML4") xml4Warnings.push(zw);
+        }
+      }
+    }
+  }
 
   // Gắn cảnh báo và bản ghi XML3 vào từng hồ sơ bệnh nhân
-  for (const warning of allWarnings) {
+  for (const warning of allValidationWarnings) {
     const dossier = dossierMap.get(warning.MA_LK);
     if (dossier) {
-      dossier.warnings.push(warning);
-      dossier.hasWarnings = true;
-      dossier.warningCount++;
+      if (
+        !dossier.warnings.some(
+          (w) =>
+            w.source === warning.source &&
+            w.detailIndex === warning.detailIndex &&
+            w.message === warning.message,
+        )
+      ) {
+        dossier.warnings.push(warning);
+        dossier.hasWarnings = true;
+        dossier.warningCount++;
+      }
     }
   }
   for (const record of allRecords) {
@@ -1235,6 +1483,8 @@ export async function analyzeXml3Files(
     xml2Warnings,
     xml3Warnings,
     xml4Warnings,
+    z000Warnings,
+    allValidationWarnings,
     files: files.map((file) => file.name),
     errors: [...errors, ...logs],
     tableFiles,
