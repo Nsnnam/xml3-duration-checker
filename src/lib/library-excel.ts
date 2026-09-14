@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import fileSaver from "file-saver";
 import { formatTimestampForFilename } from "./timezone.ts";
-import type { ServiceRule, DrugRule } from "./xml3-duration.ts";
+import type { ServiceRule, DrugRule, MachineServiceRule } from "./xml3-duration.ts";
 
 const saveAs =
   typeof fileSaver === "function"
@@ -112,6 +112,28 @@ export async function exportLibraryTemplate(): Promise<void> {
   styleHeader(sheetThuoc, "D97706", 4);
   autoFitColumns(sheetThuoc, [22, 35, 28, 35]);
 
+  // Sheet 3: DVKT bắt buộc mã máy
+  const sheetMachine = workbook.addWorksheet("DVKT_BAT_BUOC_MA_MAY");
+  sheetMachine.columns = [
+    { header: "Mã DVKT (*)", key: "MA_DVKT" },
+    { header: "Tên dịch vụ kỹ thuật", key: "TEN_DVKT" },
+    { header: "Ghi chú", key: "GHI_CHU" },
+  ];
+
+  sheetMachine.addRow({
+    MA_DVKT: "01.0021.0001",
+    TEN_DVKT: "Tổng phân tích tế bào máu ngoại vi bằng máy đếm laser",
+    GHI_CHU: "Bắt buộc điền MA_MAY cột 44 XML3 dạng HH.3[nguon].serial",
+  });
+  sheetMachine.addRow({
+    MA_DVKT: "03.0035.0002",
+    TEN_DVKT: "Siêu âm Doppler tim, van tim qua thành ngực",
+    GHI_CHU: "Bắt buộc điền MA_MAY cột 44 XML3 dạng SA.3[nguon].serial",
+  });
+
+  styleHeader(sheetMachine, "7C3AED", 3);
+  autoFitColumns(sheetMachine, [22, 50, 45]);
+
   const buffer = await workbook.xlsx.writeBuffer();
   const filename = "mau_nhap_thu_vien_nsn_xmlcheck.xlsx";
   saveAs(
@@ -123,11 +145,12 @@ export async function exportLibraryTemplate(): Promise<void> {
 }
 
 /**
- * Xuất toàn bộ Thư viện dịch vụ & Thuốc hiện có ra file Excel
+ * Xuất toàn bộ Thư viện dịch vụ, Thuốc và DVKT bắt buộc mã máy ra file Excel
  */
 export async function exportLibraryToExcel(
   serviceRules: ServiceRule[],
   drugRules: DrugRule[],
+  machineRules: MachineServiceRule[] = [],
 ): Promise<void> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Nguyễn Sơn Nam (Nsnnam)";
@@ -179,6 +202,27 @@ export async function exportLibraryToExcel(
   styleHeader(sheetThuoc, "D97706", 4);
   autoFitColumns(sheetThuoc, [8, 22, 38, 25]);
 
+  // Sheet 3: DVKT_BAT_BUOC_MA_MAY
+  if (machineRules.length > 0) {
+    const sheetMachine = workbook.addWorksheet("DVKT_BAT_BUOC_MA_MAY");
+    sheetMachine.columns = [
+      { header: "STT", key: "STT" },
+      { header: "Mã DVKT (*)", key: "MA_DVKT" },
+      { header: "Tên dịch vụ kỹ thuật", key: "TEN_DVKT" },
+    ];
+
+    machineRules.forEach((rule, idx) => {
+      sheetMachine.addRow({
+        STT: idx + 1,
+        MA_DVKT: rule.code,
+        TEN_DVKT: rule.name,
+      });
+    });
+
+    styleHeader(sheetMachine, "7C3AED", 3);
+    autoFitColumns(sheetMachine, [8, 22, 50]);
+  }
+
   const buffer = await workbook.xlsx.writeBuffer();
   const filename = `${formatTimestampForFilename()}_danh_muc_thu_vien.xlsx`;
   saveAs(
@@ -195,6 +239,7 @@ export async function exportLibraryToExcel(
 export async function importLibraryFromExcel(file: File): Promise<{
   serviceRules: ServiceRule[];
   drugRules: DrugRule[];
+  machineRules: MachineServiceRule[];
 }> {
   const buffer = await file.arrayBuffer();
   const workbook = new ExcelJS.Workbook();
@@ -202,6 +247,7 @@ export async function importLibraryFromExcel(file: File): Promise<{
 
   const importedServiceRules: ServiceRule[] = [];
   const importedDrugRules: DrugRule[] = [];
+  const importedMachineRules: MachineServiceRule[] = [];
 
   // 1. Đọc sheet DVKT
   const sheetDv =
@@ -318,8 +364,42 @@ export async function importLibraryFromExcel(file: File): Promise<{
     });
   }
 
+  // 3. Đọc sheet DVKT bắt buộc mã máy
+  const sheetMachine =
+    workbook.getWorksheet("DVKT_BAT_BUOC_MA_MAY") ||
+    workbook.getWorksheet("BAT_BUOC_MA_MAY") ||
+    workbook.getWorksheet("MA_MAY") ||
+    (workbook.worksheets.length > 2 ? workbook.worksheets[2] : null);
+
+  if (sheetMachine && sheetMachine !== sheetDv && sheetMachine !== sheetThuoc) {
+    sheetMachine.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return; // Skip header
+
+      const cell1Val = String(row.getCell(1).value ?? "").trim();
+      const cell2Val = String(row.getCell(2).value ?? "").trim();
+      let code = "";
+      let name = "";
+
+      if (Number.isFinite(Number(cell1Val)) && cell2Val.length > 0) {
+        code = cell2Val;
+        name = String(row.getCell(3).value ?? "").trim();
+      } else if (cell1Val.length > 0) {
+        code = cell1Val;
+        name = cell2Val;
+      }
+
+      if (!code) return;
+
+      importedMachineRules.push({
+        code,
+        name,
+      });
+    });
+  }
+
   return {
     serviceRules: importedServiceRules,
     drugRules: importedDrugRules,
+    machineRules: importedMachineRules,
   };
 }

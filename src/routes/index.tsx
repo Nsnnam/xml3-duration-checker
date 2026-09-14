@@ -12,10 +12,14 @@ import {
   DURATION_LIMIT_MINUTES,
   GROUP_OPTIONS,
   analyzeXml3Files,
+  isValidMaMay,
+  isMandatoryMachineService,
+  DEFAULT_MANDATORY_MACHINE_SERVICES,
   type BatchAnalysis,
   type Xml3Record,
   type ServiceRule,
   type DrugRule,
+  type MachineServiceRule,
   type ValidationWarning,
 } from "../lib/xml3-duration.ts";
 import {
@@ -54,6 +58,7 @@ type View = "checker" | "dossier" | "library" | "settings" | "guide" | "about" |
 type AlertTab = string;
 const SERVICE_RULES_KEY = "nsn-xmlcheck-service-rules";
 const DRUG_RULES_KEY = "nsn-xmlcheck-drug-rules";
+const MANDATORY_MACHINE_KEY = "nsn-xmlcheck-mandatory-machine-services";
 const COLUMNS_CONFIG_KEY = "nsn-xmlcheck-columns-config-v2";
 
 type ColumnDef = {
@@ -86,6 +91,7 @@ const TAB_COLUMNS: Record<string, ColumnDef[]> = {
     { key: "service", label: "Dịch vụ / Vật tư (mở rộng)", defaultWidth: 380, isWide: true },
     { key: "group", label: "Mã nhóm", defaultWidth: 75 },
     { key: "ttThau", label: "TT_THAU", defaultWidth: 100 },
+    { key: "maMay", label: "Mã máy", defaultWidth: 140 },
     { key: "khoa", label: "Khoa", defaultWidth: 75 },
     { key: "ngayYl", label: "NGAY_YL", defaultWidth: 130 },
     { key: "ngayThYl", label: "NGAY_TH_YL", defaultWidth: 130 },
@@ -204,6 +210,24 @@ function loadDrugRules(): DrugRule[] {
   }
 }
 
+function loadMandatoryMachineRules(): MachineServiceRule[] {
+  try {
+    const saved = localStorage.getItem(MANDATORY_MACHINE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.filter(
+          (rule): rule is MachineServiceRule =>
+            typeof rule?.code === "string" && rule.code.trim().length > 0,
+        );
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return [...DEFAULT_MANDATORY_MACHINE_SERVICES];
+}
+
 type SummaryFocus =
   | "files"
   | "xml3"
@@ -213,6 +237,7 @@ type SummaryFocus =
   | "equal"
   | "bed"
   | "ttThau"
+  | "maMay"
   | "z000"
   | "missing"
   | "invalid"
@@ -234,6 +259,7 @@ export function HomePage() {
   const [notice, setNotice] = useState("");
   const [serviceRules, setServiceRules] = useState<ServiceRule[]>(loadServiceRules);
   const [drugRules, setDrugRules] = useState<DrugRule[]>(loadDrugRules);
+  const [machineRules, setMachineRules] = useState<MachineServiceRule[]>(loadMandatoryMachineRules);
   const [telegramConfig, setTelegramConfig] = useState<TelegramConfig>(loadTelegramConfig);
   const [columnsConfig, setColumnsConfig] = useState<AllTabsColumnConfig>(loadColumnsConfig);
   const [showColumnModal, setShowColumnModal] = useState(false);
@@ -343,6 +369,7 @@ export function HomePage() {
               record.hasEqualWarning ||
               record.hasBedWarning ||
               record.hasTtThauWarning ||
+              record.hasMaMayWarning ||
               Boolean(record.hasZ000Warning);
             const query = patientQuery.trim().toLocaleLowerCase("vi-VN");
             const matchesPatient =
@@ -362,10 +389,12 @@ export function HomePage() {
         (record) =>
           record.status === "warning" ||
           record.status === "tt-thau-warning" ||
+          record.status === "ma-may-warning" ||
           record.hasOrderWarning ||
           record.hasEqualWarning ||
           record.hasBedWarning ||
           record.hasTtThauWarning ||
+          record.hasMaMayWarning ||
           Boolean(record.hasZ000Warning),
       ),
     [filteredRecords],
@@ -377,6 +406,7 @@ export function HomePage() {
     if (summaryFocus === "equal") return source.filter((record) => record.hasEqualWarning);
     if (summaryFocus === "bed") return source.filter((record) => record.hasBedWarning);
     if (summaryFocus === "ttThau") return source.filter((record) => record.hasTtThauWarning);
+    if (summaryFocus === "maMay") return source.filter((record) => record.hasMaMayWarning);
     if (summaryFocus === "z000") return source.filter((record) => record.hasZ000Warning);
     if (summaryFocus === "missing") return source.filter((record) => record.status === "missing");
     if (summaryFocus === "invalid") return source.filter((record) => record.status === "invalid");
@@ -449,7 +479,7 @@ export function HomePage() {
     setBusy(true);
     setNotice("");
     try {
-      const nextAnalysis = await analyzeXml3Files(files, serviceRules, drugRules);
+      const nextAnalysis = await analyzeXml3Files(files, serviceRules, drugRules, machineRules);
       setSummaryFocus("warnings");
       setAlertTab("XML3");
       setAnalysis(nextAnalysis);
@@ -471,12 +501,13 @@ export function HomePage() {
   async function reanalyzeWithRules(
     nextServiceRules: ServiceRule[],
     nextDrugRules: DrugRule[] = drugRules,
+    nextMachineRules: MachineServiceRule[] = machineRules,
   ) {
     if (!files.length) return;
     setBusy(true);
     try {
       setSummaryFocus("warnings");
-      setAnalysis(await analyzeXml3Files(files, nextServiceRules, nextDrugRules));
+      setAnalysis(await analyzeXml3Files(files, nextServiceRules, nextDrugRules, nextMachineRules));
     } finally {
       setBusy(false);
     }
@@ -502,7 +533,7 @@ export function HomePage() {
     const nextRules = [...serviceRules.filter((item) => item.MA_DICH_VU !== code), rule];
     setServiceRules(nextRules);
     localStorage.setItem(SERVICE_RULES_KEY, JSON.stringify(nextRules));
-    await reanalyzeWithRules(nextRules, drugRules);
+    await reanalyzeWithRules(nextRules, drugRules, machineRules);
     setNotice(`Đã cập nhật thư viện cho dịch vụ ${code} và phân tích lại toàn bộ cảnh báo.`);
   }
 
@@ -510,14 +541,14 @@ export function HomePage() {
     const nextRules = serviceRules.filter((rule) => rule.MA_DICH_VU !== code);
     setServiceRules(nextRules);
     localStorage.setItem(SERVICE_RULES_KEY, JSON.stringify(nextRules));
-    await reanalyzeWithRules(nextRules, drugRules);
+    await reanalyzeWithRules(nextRules, drugRules, machineRules);
     setNotice(`Đã xóa dịch vụ ${code} khỏi thư viện.`);
   }
 
   async function handleSaveAllServiceRules(newRules: ServiceRule[]) {
     setServiceRules(newRules);
     localStorage.setItem(SERVICE_RULES_KEY, JSON.stringify(newRules));
-    await reanalyzeWithRules(newRules, drugRules);
+    await reanalyzeWithRules(newRules, drugRules, machineRules);
   }
 
   // Cập nhật Thư viện Thuốc loại trừ XML2
@@ -535,7 +566,7 @@ export function HomePage() {
     ];
     setDrugRules(nextDrugRules);
     localStorage.setItem(DRUG_RULES_KEY, JSON.stringify(nextDrugRules));
-    await reanalyzeWithRules(serviceRules, nextDrugRules);
+    await reanalyzeWithRules(serviceRules, nextDrugRules, machineRules);
     setNotice(`Đã thêm thuốc ${cleanCode} vào danh mục loại trừ XML2 và phân tích lại.`);
   }
 
@@ -543,28 +574,76 @@ export function HomePage() {
     const nextDrugRules = drugRules.filter((r) => r.MA_THUOC.toUpperCase() !== code.toUpperCase());
     setDrugRules(nextDrugRules);
     localStorage.setItem(DRUG_RULES_KEY, JSON.stringify(nextDrugRules));
-    await reanalyzeWithRules(serviceRules, nextDrugRules);
+    await reanalyzeWithRules(serviceRules, nextDrugRules, machineRules);
     setNotice(`Đã xóa thuốc ${code} khỏi danh mục loại trừ XML2.`);
   }
 
   async function handleSaveAllDrugRules(newDrugRules: DrugRule[]) {
     setDrugRules(newDrugRules);
     localStorage.setItem(DRUG_RULES_KEY, JSON.stringify(newDrugRules));
-    await reanalyzeWithRules(serviceRules, newDrugRules);
+    await reanalyzeWithRules(serviceRules, newDrugRules, machineRules);
+  }
+
+  // Cập nhật Thư viện DVKT bắt buộc mã máy
+  async function handleSaveMachineRules(newRules: MachineServiceRule[]) {
+    setMachineRules(newRules);
+    localStorage.setItem(MANDATORY_MACHINE_KEY, JSON.stringify(newRules));
+    await reanalyzeWithRules(serviceRules, drugRules, newRules);
+  }
+
+  async function handleResetMachineRules() {
+    setMachineRules([...DEFAULT_MANDATORY_MACHINE_SERVICES]);
+    localStorage.removeItem(MANDATORY_MACHINE_KEY);
+    await reanalyzeWithRules(serviceRules, drugRules, DEFAULT_MANDATORY_MACHINE_SERVICES);
+    setNotice(
+      `Đã khôi phục danh mục bắt buộc mã máy về ${DEFAULT_MANDATORY_MACHINE_SERVICES.length.toLocaleString("vi-VN")} dịch vụ gốc.`,
+    );
+  }
+
+  async function handleAddMachineRule(code: string, name: string) {
+    const cleanCode = code.trim();
+    if (!cleanCode) return;
+    const exists = machineRules.some(
+      (r) => r.code.trim().toUpperCase() === cleanCode.toUpperCase(),
+    );
+    if (exists) {
+      setNotice(`Dịch vụ ${cleanCode} đã tồn tại trong danh mục bắt buộc mã máy.`);
+      return;
+    }
+    const nextRules: MachineServiceRule[] = [
+      { code: cleanCode, name: name.trim() },
+      ...machineRules,
+    ];
+    await handleSaveMachineRules(nextRules);
+    setNotice(`Đã thêm dịch vụ [${cleanCode}] vào danh mục bắt buộc mã máy.`);
+  }
+
+  async function handleRemoveMachineRule(code: string) {
+    const cleanCode = code.trim().toUpperCase();
+    const nextRules = machineRules.filter((r) => r.code.trim().toUpperCase() !== cleanCode);
+    await handleSaveMachineRules(nextRules);
+    setNotice(`Đã xóa dịch vụ ${code} khỏi danh mục bắt buộc mã máy.`);
   }
 
   // Nhập dữ liệu thư viện từ file Excel
   async function handleImportExcel(file: File, mode: "merge" | "overwrite") {
     setBusy(true);
     try {
-      const { serviceRules: importedServices, drugRules: importedDrugs } =
-        await importLibraryFromExcel(file);
+      const {
+        serviceRules: importedServices,
+        drugRules: importedDrugs,
+        machineRules: importedMachines,
+      } = await importLibraryFromExcel(file);
       let nextServices = serviceRules;
       let nextDrugs = drugRules;
+      let nextMachines = machineRules;
 
       if (mode === "overwrite") {
         nextServices = importedServices;
         nextDrugs = importedDrugs;
+        if (importedMachines && importedMachines.length > 0) {
+          nextMachines = importedMachines;
+        }
       } else {
         // Merge: cập nhật hoặc thêm mới
         const serviceMap = new Map(serviceRules.map((r) => [r.MA_DICH_VU.trim(), r]));
@@ -578,16 +657,28 @@ export function HomePage() {
           drugMap.set(d.MA_THUOC.trim().toUpperCase(), d);
         }
         nextDrugs = Array.from(drugMap.values());
+
+        if (importedMachines && importedMachines.length > 0) {
+          const machineMap = new Map(machineRules.map((m) => [m.code.trim().toUpperCase(), m]));
+          for (const m of importedMachines) {
+            machineMap.set(m.code.trim().toUpperCase(), m);
+          }
+          nextMachines = Array.from(machineMap.values());
+        }
       }
 
       setServiceRules(nextServices);
       localStorage.setItem(SERVICE_RULES_KEY, JSON.stringify(nextServices));
       setDrugRules(nextDrugs);
       localStorage.setItem(DRUG_RULES_KEY, JSON.stringify(nextDrugs));
+      if (importedMachines && importedMachines.length > 0) {
+        setMachineRules(nextMachines);
+        localStorage.setItem(MANDATORY_MACHINE_KEY, JSON.stringify(nextMachines));
+      }
 
-      await reanalyzeWithRules(nextServices, nextDrugs);
+      await reanalyzeWithRules(nextServices, nextDrugs, nextMachines);
       setNotice(
-        `✅ Đã nạp thành công ${importedServices.length} dịch vụ kỹ thuật và ${importedDrugs.length} mã thuốc từ file Excel (${
+        `✅ Đã nạp thành công ${importedServices.length} DVKT, ${importedDrugs.length} mã thuốc, ${importedMachines?.length || 0} DVKT bắt buộc mã máy từ file Excel (${
           mode === "merge" ? "chế độ Gộp" : "chế độ Ghi đè"
         }).`,
       );
@@ -644,6 +735,7 @@ export function HomePage() {
         `• Cảnh báo XML1: <b>${targetAnalysis.xml1Warnings.length}</b>\n` +
         `• Cảnh báo XML2 (Thiếu TT_THAU): <b>${targetAnalysis.xml2Warnings.length}</b>\n` +
         `• Cảnh báo XML3 (Thiếu TT_THAU): <b>${targetAnalysis.ttThauWarnings}</b>\n` +
+        `• Cảnh báo XML3 (Mã máy MA_MAY): <b>${targetAnalysis.maMayWarnings}</b>\n` +
         `• Cảnh báo XML4 (Thiếu KET_LUAN): <b>${targetAnalysis.xml4Warnings.length}</b>\n` +
         `• Cảnh báo mã bệnh Z00.0: <b>${targetAnalysis.z000Warnings ? targetAnalysis.z000Warnings.length : 0}</b>\n` +
         `• Thời gian: <b>${new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}</b>`;
@@ -681,20 +773,21 @@ export function HomePage() {
       let caption = "";
 
       if (type === "library") {
-        json = createLibraryBackupContent(serviceRules, drugRules);
-        filename = `${formatTimestampForFilename()}_backup_thu_vien_dvkt_thuoc.json`;
-        caption = `💾 <b>BACKUP THƯ VIỆN DỊCH VỤ & THUỐC — NSN_XMLCHECK</b>\n• Số quy tắc DVKT: <b>${serviceRules.length}</b>\n• Số thuốc loại trừ XML2: <b>${drugRules.length}</b>\n• Thời gian: <b>${new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}</b>`;
+        json = createLibraryBackupContent(serviceRules, drugRules, machineRules);
+        filename = `${formatTimestampForFilename()}_backup_thu_vien_dvkt_thuoc_mamay.json`;
+        caption = `💾 <b>BACKUP THƯ VIỆN DỊCH VỤ, THUỐC & MÃ MÁY — NSN_XMLCHECK</b>\n• Số quy tắc DVKT: <b>${serviceRules.length}</b>\n• Số thuốc loại trừ XML2: <b>${drugRules.length}</b>\n• DVKT bắt buộc mã máy: <b>${machineRules.length.toLocaleString("vi-VN")}</b>\n• Thời gian: <b>${new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}</b>`;
       } else {
         json = createFullConfigBackupContent({
           serviceRules,
           drugRules,
+          machineRules,
           groupCodes,
           telegramConfig,
           columnsConfig,
           onlyWarnings,
         });
         filename = `${formatTimestampForFilename()}_backup_cau_hinh_toan_trang.json`;
-        caption = `⚙️ <b>BACKUP CẤU HÌNH TOÀN TRANG — NSN_XMLCHECK</b>\n• Quy tắc DVKT: <b>${serviceRules.length}</b>\n• Thuốc loại trừ XML2: <b>${drugRules.length}</b>\n• Mã nhóm: <b>${groupCodes.join(", ")}</b>\n• Thời gian: <b>${new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}</b>`;
+        caption = `⚙️ <b>BACKUP CẤU HÌNH TOÀN TRANG — NSN_XMLCHECK</b>\n• Quy tắc DVKT: <b>${serviceRules.length}</b>\n• Thuốc loại trừ XML2: <b>${drugRules.length}</b>\n• DVKT bắt buộc mã máy: <b>${machineRules.length.toLocaleString("vi-VN")}</b>\n• Mã nhóm: <b>${groupCodes.join(", ")}</b>\n• Thời gian: <b>${new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}</b>`;
       }
 
       const blob = new Blob([json], { type: "application/json;charset=utf-8" });
@@ -855,6 +948,7 @@ export function HomePage() {
           <LibraryView
             serviceRules={serviceRules}
             drugRules={drugRules}
+            machineRules={machineRules}
             onSaveServiceRules={handleSaveAllServiceRules}
             onAddServiceRule={async (rule) => {
               const next = [...serviceRules.filter((r) => r.MA_DICH_VU !== rule.MA_DICH_VU), rule];
@@ -865,11 +959,15 @@ export function HomePage() {
             onSaveDrugRules={handleSaveAllDrugRules}
             onAddDrugRule={handleAddExcludedDrug}
             onRemoveDrugRule={handleRemoveDrugRule}
-            onExportBackup={() => exportLibraryBackup(serviceRules, drugRules)}
+            onSaveMachineRules={handleSaveMachineRules}
+            onResetMachineRules={handleResetMachineRules}
+            onAddMachineRule={handleAddMachineRule}
+            onRemoveMachineRule={handleRemoveMachineRule}
+            onExportBackup={() => exportLibraryBackup(serviceRules, drugRules, machineRules)}
             onSendTelegramBackup={() => handleSendTelegramBackup("library")}
             hasTelegramConfig={Boolean(telegramConfig.botToken && telegramConfig.chatId)}
             onExportTemplate={exportLibraryTemplate}
-            onExportToExcel={() => exportLibraryToExcel(serviceRules, drugRules)}
+            onExportToExcel={() => exportLibraryToExcel(serviceRules, drugRules, machineRules)}
             onImportExcel={handleImportExcel}
           />
         )}
@@ -894,11 +992,12 @@ export function HomePage() {
             }}
             onResetColumnsForTab={resetTabColumns}
             onResetAllColumns={resetAllColumns}
-            onExportLibraryBackup={() => exportLibraryBackup(serviceRules, drugRules)}
+            onExportLibraryBackup={() => exportLibraryBackup(serviceRules, drugRules, machineRules)}
             onExportFullBackup={() =>
               exportFullConfigBackup({
                 serviceRules,
                 drugRules,
+                machineRules,
                 groupCodes,
                 telegramConfig,
                 columnsConfig,
@@ -912,12 +1011,18 @@ export function HomePage() {
               if (parsed.type === "library") {
                 handleSaveAllServiceRules(parsed.serviceRules);
                 handleSaveAllDrugRules(parsed.drugRules || []);
+                if (parsed.machineRules) {
+                  handleSaveMachineRules(parsed.machineRules);
+                }
                 setNotice(
-                  `Đã khôi phục thành công ${parsed.serviceRules.length} dịch vụ và ${parsed.drugRules?.length || 0} thuốc vào thư viện.`,
+                  `Đã khôi phục thành công ${parsed.serviceRules.length} dịch vụ, ${parsed.drugRules?.length || 0} thuốc, ${parsed.machineRules?.length || 0} DVKT mã máy vào thư viện.`,
                 );
               } else {
                 handleSaveAllServiceRules(parsed.serviceRules);
                 handleSaveAllDrugRules(parsed.drugRules || []);
+                if (parsed.machineRules) {
+                  handleSaveMachineRules(parsed.machineRules);
+                }
                 if (parsed.groupCodes) setGroupCodes(parsed.groupCodes);
                 if (parsed.telegramConfig) {
                   setTelegramConfig(parsed.telegramConfig);
@@ -927,7 +1032,7 @@ export function HomePage() {
                   saveColsConfig(parsed.columnsConfig);
                 }
                 if (typeof parsed.onlyWarnings === "boolean") setOnlyWarnings(parsed.onlyWarnings);
-                setNotice("Đã khôi phục toàn bộ cấu hình trang và thư viện dịch vụ/thuốc!");
+                setNotice("Đã khôi phục toàn bộ cấu hình trang và thư viện dịch vụ/thuốc/mã máy!");
               }
             }}
             onResetAllDefaults={() => {
@@ -936,10 +1041,12 @@ export function HomePage() {
               ) {
                 localStorage.removeItem(SERVICE_RULES_KEY);
                 localStorage.removeItem(DRUG_RULES_KEY);
+                localStorage.removeItem(MANDATORY_MACHINE_KEY);
                 localStorage.removeItem(TELEGRAM_CONFIG_KEY);
                 localStorage.removeItem(COLUMNS_CONFIG_KEY);
                 setServiceRules([]);
                 setDrugRules([]);
+                setMachineRules([...DEFAULT_MANDATORY_MACHINE_SERVICES]);
                 setGroupCodes([...DEFAULT_GROUP_CODES]);
                 setTelegramConfig({ ...loadTelegramConfig() });
                 setColumnsConfig(getDefaultColumnsConfig());
@@ -1281,6 +1388,12 @@ function CheckerView({
               onClick={() => onSummaryFocus("ttThau")}
             />
             <Metric
+              label="XML3 · MÃ_MÁY"
+              value={filteredRecords.filter((record) => record.hasMaMayWarning).length}
+              tone="rose"
+              onClick={() => onSummaryFocus("maMay")}
+            />
+            <Metric
               label="XML4 · KET_LUAN"
               value={analysis.xml4Warnings.length}
               tone="amber"
@@ -1567,10 +1680,12 @@ function WarningRow({
   const isWarning =
     record.status === "warning" ||
     record.status === "tt-thau-warning" ||
+    record.status === "ma-may-warning" ||
     record.hasOrderWarning ||
     record.hasEqualWarning ||
     record.hasBedWarning ||
     record.hasTtThauWarning ||
+    record.hasMaMayWarning ||
     Boolean(record.hasZ000Warning);
 
   const label = record.hasZ000Warning
@@ -1583,11 +1698,13 @@ function WarningRow({
           ? "GIƯỜNG"
           : record.hasTtThauWarning
             ? "TT_THAU"
-            : record.status === "warning"
-              ? "CB"
-              : record.status === "ok"
-                ? "ĐẠT"
-                : record.status.toUpperCase();
+            : record.hasMaMayWarning
+              ? "MÃ MÁY"
+              : record.status === "warning"
+                ? "CB"
+                : record.status === "ok"
+                  ? "ĐẠT"
+                  : record.status.toUpperCase();
 
   const isVisible = (key: string) => tabCols.visible[key] !== false;
   const colWidth = (key: string, def: number) => ({
@@ -1746,6 +1863,27 @@ function WarningRow({
             <span className="text-slate-800 break-all">{record.TT_THAU}</span>
           ) : (
             <span className="text-rose-600 font-semibold italic">(trống)</span>
+          )}
+        </td>
+      )}
+      {isVisible("maMay") && (
+        <td style={colWidth("maMay", 140)} className="px-3 py-2.5 font-mono text-xs">
+          {record.MA_MAY ? (
+            <span
+              className={
+                record.hasMaMayWarning
+                  ? "text-rose-600 font-bold bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 break-all"
+                  : "text-slate-800 break-all"
+              }
+            >
+              {record.MA_MAY}
+            </span>
+          ) : record.hasMaMayWarning ? (
+            <span className="text-rose-600 font-semibold italic bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+              (trống)
+            </span>
+          ) : (
+            <span className="text-slate-400">—</span>
           )}
         </td>
       )}
@@ -2126,17 +2264,22 @@ function Metric({
 }
 
 // ---------------------------------------------------------------------------
-// LIBRARY VIEW (DEDICATED TAB: SERVICE RULES & DRUG RULES & EXCEL IMPORT)
+// LIBRARY VIEW (DEDICATED TAB: SERVICE RULES & DRUG RULES & MANDATORY MACHINE RULES)
 // ---------------------------------------------------------------------------
 function LibraryView({
   serviceRules,
   drugRules,
+  machineRules,
   onSaveServiceRules,
   onAddServiceRule,
   onRemoveServiceRule,
   onSaveDrugRules,
   onAddDrugRule,
   onRemoveDrugRule,
+  onSaveMachineRules,
+  onResetMachineRules,
+  onAddMachineRule,
+  onRemoveMachineRule,
   onExportBackup,
   onSendTelegramBackup,
   hasTelegramConfig,
@@ -2146,12 +2289,17 @@ function LibraryView({
 }: {
   serviceRules: ServiceRule[];
   drugRules: DrugRule[];
+  machineRules: MachineServiceRule[];
   onSaveServiceRules: (rules: ServiceRule[]) => Promise<void>;
   onAddServiceRule: (rule: ServiceRule) => Promise<void>;
   onRemoveServiceRule: (code: string) => Promise<void>;
   onSaveDrugRules: (rules: DrugRule[]) => Promise<void>;
   onAddDrugRule: (code: string, name: string) => Promise<void>;
   onRemoveDrugRule: (code: string) => Promise<void>;
+  onSaveMachineRules: (rules: MachineServiceRule[]) => Promise<void>;
+  onResetMachineRules: () => Promise<void>;
+  onAddMachineRule: (code: string, name: string) => Promise<void>;
+  onRemoveMachineRule: (code: string) => Promise<void>;
   onExportBackup: () => void;
   onSendTelegramBackup: () => void;
   hasTelegramConfig: boolean;
@@ -2159,7 +2307,7 @@ function LibraryView({
   onExportToExcel: () => Promise<void>;
   onImportExcel: (file: File, mode: "merge" | "overwrite") => Promise<void>;
 }) {
-  const [subTab, setSubTab] = useState<"service" | "drug">("service");
+  const [subTab, setSubTab] = useState<"service" | "drug" | "machine">("service");
 
   // Service rule form state
   const [serviceSearch, setServiceSearch] = useState("");
@@ -2205,6 +2353,25 @@ function LibraryView({
     message: string;
   } | null>(null);
 
+  // Machine rule form state
+  const [machineSearch, setMachineSearch] = useState("");
+  const [newMachineCode, setNewMachineCode] = useState("");
+  const [newMachineName, setNewMachineName] = useState("");
+  const [editingMachineCode, setEditingMachineCode] = useState<string | null>(null);
+  const [editMachineName, setEditMachineName] = useState("");
+  const [machinePage, setMachinePage] = useState(1);
+  const MACHINE_PAGE_SIZE = 50;
+
+  // Machine simulator state
+  const [testMachineServiceCode, setTestMachineServiceCode] = useState("01.0021.0001");
+  const [testMaMayValue, setTestMaMayValue] = useState("HH.3[vaynganhang].SN12345");
+  const [testMachineResult, setTestMachineResult] = useState<{
+    isMandatory: boolean;
+    hasWarning: boolean;
+    warningMessage: string;
+    details: string;
+  } | null>(null);
+
   // Excel Import state
   const [importMode, setImportMode] = useState<"merge" | "overwrite">("merge");
   const excelInputRef = useRef<HTMLInputElement>(null);
@@ -2229,6 +2396,89 @@ function LibraryView({
       (r) => !q || r.MA_THUOC.toLowerCase().includes(q) || r.TEN_THUOC.toLowerCase().includes(q),
     );
   }, [drugRules, drugSearch]);
+
+  const filteredMachines = useMemo(() => {
+    const q = machineSearch.trim().toLowerCase();
+    if (!q) return machineRules;
+    return machineRules.filter(
+      (r) => r.code.toLowerCase().includes(q) || r.name.toLowerCase().includes(q),
+    );
+  }, [machineRules, machineSearch]);
+
+  const totalMachinePages = Math.max(1, Math.ceil(filteredMachines.length / MACHINE_PAGE_SIZE));
+  const pagedMachines = useMemo(() => {
+    const start = (machinePage - 1) * MACHINE_PAGE_SIZE;
+    return filteredMachines.slice(start, start + MACHINE_PAGE_SIZE);
+  }, [filteredMachines, machinePage]);
+
+  const handleAddMachineSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanCode = newMachineCode.trim();
+    if (!cleanCode) return;
+    await onAddMachineRule(cleanCode, newMachineName.trim());
+    setNewMachineCode("");
+    setNewMachineName("");
+  };
+
+  const saveMachineEdit = async () => {
+    if (!editingMachineCode) return;
+    const updated = machineRules.map((r) => {
+      if (r.code.toUpperCase() === editingMachineCode.toUpperCase()) {
+        return {
+          ...r,
+          name: editMachineName.trim(),
+        };
+      }
+      return r;
+    });
+    await onSaveMachineRules(updated);
+    setEditingMachineCode(null);
+  };
+
+  const handleRunMachineTest = (e: React.FormEvent) => {
+    e.preventDefault();
+    const sCode = testMachineServiceCode.trim();
+    const mCode = testMaMayValue.trim();
+
+    const isMandatory = isMandatoryMachineService(sCode, machineRules);
+    let hasWarning = false;
+    let warningMessage = "";
+    let details = "";
+
+    if (isMandatory) {
+      if (!mCode) {
+        hasWarning = true;
+        warningMessage = "CẢNH BÁO: Dịch vụ kỹ thuật bắt buộc gửi kèm mã máy nhưng cột MA_MAY rỗng";
+        details = `Dịch vụ [${sCode}] nằm trong danh mục ${machineRules.length.toLocaleString("vi-VN")} DVKT bắt buộc phải có mã máy (cột 44 XML3). Cột MA_MAY không được để trống.`;
+      } else if (!isValidMaMay(mCode)) {
+        hasWarning = true;
+        warningMessage = `CẢNH BÁO: Mã máy '${mCode}' sai định dạng chuẩn (yêu cầu XX.3[xxx].Z)`;
+        details = `Mã máy phải tuân theo cấu trúc: [Mã nhóm 2-4 ký tự].[3[nguồn kinh phí]].[Serial hoặc mã quản lý]. Ví dụ đúng: HH.3[vaynganhang].SN123, SA.3[xahoihau].MAY01. Nếu ghi XX.2[...].Z hoặc XX.3.xxx.Z là sai.`;
+      } else {
+        warningMessage = "ĐẠT: Mã máy đúng cấu trúc chuẩn và dịch vụ đầy đủ thông tin";
+        details = `Dịch vụ [${sCode}] bắt buộc mã máy; mã máy '${mCode}' hợp lệ theo nguyên tắc XX.3[xxx].Z.`;
+      }
+    } else {
+      if (mCode && !isValidMaMay(mCode)) {
+        hasWarning = true;
+        warningMessage = `CẢNH BÁO: Mã máy '${mCode}' sai định dạng chuẩn (yêu cầu XX.3[xxx].Z)`;
+        details = `Dịch vụ [${sCode}] không nằm trong danh mục bắt buộc, nhưng khi đã khai báo mã máy thì bắt buộc phải đúng nguyên tắc XX.3[xxx].Z.`;
+      } else if (mCode) {
+        warningMessage = "ĐẠT: Mã máy đúng cấu trúc chuẩn (Dịch vụ không bắt buộc)";
+        details = `Dịch vụ [${sCode}] không bắt buộc nhưng mã máy '${mCode}' hợp lệ.`;
+      } else {
+        warningMessage = "ĐẠT: Dịch vụ không bắt buộc mã máy và không có cảnh báo";
+        details = `Dịch vụ [${sCode}] không bắt buộc gửi kèm mã máy.`;
+      }
+    }
+
+    setTestMachineResult({
+      isMandatory,
+      hasWarning,
+      warningMessage,
+      details,
+    });
+  };
 
   const excludedCount = useMemo(
     () => serviceRules.filter((r) => r.maxMinutes === null).length,
@@ -2399,11 +2649,12 @@ function LibraryView({
               Quản lý danh mục & quy tắc
             </div>
             <h2 className="mt-1 text-2xl font-black text-slate-900">
-              Thư viện Dịch vụ kỹ thuật & Thuốc loại trừ XML2
+              Thư viện Quy tắc Nghiệp vụ XML (DVKT, Thuốc &amp; Mã máy)
             </h2>
             <p className="mt-1 text-sm text-slate-500 max-w-2xl">
-              Cấu hình thời gian tối thiểu (mặc định &gt; 0) &amp; tối đa cho từng dịch vụ kỹ thuật,
-              danh mục thuốc loại trừ TT_THAU, hỗ trợ nhập/xuất file Excel mẫu.
+              Cấu hình thời gian tối thiểu/tối đa cho DVKT, danh mục thuốc loại trừ TT_THAU, danh
+              mục DVKT bắt buộc gửi kèm mã máy MA_MAY chuẩn XX.3[xxx].Z, hỗ trợ nhập/xuất file Excel
+              mẫu.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -2417,7 +2668,7 @@ function LibraryView({
             <button
               onClick={onExportToExcel}
               className="rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-sm flex items-center gap-1.5"
-              title="Xuất danh mục DVKT và thuốc hiện có ra file Excel"
+              title="Xuất danh mục DVKT, thuốc và DVKT bắt buộc mã máy ra file Excel"
             >
               <span>📊 Xuất Excel Thư viện</span>
             </button>
@@ -2464,9 +2715,19 @@ function LibraryView({
           >
             💊 Thuốc loại trừ XML2 ({drugRules.length})
           </button>
+          <button
+            onClick={() => setSubTab("machine")}
+            className={`rounded-xl px-4 py-2 text-xs font-bold transition ${
+              subTab === "machine"
+                ? "bg-indigo-600 text-white shadow-sm"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            🔬 DVKT bắt buộc mã máy ({machineRules.length.toLocaleString("vi-VN")})
+          </button>
         </div>
 
-        {subTab === "service" ? (
+        {subTab === "service" && (
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-teal-200 bg-teal-50/50 p-4">
               <div className="text-xs font-bold text-teal-800 uppercase">Tổng quy tắc DVKT</div>
@@ -2490,7 +2751,9 @@ function LibraryView({
               </div>
             </div>
           </div>
-        ) : (
+        )}
+
+        {subTab === "drug" && (
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4">
               <div className="text-xs font-bold text-amber-800 uppercase">
@@ -2513,9 +2776,48 @@ function LibraryView({
             </div>
           </div>
         )}
+
+        {subTab === "machine" && (
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-4">
+              <div className="text-xs font-bold text-indigo-800 uppercase">
+                Tổng DVKT bắt buộc mã máy
+              </div>
+              <div className="mt-1 text-2xl font-black text-indigo-900">
+                {machineRules.length.toLocaleString("vi-VN")}
+              </div>
+              <div className="mt-1 text-xs text-slate-500">
+                Cột 3 MA_DICH_VU trong XML3 đối chiếu cột 44 MA_MAY
+              </div>
+            </div>
+            <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-4">
+              <div className="text-xs font-bold text-rose-800 uppercase">
+                Nguyên tắc chuẩn MA_MAY
+              </div>
+              <div className="mt-1 text-lg font-mono font-bold text-rose-900">XX.3[xxx].Z</div>
+              <div className="mt-1 text-xs text-slate-500">
+                XX (HH, VS, SH, SA...); 3[nguồn]; Z (serial/mã máy)
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 flex flex-col justify-center">
+              <div className="text-xs font-bold text-slate-700">Khôi phục danh mục gốc</div>
+              <div className="mt-1 flex items-center justify-between">
+                <span className="text-xs text-slate-500">3,471 DVKT ban đầu</span>
+                <button
+                  type="button"
+                  onClick={onResetMachineRules}
+                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 shadow-sm"
+                  title="Khôi phục danh mục 3,471 DVKT bắt buộc mã máy ban đầu"
+                >
+                  Khôi phục mặc định
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {subTab === "service" ? (
+      {subTab === "service" && (
         <>
           {/* Grid 2 cột: Thêm mới DVKT & Simulator DVKT */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -2874,7 +3176,9 @@ function LibraryView({
             )}
           </div>
         </>
-      ) : (
+      )}
+
+      {subTab === "drug" && (
         <>
           {/* Grid 2 cột: Thêm mới Thuốc & Simulator Thuốc */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -3075,6 +3379,325 @@ function LibraryView({
                   </tbody>
                 </table>
               </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {subTab === "machine" && (
+        <>
+          {/* Grid 2 cột: Thêm mới DVKT bắt buộc mã máy & Simulator kiểm tra mã máy */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                <span>➕</span> Thêm DVKT bắt buộc gửi kèm mã máy
+              </h3>
+              <p className="mt-1 text-xs text-slate-500">
+                Các dịch vụ trong danh mục này bắt buộc phải gửi kèm cột 44 <code>MA_MAY</code>{" "}
+                trong XML3 theo cấu trúc chuẩn <code>XX.3[xxx].Z</code>.
+              </p>
+              <form onSubmit={handleAddMachineSubmit} className="mt-4 space-y-4 text-xs">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Mã DVKT (MA_DICH_VU) <span className="text-rose-600">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newMachineCode}
+                    onChange={(e) => setNewMachineCode(e.target.value)}
+                    placeholder="VD: 01.0021.0001, 18.0034.0002..."
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-sm font-bold text-slate-900 focus:border-indigo-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Tên dịch vụ kỹ thuật
+                  </label>
+                  <input
+                    type="text"
+                    value={newMachineName}
+                    onChange={(e) => setNewMachineName(e.target.value)}
+                    placeholder="VD: Tổng phân tích tế bào máu, Chụp X-quang tim phổi thẳng..."
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none"
+                  />
+                </div>
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 text-[11px] text-indigo-900">
+                  <div className="font-bold mb-0.5">📌 Lưu ý quy tắc kiểm tra:</div>
+                  <ul className="list-disc pl-4 space-y-0.5 text-slate-600">
+                    <li>
+                      Nếu cột MA_MAY bị rỗng/khoảng trắng: Báo cảnh báo bắt buộc gửi kèm mã máy.
+                    </li>
+                    <li>
+                      Nếu cột MA_MAY có điền: Bắt buộc tuân thủ nguyên tắc <code>XX.3[xxx].Z</code>{" "}
+                      (ví dụ: <code>HH.3[vaynganhang].SN123</code>).
+                    </li>
+                  </ul>
+                </div>
+                <button
+                  type="submit"
+                  className="w-full rounded-xl bg-indigo-600 py-2.5 text-xs font-bold text-white hover:bg-indigo-700 shadow-sm"
+                >
+                  Thêm vào Danh mục Bắt buộc Mã máy
+                </button>
+              </form>
+            </div>
+
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                <span>🔬</span> Kiểm tra thử mã máy (Simulator)
+              </h3>
+              <p className="mt-1 text-xs text-slate-500">
+                Kiểm tra đối chiếu mã DVKT và định dạng chuỗi mã máy theo nguyên tắc{" "}
+                <code>XX.3[xxx].Z</code>.
+              </p>
+              <form onSubmit={handleRunMachineTest} className="mt-4 space-y-4 text-xs">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Mã DVKT cần thử (Cột 3 XML3)
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={testMachineServiceCode}
+                    onChange={(e) => setTestMachineServiceCode(e.target.value)}
+                    placeholder="VD: 01.0021.0001"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-sm font-bold text-slate-900 focus:border-indigo-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Giá trị MA_MAY (Cột 44 XML3)
+                  </label>
+                  <input
+                    type="text"
+                    value={testMaMayValue}
+                    onChange={(e) => setTestMaMayValue(e.target.value)}
+                    placeholder="VD: HH.3[vaynganhang].SN12345 (hoặc để trống để thử)"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-sm text-slate-900 focus:border-indigo-500 focus:outline-none"
+                  />
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    Cấu trúc: <code>[Mã nhóm].[3[nguồn]].[Serial/Mã máy]</code> (ngăn cách bằng{" "}
+                    <code>;</code> nếu nhiều máy).
+                  </p>
+                </div>
+                <button
+                  type="submit"
+                  className="w-full rounded-xl bg-slate-800 py-2.5 text-xs font-bold text-white hover:bg-slate-900 shadow-sm"
+                >
+                  Chạy thử nghiệm kiểm tra
+                </button>
+              </form>
+
+              {testMachineResult && (
+                <div
+                  className={`mt-4 rounded-2xl border p-4 text-xs ${
+                    testMachineResult.hasWarning
+                      ? "border-rose-300 bg-rose-50 text-rose-950"
+                      : "border-emerald-300 bg-emerald-50 text-emerald-950"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <span className="font-bold text-sm flex items-center gap-1.5">
+                      <span>{testMachineResult.hasWarning ? "⚠️" : "✅"}</span>
+                      <span>{testMachineResult.warningMessage}</span>
+                    </span>
+                    <span
+                      className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        testMachineResult.isMandatory
+                          ? "bg-indigo-100 text-indigo-800"
+                          : "bg-slate-200 text-slate-700"
+                      }`}
+                    >
+                      {testMachineResult.isMandatory ? "Bắt buộc mã máy" : "Không bắt buộc"}
+                    </span>
+                  </div>
+                  <p className="leading-relaxed opacity-90">{testMachineResult.details}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Bảng danh sách DVKT bắt buộc mã máy */}
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex flex-col justify-between gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-center">
+              <div>
+                <h3 className="font-bold text-slate-900">
+                  Danh mục DVKT bắt buộc gửi kèm mã máy (
+                  {filteredMachines.length.toLocaleString("vi-VN")} dịch vụ)
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {filteredMachines.length !== machineRules.length &&
+                    `Đang lọc ${filteredMachines.length.toLocaleString("vi-VN")} / ${machineRules.length.toLocaleString("vi-VN")} dịch vụ • `}
+                  Trang {machinePage} / {totalMachinePages} (50 dịch vụ / trang)
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={machineSearch}
+                  onChange={(e) => {
+                    setMachineSearch(e.target.value);
+                    setMachinePage(1);
+                  }}
+                  placeholder="Tìm mã DVKT hoặc tên dịch vụ..."
+                  className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs focus:border-indigo-500 focus:outline-none min-w-[240px]"
+                />
+                <button
+                  type="button"
+                  onClick={onResetMachineRules}
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 shadow-sm"
+                  title="Khôi phục danh mục 3,471 DVKT chuẩn ban đầu"
+                >
+                  Khôi phục gốc
+                </button>
+              </div>
+            </div>
+
+            {filteredMachines.length === 0 ? (
+              <div className="py-12 text-center text-sm text-slate-400">
+                {machineRules.length === 0
+                  ? "Danh mục bắt buộc mã máy hiện đang trống. Bấm [Khôi phục gốc] để nạp lại 3,471 DVKT ban đầu."
+                  : "Không tìm thấy DVKT nào khớp với từ khóa tìm kiếm."}
+              </div>
+            ) : (
+              <>
+                <div className="mt-4 overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-4 py-3 font-bold">STT</th>
+                        <th className="px-4 py-3 font-bold">Mã DVKT (MA_DICH_VU)</th>
+                        <th className="px-4 py-3 font-bold">Tên dịch vụ kỹ thuật</th>
+                        <th className="px-4 py-3 font-bold">Quy tắc mã máy</th>
+                        <th className="px-4 py-3 font-bold text-right">Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pagedMachines.map((rule, idx) => {
+                        const isEditing = editingMachineCode === rule.code;
+                        const absoluteIndex = (machinePage - 1) * MACHINE_PAGE_SIZE + idx + 1;
+                        return (
+                          <tr
+                            key={rule.code}
+                            className={`border-t border-slate-100 ${
+                              isEditing ? "bg-indigo-50/60" : "hover:bg-slate-50"
+                            }`}
+                          >
+                            <td className="px-4 py-3 font-mono text-slate-400">{absoluteIndex}</td>
+                            <td className="px-4 py-3 font-mono font-bold text-indigo-900">
+                              {rule.code}
+                            </td>
+                            <td className="px-4 py-3 font-semibold text-slate-800">
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  value={editMachineName}
+                                  onChange={(e) => setEditMachineName(e.target.value)}
+                                  className="w-full rounded-lg border border-indigo-400 bg-white px-2 py-1 text-xs"
+                                />
+                              ) : (
+                                rule.name || (
+                                  <span className="text-slate-400 italic">(chưa có tên)</span>
+                                )
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="inline-block rounded-full bg-indigo-100 px-2.5 py-0.5 text-[11px] font-bold text-indigo-800">
+                                🔬 Bắt buộc MA_MAY chuẩn XX.3[xxx].Z
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              {isEditing ? (
+                                <div className="flex justify-end gap-1.5">
+                                  <button
+                                    onClick={saveMachineEdit}
+                                    className="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-bold text-white hover:bg-indigo-700"
+                                  >
+                                    Lưu
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingMachineCode(null)}
+                                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                                  >
+                                    Hủy
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex justify-end gap-1.5">
+                                  <button
+                                    onClick={() => {
+                                      setEditingMachineCode(rule.code);
+                                      setEditMachineName(rule.name);
+                                    }}
+                                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                                  >
+                                    Sửa
+                                  </button>
+                                  <button
+                                    onClick={() => onRemoveMachineRule(rule.code)}
+                                    className="rounded-lg border border-rose-200 bg-white px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                                  >
+                                    Xóa
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Phân trang */}
+                {totalMachinePages > 1 && (
+                  <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-100 pt-4 text-xs text-slate-600">
+                    <div>
+                      Hiển thị <b>{(machinePage - 1) * MACHINE_PAGE_SIZE + 1}</b> -{" "}
+                      <b>{Math.min(machinePage * MACHINE_PAGE_SIZE, filteredMachines.length)}</b>{" "}
+                      trong tổng số <b>{filteredMachines.length.toLocaleString("vi-VN")}</b> DVKT
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        disabled={machinePage <= 1}
+                        onClick={() => setMachinePage(1)}
+                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+                      >
+                        Đầu
+                      </button>
+                      <button
+                        type="button"
+                        disabled={machinePage <= 1}
+                        onClick={() => setMachinePage((p) => Math.max(1, p - 1))}
+                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+                      >
+                        Trước
+                      </button>
+                      <span className="px-2 font-bold text-slate-800">
+                        {machinePage} / {totalMachinePages}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={machinePage >= totalMachinePages}
+                        onClick={() => setMachinePage((p) => Math.min(totalMachinePages, p + 1))}
+                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+                      >
+                        Sau
+                      </button>
+                      <button
+                        type="button"
+                        disabled={machinePage >= totalMachinePages}
+                        onClick={() => setMachinePage(totalMachinePages)}
+                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+                      >
+                        Cuối
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </>

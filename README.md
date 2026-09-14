@@ -22,15 +22,16 @@
 | XML2        | Cột 15 `TT_THAU` bắt buộc không được để rỗng (trừ thuốc trong danh mục loại trừ); cảnh báo `XML2. Chi tiết thứ xxx: Thiếu thông tin TT_THAU` |
 | Thuốc XML2  | Cho phép thêm các mã thuốc cần loại trừ khỏi cảnh báo TT_THAU ở XML2 vào Thư viện; có nút bấm loại trừ trực tiếp trên dòng cảnh báo XML2      |
 | XML3        | Khi `MA_NHOM` bằng 10 hoặc 11 (VTYT), bắt buộc cột `TT_THAU` không để rỗng; cảnh báo `XML3: TT_THAU không được để trống khi mã nhóm bằng 10 hoặc 11` |
+| Mã máy XML3 | Cột 44 `MA_MAY` bắt buộc đối với 3,471 DVKT theo danh mục chuẩn (so sánh cột 3 `MA_DICH_VU`); kiểm tra chuẩn `XX.3[xxx].Z` (ngăn cách bằng `;`) |
 | XML4        | Với XML3 `MA_NHOM=2`, đối chiếu `MA_DICH_VU`/`NGAY_KQ`, cảnh báo thiếu `KET_LUAN`/`NGAY_KQ`, kèm mã và tên dịch vụ                             |
 | Giường      | Cảnh báo khi cùng `MA_LK`, `MA_BN` có nhiều hơn một `MA_GIUONG` trong một ngày                                                                 |
 | Tùy biến cột| Tùy chỉnh ẩn/hiện cột và kéo thả viền cột (resizable) trên **TẤT CẢ các tab** (XML1, XML2, XML3, XML4); tự động lưu cấu hình vào localStorage|
-| Thư viện    | Quản lý quy tắc DVKT (thời gian tối thiểu & tối đa) và Thuốc loại trừ XML2 kèm bộ thử nghiệm (Simulator)                                     |
+| Thư viện    | Quản lý quy tắc DVKT (thời gian tối thiểu & tối đa), Thuốc loại trừ XML2 và **3,471 DVKT bắt buộc mã máy** kèm Simulator kiểm tra nhanh      |
 | Excel Import| Hỗ trợ **nhập file Excel** (.xlsx) nạp danh mục thư viện nhanh với 2 chế độ Gộp (Merge) hoặc Ghi đè (Overwrite)                                |
-| Excel Mẫu   | Cho phép tải file Excel mẫu chuẩn (`mau_nhap_thu_vien_nsn_xmlcheck.xlsx`) để dễ dàng nhập liệu và xuất toàn bộ thư viện ra Excel              |
+| Excel Mẫu   | Cho phép tải file Excel mẫu chuẩn 3 sheet (`mau_nhap_thu_vien_nsn_xmlcheck.xlsx`) để dễ dàng nhập liệu và xuất toàn bộ thư viện ra Excel       |
 | Backup      | Xuất file sao lưu Thư viện (.json) hoặc Cấu hình toàn trang (.json); hỗ trợ khôi phục (Restore) trực tiếp từ file backup                       |
 | Telegram    | Cấu hình Bot Token & Chat ID: kiểm tra kết nối, gửi file báo cáo Excel và file backup trực tiếp về kênh Telegram                                |
-| Báo cáo     | Xuất XLSX XML3 gồm `Tóm tắt`, `Chi tiết`, `Nhật ký`; xuất riêng danh sách cảnh báo XML1/XML2/XML4                                             |
+| Báo cáo     | Xuất XLSX XML3 gồm `Tóm tắt`, `Chi tiết`, `Nhật ký` (kèm cột `MA_MAY`); xuất riêng danh sách cảnh báo XML1/XML2/XML4                           |
 | Phát hành   | Bản web portable và single HTML offline                                                                                                        |
 
 ## Cài đặt và chạy

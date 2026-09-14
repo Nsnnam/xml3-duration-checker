@@ -42,11 +42,13 @@ function detailRows(records: Xml3Record[]) {
             ? "GIƯỜNG"
             : record.hasTtThauWarning
               ? "TT_THAU"
-              : record.status === "warning"
-                ? "CB"
-                : record.status === "ok"
-                  ? "Đạt"
-                  : record.status,
+              : record.hasMaMayWarning
+                ? "MÃ MÁY"
+                : record.status === "warning"
+                  ? "CB"
+                  : record.status === "ok"
+                    ? "Đạt"
+                    : record.status,
     MA_LK: record.MA_LK,
     HO_TEN: record.HO_TEN,
     MA_BN: record.MA_BN,
@@ -62,6 +64,7 @@ function detailRows(records: Xml3Record[]) {
     TEN_VAT_TU: record.TEN_VAT_TU,
     MA_NHOM: record.MA_NHOM,
     TT_THAU: record.TT_THAU || "",
+    MA_MAY: record.MA_MAY || "",
     MA_KHOA: record.MA_KHOA,
     MA_GIUONG: record.MA_GIUONG,
     MA_BAC_SI: record.MA_BAC_SI,
@@ -100,6 +103,7 @@ export async function createXml3ReportWorkbook(
           record.hasEqualWarning ||
           record.hasBedWarning ||
           record.hasTtThauWarning ||
+          record.hasMaMayWarning ||
           Boolean(record.hasZ000Warning),
       ).length,
     },
@@ -118,6 +122,10 @@ export async function createXml3ReportWorkbook(
     {
       label: "Cảnh báo XML3 thiếu TT_THAU (nhóm 10/11)",
       value: records.filter((record) => record.hasTtThauWarning).length,
+    },
+    {
+      label: "Cảnh báo XML3 mã máy (MA_MAY)",
+      value: records.filter((record) => record.hasMaMayWarning).length,
     },
     {
       label: "Cảnh báo XML1",

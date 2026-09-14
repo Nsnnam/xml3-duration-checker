@@ -15,6 +15,10 @@ import {
   hasZ000DiseaseCode,
   formatZ000WarningMessage,
   findZ000WarningsInRows,
+  isValidMaMayUnit,
+  isValidMaMay,
+  isMandatoryMachineService,
+  DEFAULT_MANDATORY_MACHINE_SERVICES,
 } from "../src/lib/xml3-duration.ts";
 import { formatXmlDateTime, formatXmlDate } from "../src/lib/timezone.ts";
 import {
@@ -513,6 +517,202 @@ assert.equal(
   "XML 1. Chi tiết thứ 1: Mã bệnh  'Z00.0' là mã khám sức khỏe không được thanh toán BHYT.",
 );
 
+// 15. Kiểm tra quy tắc MA_MAY và Danh mục DVKT bắt buộc mã máy
+// 15.1 Kiểm tra định dạng MA_MAY đơn lẻ và chuỗi
+assert.equal(isValidMaMayUnit("HH.3[vaynganhang].SN12345"), true);
+assert.equal(isValidMaMayUnit("VS.3[xahoihau].MAY01"), true);
+assert.equal(isValidMaMayUnit("SH.3[ngansach].123"), true);
+assert.equal(isValidMaMayUnit("XQ.3[khac].SERIAL-001"), true);
+assert.equal(isValidMaMayUnit("MRI.3[xahoihau].01"), true);
+assert.equal(isValidMaMayUnit("PET.3[vay].999"), true);
+
+// Định dạng sai: không có 3[...]
+assert.equal(isValidMaMayUnit("XX.2[vaynganhang].SN123"), false);
+assert.equal(isValidMaMayUnit("XX.3.vaynganhang.SN123"), false);
+assert.equal(isValidMaMayUnit("SA.1.Z"), false);
+assert.equal(isValidMaMayUnit(""), false);
+assert.equal(isValidMaMayUnit("   "), false);
+assert.equal(isValidMaMayUnit("H.3[vay].SN1"), false); // Prefix < 2 ký tự
+
+// Chuỗi nhiều máy hoặc nhiều serial cách nhau bởi dấu chấm phẩy
+assert.equal(isValidMaMay("HH.3[vaynganhang].SN12345"), true);
+assert.equal(isValidMaMay("XQ.3[khac].SERIAL-001;HH.3[vaynganhang].SN999"), true);
+assert.equal(isValidMaMay("SA.3[nguon].MAY1;MAY2;MAY3"), true);
+assert.equal(isValidMaMay("SA.3[nguon].MAY1; ;MAY3"), false); // Thành phần rỗng
+assert.equal(isValidMaMay("XX.2[nguon].MAY1;MAY2"), false); // Nhánh đầu sai cấu trúc
+
+// 15.2 Kiểm tra danh mục 3,471 DVKT bắt buộc mã máy
+assert.equal(DEFAULT_MANDATORY_MACHINE_SERVICES.length, 3471);
+assert.equal(isMandatoryMachineService("01.0021.0001", DEFAULT_MANDATORY_MACHINE_SERVICES), true);
+assert.equal(isMandatoryMachineService("18.0034.0001", DEFAULT_MANDATORY_MACHINE_SERVICES), true);
+assert.equal(isMandatoryMachineService("1.0021.0001", DEFAULT_MANDATORY_MACHINE_SERVICES), true);
+assert.equal(isMandatoryMachineService("UNKNOWN_CODE", DEFAULT_MANDATORY_MACHINE_SERVICES), false);
+
+// 15.3 Kiểm tra evaluateRecord với DVKT bắt buộc mã máy
+// Case A: Thuộc danh mục bắt buộc nhưng MA_MAY rỗng -> Cảnh báo
+const mandatoryRecordEmptyMaMay = evaluateRecord(
+  {
+    MA_LK: "LK-001",
+    STT: "1",
+    MA_DICH_VU: "01.0021.0001",
+    MA_VAT_TU: "",
+    TEN_DICH_VU: "Dịch vụ bắt buộc mã máy",
+    TEN_VAT_TU: "",
+    MA_NHOM: "2",
+    MA_KHOA: "K01",
+    MA_GIUONG: "",
+    MA_BAC_SI: "BS01",
+    NGUOI_THUC_HIEN: "BS01",
+    MA_BENH: "A00",
+    MA_BENH_YHCT: "",
+    NGAY_YL: "202608280800",
+    NGAY_TH_YL: "202608280810",
+    NGAY_KQ: "202608280830",
+    MA_MAY: "",
+    MA_HIEU_SP: "",
+    TT_THAU: "",
+  },
+  "test.xml",
+);
+assert.equal(mandatoryRecordEmptyMaMay.hasMaMayWarning, true);
+assert.equal(isWarning(mandatoryRecordEmptyMaMay), true);
+assert.ok(
+  mandatoryRecordEmptyMaMay.detail.includes(
+    "XML3: Dịch vụ kỹ thuật bắt buộc gửi kèm mã máy nhưng cột MA_MAY rỗng",
+  ),
+);
+
+// Case B: Thuộc danh mục bắt buộc và MA_MAY sai chuẩn -> Cảnh báo sai chuẩn
+const mandatoryRecordInvalidMaMay = evaluateRecord(
+  {
+    MA_LK: "LK-001",
+    STT: "2",
+    MA_DICH_VU: "01.0021.0001",
+    MA_VAT_TU: "",
+    TEN_DICH_VU: "Dịch vụ bắt buộc mã máy",
+    TEN_VAT_TU: "",
+    MA_NHOM: "2",
+    MA_KHOA: "K01",
+    MA_GIUONG: "",
+    MA_BAC_SI: "BS01",
+    NGUOI_THUC_HIEN: "BS01",
+    MA_BENH: "A00",
+    MA_BENH_YHCT: "",
+    NGAY_YL: "202608280800",
+    NGAY_TH_YL: "202608280810",
+    NGAY_KQ: "202608280830",
+    MA_MAY: "SA.1.MAY01",
+    MA_HIEU_SP: "",
+    TT_THAU: "",
+  },
+  "test.xml",
+);
+assert.equal(mandatoryRecordInvalidMaMay.hasMaMayWarning, true);
+assert.equal(isWarning(mandatoryRecordInvalidMaMay), true);
+assert.ok(
+  mandatoryRecordInvalidMaMay.detail.includes(
+    "XML3: Mã máy 'SA.1.MAY01' sai định dạng chuẩn (yêu cầu XX.3[xxx].Z)",
+  ),
+);
+
+// Case C: Thuộc danh mục bắt buộc và MA_MAY đúng chuẩn -> Hợp lệ
+const mandatoryRecordValidMaMay = evaluateRecord(
+  {
+    MA_LK: "LK-001",
+    STT: "3",
+    MA_DICH_VU: "01.0021.0001",
+    MA_VAT_TU: "",
+    TEN_DICH_VU: "Dịch vụ bắt buộc mã máy",
+    TEN_VAT_TU: "",
+    MA_NHOM: "2",
+    MA_KHOA: "K01",
+    MA_GIUONG: "",
+    MA_BAC_SI: "BS01",
+    NGUOI_THUC_HIEN: "BS01",
+    MA_BENH: "A00",
+    MA_BENH_YHCT: "",
+    NGAY_YL: "202608280800",
+    NGAY_TH_YL: "202608280810",
+    NGAY_KQ: "202608280830",
+    MA_MAY: "HH.3[vaynganhang].SN12345",
+    MA_HIEU_SP: "",
+    TT_THAU: "",
+  },
+  "test.xml",
+);
+assert.equal(mandatoryRecordValidMaMay.hasMaMayWarning, false);
+
+// Case D: Không thuộc danh mục bắt buộc, MA_MAY rỗng -> Hợp lệ
+const nonMandatoryRecordEmptyMaMay = evaluateRecord(
+  {
+    MA_LK: "LK-001",
+    STT: "4",
+    MA_DICH_VU: "NOT_MANDATORY",
+    MA_VAT_TU: "",
+    TEN_DICH_VU: "Dịch vụ thông thường",
+    TEN_VAT_TU: "",
+    MA_NHOM: "2",
+    MA_KHOA: "K01",
+    MA_GIUONG: "",
+    MA_BAC_SI: "BS01",
+    NGUOI_THUC_HIEN: "BS01",
+    MA_BENH: "A00",
+    MA_BENH_YHCT: "",
+    NGAY_YL: "202608280800",
+    NGAY_TH_YL: "202608280810",
+    NGAY_KQ: "202608280830",
+    MA_MAY: "",
+    MA_HIEU_SP: "",
+    TT_THAU: "",
+  },
+  "test.xml",
+);
+assert.equal(nonMandatoryRecordEmptyMaMay.hasMaMayWarning, false);
+
+// Case E: Không thuộc danh mục bắt buộc, nhưng điền MA_MAY sai cấu trúc -> Cảnh báo
+const nonMandatoryRecordInvalidMaMay = evaluateRecord(
+  {
+    MA_LK: "LK-001",
+    STT: "5",
+    MA_DICH_VU: "NOT_MANDATORY",
+    MA_VAT_TU: "",
+    TEN_DICH_VU: "Dịch vụ thông thường",
+    TEN_VAT_TU: "",
+    MA_NHOM: "2",
+    MA_KHOA: "K01",
+    MA_GIUONG: "",
+    MA_BAC_SI: "BS01",
+    NGUOI_THUC_HIEN: "BS01",
+    MA_BENH: "A00",
+    MA_BENH_YHCT: "",
+    NGAY_YL: "202608280800",
+    NGAY_TH_YL: "202608280810",
+    NGAY_KQ: "202608280830",
+    MA_MAY: "MAY-CU-KO-CHUAN",
+    MA_HIEU_SP: "",
+    TT_THAU: "",
+  },
+  "test.xml",
+);
+assert.equal(nonMandatoryRecordInvalidMaMay.hasMaMayWarning, true);
+assert.equal(isWarning(nonMandatoryRecordInvalidMaMay), true);
+assert.ok(
+  nonMandatoryRecordInvalidMaMay.detail.includes(
+    "XML3: Mã máy 'MAY-CU-KO-CHUAN' sai định dạng chuẩn (yêu cầu XX.3[xxx].Z)",
+  ),
+);
+
+// 15.4 Kiểm tra Backup / Restore có machineRules
+const backupWithMachine = createLibraryBackupContent(
+  [],
+  [],
+  [{ code: "01.0021.0001", name: "Dịch vụ mẫu" }],
+);
+const parsedMachineBackup = parseBackupJson(backupWithMachine);
+assert.equal(parsedMachineBackup.type, "library");
+assert.equal(parsedMachineBackup.machineRules?.length, 1);
+assert.equal(parsedMachineBackup.machineRules?.[0].code, "01.0021.0001");
+
 console.log(
-  "All tests passed: XML2/XML3 TT_THAU validation, drug exclusion, chronology, library backup/restore, VN date format, 15 XML tables & Z00.0 validation: OK",
+  "All tests passed: XML2/XML3 TT_THAU validation, drug exclusion, chronology, library backup/restore, VN date format, 15 XML tables, Z00.0 validation & MA_MAY mandatory rules: OK",
 );

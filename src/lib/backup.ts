@@ -1,6 +1,6 @@
 import fileSaver from "file-saver";
 import { formatTimestampForFilename } from "./timezone.ts";
-import type { ServiceRule, DrugRule } from "./xml3-duration.ts";
+import type { ServiceRule, DrugRule, MachineServiceRule } from "./xml3-duration.ts";
 import type { TelegramConfig } from "./telegram.ts";
 
 const saveAs =
@@ -23,6 +23,7 @@ export type FullAppConfig = {
   type: "nsn_xmlcheck_full_config" | "nsn_xmlcheck_library";
   serviceRules: ServiceRule[];
   drugRules?: DrugRule[];
+  machineRules?: MachineServiceRule[];
   groupCodes?: string[];
   telegramConfig?: TelegramConfig;
   columnWidths?: ColumnWidths;
@@ -33,16 +34,19 @@ export type FullAppConfig = {
 export function createLibraryBackupContent(
   serviceRules: ServiceRule[],
   drugRules: DrugRule[] = [],
+  machineRules: MachineServiceRule[] = [],
 ): string {
   const payload = {
-    version: "1.8.0",
+    version: "2.2.0",
     type: "nsn_xmlcheck_library" as const,
     createdAt: new Date().toISOString(),
     serviceItemCount: serviceRules.length,
     drugItemCount: drugRules.length,
-    totalItemCount: serviceRules.length + drugRules.length,
+    machineItemCount: machineRules.length,
+    totalItemCount: serviceRules.length + drugRules.length + machineRules.length,
     serviceRules,
     drugRules,
+    machineRules,
   };
   return JSON.stringify(payload, null, 2);
 }
@@ -50,6 +54,7 @@ export function createLibraryBackupContent(
 export function createFullConfigBackupContent(config: {
   serviceRules: ServiceRule[];
   drugRules?: DrugRule[];
+  machineRules?: MachineServiceRule[];
   groupCodes: string[];
   telegramConfig?: TelegramConfig;
   columnWidths?: ColumnWidths;
@@ -57,11 +62,12 @@ export function createFullConfigBackupContent(config: {
   onlyWarnings?: boolean;
 }): string {
   const payload: FullAppConfig = {
-    version: "1.8.0",
+    version: "2.2.0",
     type: "nsn_xmlcheck_full_config",
     createdAt: new Date().toISOString(),
     serviceRules: config.serviceRules,
     drugRules: config.drugRules ?? [],
+    machineRules: config.machineRules ?? [],
     groupCodes: config.groupCodes,
     telegramConfig: config.telegramConfig,
     columnWidths: config.columnWidths,
@@ -71,16 +77,21 @@ export function createFullConfigBackupContent(config: {
   return JSON.stringify(payload, null, 2);
 }
 
-export function exportLibraryBackup(serviceRules: ServiceRule[], drugRules: DrugRule[] = []): void {
-  const json = createLibraryBackupContent(serviceRules, drugRules);
+export function exportLibraryBackup(
+  serviceRules: ServiceRule[],
+  drugRules: DrugRule[] = [],
+  machineRules: MachineServiceRule[] = [],
+): void {
+  const json = createLibraryBackupContent(serviceRules, drugRules, machineRules);
   const blob = new Blob([json], { type: "application/json;charset=utf-8" });
-  const filename = `${formatTimestampForFilename()}_backup_thu_vien_dvkt_thuoc.json`;
+  const filename = `${formatTimestampForFilename()}_backup_thu_vien_dvkt_thuoc_mamay.json`;
   saveAs(blob, filename);
 }
 
 export function exportFullConfigBackup(config: {
   serviceRules: ServiceRule[];
   drugRules?: DrugRule[];
+  machineRules?: MachineServiceRule[];
   groupCodes: string[];
   telegramConfig?: TelegramConfig;
   columnWidths?: ColumnWidths;
@@ -98,6 +109,7 @@ export type ParsedBackupResult =
       type: "library";
       serviceRules: ServiceRule[];
       drugRules: DrugRule[];
+      machineRules?: MachineServiceRule[];
       createdAt?: string;
       itemCount: number;
     }
@@ -105,6 +117,7 @@ export type ParsedBackupResult =
       type: "full";
       serviceRules: ServiceRule[];
       drugRules: DrugRule[];
+      machineRules?: MachineServiceRule[];
       groupCodes?: string[];
       telegramConfig?: TelegramConfig;
       columnWidths?: ColumnWidths;
@@ -182,12 +195,32 @@ export function parseBackupJson(content: string): ParsedBackupResult {
       excluded: Boolean(item.excluded ?? true),
     }));
 
+  // Parse Machine Rules
+  let rawMachineRules: unknown[] = [];
+  if (Array.isArray(record.machineRules)) {
+    rawMachineRules = record.machineRules;
+  }
+
+  const validMachineRules: MachineServiceRule[] = rawMachineRules
+    .filter(
+      (item): item is Record<string, unknown> =>
+        Boolean(item) &&
+        typeof (item as Record<string, unknown>).code === "string" &&
+        ((item as Record<string, unknown>).code as string).trim().length > 0,
+    )
+    .map((item) => ({
+      code: String(item.code).trim(),
+      name: typeof item.name === "string" ? item.name.trim() : "",
+      originalName: typeof item.originalName === "string" ? item.originalName.trim() : undefined,
+    }));
+
   if (record.type === "nsn_xmlcheck_full_config" || record.groupCodes || record.telegramConfig) {
     const rawTg = record.telegramConfig as Record<string, unknown> | undefined;
     return {
       type: "full",
       serviceRules: validServiceRules,
       drugRules: validDrugRules,
+      machineRules: validMachineRules.length > 0 ? validMachineRules : undefined,
       groupCodes: Array.isArray(record.groupCodes) ? record.groupCodes.map(String) : undefined,
       telegramConfig:
         rawTg && typeof rawTg === "object"
@@ -208,7 +241,7 @@ export function parseBackupJson(content: string): ParsedBackupResult {
           : undefined,
       onlyWarnings: typeof record.onlyWarnings === "boolean" ? record.onlyWarnings : undefined,
       createdAt: typeof record.createdAt === "string" ? record.createdAt : undefined,
-      itemCount: validServiceRules.length + validDrugRules.length,
+      itemCount: validServiceRules.length + validDrugRules.length + validMachineRules.length,
     };
   }
 
@@ -216,7 +249,8 @@ export function parseBackupJson(content: string): ParsedBackupResult {
     type: "library",
     serviceRules: validServiceRules,
     drugRules: validDrugRules,
+    machineRules: validMachineRules.length > 0 ? validMachineRules : undefined,
     createdAt: typeof record.createdAt === "string" ? record.createdAt : undefined,
-    itemCount: validServiceRules.length + validDrugRules.length,
+    itemCount: validServiceRules.length + validDrugRules.length + validMachineRules.length,
   };
 }

@@ -1,3 +1,15 @@
+import {
+  DEFAULT_MANDATORY_MACHINE_SERVICES,
+  type MachineServiceRule,
+} from "./mandatory-machine-services-data.ts";
+
+export type { MachineServiceRule };
+export { DEFAULT_MANDATORY_MACHINE_SERVICES };
+
+export const DEFAULT_MANDATORY_MACHINE_MAP: ReadonlyMap<string, MachineServiceRule> = new Map(
+  DEFAULT_MANDATORY_MACHINE_SERVICES.map((item) => [item.code.trim().toUpperCase(), item]),
+);
+
 export const DURATION_LIMIT_MINUTES = 70;
 export const DEFAULT_GROUP_CODES = ["2", "3", "8", "18"] as const;
 export const GROUP_OPTIONS = [
@@ -65,6 +77,7 @@ export type Xml3Record = {
   hasEqualWarning: boolean;
   hasBedWarning: boolean;
   hasTtThauWarning: boolean;
+  hasMaMayWarning: boolean;
   hasZ000Warning?: boolean;
   orderIssues: string[];
   status:
@@ -73,6 +86,7 @@ export type Xml3Record = {
     | "equal-warning"
     | "bed-warning"
     | "tt-thau-warning"
+    | "ma-may-warning"
     | "ok"
     | "missing"
     | "invalid"
@@ -140,6 +154,7 @@ export type Xml3Analysis = {
   orderWarnings: number;
   bedWarnings: number;
   ttThauWarnings: number;
+  maMayWarnings: number;
   log: string[];
 };
 
@@ -161,6 +176,7 @@ export type BatchAnalysis = {
   orderWarnings: number;
   bedWarnings: number;
   ttThauWarnings: number;
+  maMayWarnings: number;
   dossiers: PatientDossier[];
   dossierMap: Map<string, PatientDossier>;
   patients: Map<string, PatientInfo>;
@@ -631,6 +647,7 @@ function readXml3Records(
   fileName: string,
   patients: Map<string, PatientInfo>,
   serviceRules: ReadonlyMap<string, ServiceRule>,
+  mandatoryMachineRules: ReadonlyMap<string, MachineServiceRule> = DEFAULT_MANDATORY_MACHINE_MAP,
 ): Xml3Record[] {
   const detailTagCandidates = ["CHI_TIET_DVKT", "CHI_TIET_VTYT", "CHI_TIET"];
   let detailElements: Element[] = [];
@@ -655,7 +672,7 @@ function readXml3Records(
     const fields = Object.fromEntries(
       XML3_FIELDS.map((field) => [field, textOf(item, field) || directTextOf(item, field)]),
     ) as Record<Xml3Field, string>;
-    const record = evaluateRecord(fields, fileName, serviceRules);
+    const record = evaluateRecord(fields, fileName, serviceRules, mandatoryMachineRules);
     return withPatientInfo(record, patients);
   });
 }
@@ -765,6 +782,73 @@ function chronologyIssues(fields: Record<Xml3Field, string>): string[] {
   return getChronologyIssues(fields.NGAY_YL, fields.NGAY_TH_YL, fields.NGAY_KQ);
 }
 
+export function isValidMaMayUnit(code: string): boolean {
+  const trimmed = code.trim();
+  if (!trimmed) return false;
+  // Format XX.3[xxx].Z (XX: 2-4 ký tự chữ/số/tiếng Việt, . 3[xxx] ., Z: serial/mã quản lý)
+  const unitRegex = /^[A-Za-zÀ-ỹ0-9]{2,4}\.3\[[^\]\r\n\t]+\]\.[^;\r\n\t]+$/u;
+  return unitRegex.test(trimmed);
+}
+
+export function isValidMaMay(maMay: string): boolean {
+  const trimmed = maMay ? maMay.trim() : "";
+  if (!trimmed) return false;
+
+  const rawParts = trimmed.split(";").map((p) => p.trim());
+  if (rawParts.length === 0 || rawParts.some((p) => !p)) {
+    return false;
+  }
+  const parts = rawParts;
+
+  // Trường hợp 1: Tất cả các phần đều là mã máy hoàn chỉnh XX.3[xxx].Z
+  if (parts.every((p) => isValidMaMayUnit(p))) {
+    return true;
+  }
+
+  // Trường hợp 2: Phần đầu tiên là XX.3[xxx].Z1 và các phần sau là các số serial bổ sung
+  if (isValidMaMayUnit(parts[0])) {
+    const remainingAreSerials = parts.slice(1).every((p) => {
+      // Nếu có ngoặc vuông hoặc chứa pattern nguồn kinh phí (như .2[, .3.), đây là máy riêng biệt bị gõ sai
+      if (p.includes("[") || p.includes("]") || /\.\d/u.test(p)) {
+        return false;
+      }
+      return p.length > 0;
+    });
+    if (remainingAreSerials) return true;
+  }
+
+  return false;
+}
+
+export function normalizeDichVuCode(code: string): string {
+  const clean = (code || "").trim().toUpperCase();
+  if (/^\d\.\d{4}\.\d{4}$/.test(clean)) {
+    return "0" + clean;
+  }
+  return clean;
+}
+
+export function isMandatoryMachineService(
+  maDichVu: string,
+  mandatoryRules:
+    | ReadonlyMap<string, MachineServiceRule>
+    | ReadonlyArray<MachineServiceRule> = DEFAULT_MANDATORY_MACHINE_MAP,
+): boolean {
+  if (!maDichVu || !maDichVu.trim()) return false;
+  const raw = maDichVu.trim().toUpperCase();
+  const normalized = normalizeDichVuCode(raw);
+  if (mandatoryRules instanceof Map) {
+    return mandatoryRules.has(raw) || mandatoryRules.has(normalized);
+  }
+  if (Array.isArray(mandatoryRules)) {
+    return mandatoryRules.some((r) => {
+      const c = r.code.trim().toUpperCase();
+      return c === raw || c === normalized;
+    });
+  }
+  return false;
+}
+
 export function evaluateRecord(
   fields: Record<Xml3Field, string> & {
     MA_BN?: string;
@@ -773,6 +857,9 @@ export function evaluateRecord(
   },
   fileName: string,
   serviceRules: ReadonlyMap<string, ServiceRule> = new Map(),
+  mandatoryMachineRules:
+    | ReadonlyMap<string, MachineServiceRule>
+    | ReadonlyArray<MachineServiceRule> = DEFAULT_MANDATORY_MACHINE_MAP,
 ): Xml3Record {
   const durationMinutes = minutesBetween(fields.NGAY_TH_YL, fields.NGAY_KQ);
   const serviceRule = serviceRules.get(fields.MA_DICH_VU.trim());
@@ -788,6 +875,24 @@ export function evaluateRecord(
   const groupCode = fields.MA_NHOM.trim();
   const isGroup10Or11 = groupCode === "10" || groupCode === "11";
   const hasTtThauWarning = isGroup10Or11 && (!fields.TT_THAU || !fields.TT_THAU.trim());
+
+  const isMandatoryMachine = isMandatoryMachineService(fields.MA_DICH_VU, mandatoryMachineRules);
+  const maMayVal = fields.MA_MAY ? fields.MA_MAY.trim() : "";
+  let hasMaMayWarning = false;
+  let maMayWarningMessage = "";
+
+  if (isMandatoryMachine) {
+    if (!maMayVal) {
+      hasMaMayWarning = true;
+      maMayWarningMessage = "XML3: Dịch vụ kỹ thuật bắt buộc gửi kèm mã máy nhưng cột MA_MAY rỗng";
+    } else if (!isValidMaMay(maMayVal)) {
+      hasMaMayWarning = true;
+      maMayWarningMessage = `XML3: Mã máy '${maMayVal}' sai định dạng chuẩn (yêu cầu XX.3[xxx].Z)`;
+    }
+  } else if (maMayVal && !isValidMaMay(maMayVal)) {
+    hasMaMayWarning = true;
+    maMayWarningMessage = `XML3: Mã máy '${maMayVal}' sai định dạng chuẩn (yêu cầu XX.3[xxx].Z)`;
+  }
 
   let status: Xml3Record["status"] = "ok";
   const details: string[] = [];
@@ -843,6 +948,10 @@ export function evaluateRecord(
     if (status === "ok") status = "tt-thau-warning";
     details.unshift("XML3: TT_THAU không được để trống khi mã nhóm bằng 10 hoặc 11");
   }
+  if (hasMaMayWarning) {
+    if (status === "ok") status = "ma-may-warning";
+    details.unshift(maMayWarningMessage);
+  }
 
   const extraFields = fields as Record<string, string>;
   const hasZ000Warning =
@@ -871,6 +980,7 @@ export function evaluateRecord(
     hasEqualWarning,
     hasBedWarning: false,
     hasTtThauWarning,
+    hasMaMayWarning,
     hasZ000Warning: Boolean(hasZ000Warning),
     orderIssues,
     status,
@@ -886,10 +996,12 @@ export function isWarning(record: Xml3Record): boolean {
   return (
     record.status === "warning" ||
     record.status === "tt-thau-warning" ||
+    record.status === "ma-may-warning" ||
     record.hasOrderWarning ||
     record.hasEqualWarning ||
     record.hasBedWarning ||
     record.hasTtThauWarning ||
+    record.hasMaMayWarning ||
     Boolean(record.hasZ000Warning)
   );
 }
@@ -1127,6 +1239,7 @@ export async function analyzeXml3File(
   sharedPatients = new Map<string, PatientInfo>(),
   serviceRules: ReadonlyMap<string, ServiceRule> = new Map(),
   drugRules: ReadonlyMap<string, DrugRule> = new Map(),
+  mandatoryMachineRules: ReadonlyMap<string, MachineServiceRule> = DEFAULT_MANDATORY_MACHINE_MAP,
 ): Promise<Xml3Analysis> {
   const text = await file.text();
   const outer = parseXml(text, file.name);
@@ -1163,12 +1276,16 @@ export async function analyzeXml3File(
     tableFiles++;
     const content = fileNode.getElementsByTagName("NOIDUNGFILE")[0]?.textContent ?? "";
     const inner = decodeFileContent(content, `${file.name} XML3`);
-    rawRecords.push(...readXml3Records(inner, file.name, patients, serviceRules));
+    rawRecords.push(
+      ...readXml3Records(inner, file.name, patients, serviceRules, mandatoryMachineRules),
+    );
   }
 
   if (!fileNodes.length && outer.getElementsByTagName("CHI_TIET_DVKT").length) {
     tableFiles = 1;
-    rawRecords.push(...readXml3Records(outer, file.name, patients, serviceRules));
+    rawRecords.push(
+      ...readXml3Records(outer, file.name, patients, serviceRules, mandatoryMachineRules),
+    );
   }
   if (!fileNodes.length && outer.getElementsByTagName("CHI_TIET_THUOC").length) {
     xml2Warnings.push(...readXml2Warnings(outer, patients, drugRules));
@@ -1197,9 +1314,10 @@ export async function analyzeXml3File(
   const orderWarnings = records.filter((record) => record.hasOrderWarning).length;
   const bedWarnings = records.filter((record) => record.hasBedWarning).length;
   const ttThauWarnings = records.filter((record) => record.hasTtThauWarning).length;
+  const maMayWarnings = records.filter((record) => record.hasMaMayWarning).length;
 
   log.push(
-    `XML3: ${records.length} dòng; cảnh báo: ${warnings.length}; thứ tự: ${orderWarnings}; giường: ${bedWarnings}; TT_THAU (nhóm 10/11): ${ttThauWarnings}; Z00.0: ${z000Warnings.length}; XML1: ${xml1Warnings.length}; XML2: ${xml2Warnings.length}; XML4: ${xml4Warnings.length}; thiếu thời gian: ${missingTimes}; không hợp lệ: ${invalidTimes}; âm: ${negativeTimes}`,
+    `XML3: ${records.length} dòng; cảnh báo: ${warnings.length}; mã máy: ${maMayWarnings}; thứ tự: ${orderWarnings}; giường: ${bedWarnings}; TT_THAU (nhóm 10/11): ${ttThauWarnings}; Z00.0: ${z000Warnings.length}; XML1: ${xml1Warnings.length}; XML2: ${xml2Warnings.length}; XML4: ${xml4Warnings.length}; thiếu thời gian: ${missingTimes}; không hợp lệ: ${invalidTimes}; âm: ${negativeTimes}`,
   );
   return {
     fileName: file.name,
@@ -1217,6 +1335,7 @@ export async function analyzeXml3File(
     orderWarnings,
     bedWarnings,
     ttThauWarnings,
+    maMayWarnings,
     log,
   };
 }
@@ -1225,6 +1344,7 @@ export async function analyzeXml3Files(
   files: File[],
   serviceRules: ReadonlyArray<ServiceRule> = [],
   drugRules: ReadonlyArray<DrugRule> = [],
+  mandatoryMachineRules: ReadonlyArray<MachineServiceRule> = DEFAULT_MANDATORY_MACHINE_SERVICES,
 ): Promise<BatchAnalysis> {
   const allRecords: Xml3Record[] = [];
   const errors: string[] = [];
@@ -1233,6 +1353,9 @@ export async function analyzeXml3Files(
   const sharedPatients = new Map<string, PatientInfo>();
   const serviceRuleMap = new Map(serviceRules.map((rule) => [rule.MA_DICH_VU.trim(), rule]));
   const drugRuleMap = new Map(drugRules.map((rule) => [rule.MA_THUOC.trim().toUpperCase(), rule]));
+  const mandatoryMachineMap = new Map(
+    mandatoryMachineRules.map((rule) => [rule.code.trim().toUpperCase(), rule]),
+  );
   const xml1Warnings: ValidationWarning[] = [];
   const xml2Warnings: ValidationWarning[] = [];
   const xml3Warnings: ValidationWarning[] = [];
@@ -1364,7 +1487,13 @@ export async function analyzeXml3Files(
         }
       }
 
-      const analysis = await analyzeXml3File(file, sharedPatients, serviceRuleMap, drugRuleMap);
+      const analysis = await analyzeXml3File(
+        file,
+        sharedPatients,
+        serviceRuleMap,
+        drugRuleMap,
+        mandatoryMachineMap,
+      );
       allRecords.push(...analysis.records);
       tableFiles += analysis.tableFiles;
       xml1Warnings.push(...analysis.xml1Warnings);
@@ -1494,6 +1623,7 @@ export async function analyzeXml3Files(
     orderWarnings: allRecords.filter((record) => record.hasOrderWarning).length,
     bedWarnings: allRecords.filter((record) => record.hasBedWarning).length,
     ttThauWarnings: allRecords.filter((record) => record.hasTtThauWarning).length,
+    maMayWarnings: allRecords.filter((record) => record.hasMaMayWarning).length,
     dossiers,
     dossierMap,
     patients: sharedPatients,
