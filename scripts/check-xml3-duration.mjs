@@ -8,6 +8,7 @@ import {
   parseXmlDateTime,
   evaluateRecord,
   isWarning,
+  readXml1Warnings,
   readXml2Warnings,
   ALL_XML_TABLE_KEYS,
   XML_TABLE_META,
@@ -713,6 +714,112 @@ assert.equal(parsedMachineBackup.type, "library");
 assert.equal(parsedMachineBackup.machineRules?.length, 1);
 assert.equal(parsedMachineBackup.machineRules?.[0].code, "01.0021.0001");
 
+// 16. Kiểm tra cảnh báo XML1: SO_CCCD dưới 12 ký tự hoặc sai định dạng
+function createMockXml1Element(maLk, soCccd, maBn = "BN-001", hoTen = "Nguyễn Văn A") {
+  const map = new Map([
+    ["MA_LK", maLk],
+    ["MA_BN", maBn],
+    ["HO_TEN", hoTen],
+    ["SO_CCCD", soCccd],
+  ]);
+  return {
+    tagName: "TONG_HOP",
+    children: Array.from(map.entries()).map(([tag, text]) => ({
+      tagName: tag,
+      textContent: text,
+    })),
+    getElementsByTagName(tag) {
+      const val = map.get(tag);
+      return val !== undefined ? [{ textContent: val }] : [];
+    },
+  };
+}
+
+function createMockXml1ElementWithCccdTag(maLk, cccd, maBn = "BN-002", hoTen = "Trần Thị B") {
+  const map = new Map([
+    ["MA_LK", maLk],
+    ["MA_BN", maBn],
+    ["HO_TEN", hoTen],
+    ["CCCD", cccd],
+  ]);
+  return {
+    tagName: "TONG_HOP",
+    children: Array.from(map.entries()).map(([tag, text]) => ({
+      tagName: tag,
+      textContent: text,
+    })),
+    getElementsByTagName(tag) {
+      const val = map.get(tag);
+      return val !== undefined ? [{ textContent: val }] : [];
+    },
+  };
+}
+
+const mockXml1Doc = {
+  getElementsByTagName(tag) {
+    if (tag === "*") {
+      return [
+        createMockXml1Element("LK-001", "123456789"), // 9 ký tự (CMND cũ) -> Cảnh báo dưới 12 ký tự
+        createMockXml1Element("LK-002", "12345678901"), // 11 ký tự -> Cảnh báo dưới 12 ký tự
+        createMockXml1Element("LK-003", "001234567890"), // 12 ký tự chuẩn -> Hợp lệ, không cảnh báo
+        createMockXml1Element("LK-004", ""), // Rỗng/null -> Bỏ qua, không cảnh báo
+        createMockXml1Element("LK-005", "1234567890123"), // 13 ký tự -> Cảnh báo sai định dạng
+        createMockXml1Element("LK-006", "01234567890A"), // 12 ký tự nhưng có chữ cái -> Cảnh báo sai định dạng
+        createMockXml1ElementWithCccdTag("LK-007", "987654321"), // Thẻ <CCCD> 9 ký tự -> Cảnh báo dưới 12 ký tự
+      ];
+    }
+    return [];
+  },
+};
+
+const xml1Warnings = readXml1Warnings(mockXml1Doc);
+// LK-001, LK-002, LK-005, LK-006, LK-007 phải có cảnh báo (tổng 5 cảnh báo)
+assert.equal(xml1Warnings.length, 5);
+
+// LK-001: 9 ký tự
+const wLk001 = xml1Warnings.find((w) => w.MA_LK === "LK-001");
+assert.ok(wLk001);
+assert.equal(wLk001.MA_DICH_VU, "SO_CCCD");
+assert.equal(wLk001.TEN_DICH_VU, "Số CCCD / Định danh");
+assert.ok(wLk001.message.includes("dưới 12 ký tự"));
+assert.ok(wLk001.message.includes("9 ký tự"));
+assert.ok(wLk001.message.includes("123456789"));
+
+// LK-002: 11 ký tự
+const wLk002 = xml1Warnings.find((w) => w.MA_LK === "LK-002");
+assert.ok(wLk002);
+assert.ok(wLk002.message.includes("dưới 12 ký tự"));
+assert.ok(wLk002.message.includes("11 ký tự"));
+
+// LK-003: 12 ký tự hợp lệ -> Không có cảnh báo
+assert.equal(
+  xml1Warnings.some((w) => w.MA_LK === "LK-003"),
+  false,
+);
+
+// LK-004: Rỗng -> Không có cảnh báo
+assert.equal(
+  xml1Warnings.some((w) => w.MA_LK === "LK-004"),
+  false,
+);
+
+// LK-005: 13 ký tự -> Cảnh báo không đúng định dạng
+const wLk005 = xml1Warnings.find((w) => w.MA_LK === "LK-005");
+assert.ok(wLk005);
+assert.ok(wLk005.message.includes("không đúng định dạng"));
+assert.ok(wLk005.message.includes("1234567890123"));
+
+// LK-006: 12 ký tự nhưng có chữ A -> Cảnh báo không đúng định dạng
+const wLk006 = xml1Warnings.find((w) => w.MA_LK === "LK-006");
+assert.ok(wLk006);
+assert.ok(wLk006.message.includes("không đúng định dạng"));
+assert.ok(wLk006.message.includes("01234567890A"));
+
+// LK-007: Thẻ CCCD 9 ký tự -> Cảnh báo dưới 12 ký tự
+const wLk007 = xml1Warnings.find((w) => w.MA_LK === "LK-007");
+assert.ok(wLk007);
+assert.ok(wLk007.message.includes("dưới 12 ký tự"));
+
 console.log(
-  "All tests passed: XML2/XML3 TT_THAU validation, drug exclusion, chronology, library backup/restore, VN date format, 15 XML tables, Z00.0 validation & MA_MAY mandatory rules: OK",
+  "All tests passed: XML1 CCCD validation, XML2/XML3 TT_THAU validation, drug exclusion, chronology, library backup/restore, VN date format, 15 XML tables, Z00.0 validation & MA_MAY mandatory rules: OK",
 );

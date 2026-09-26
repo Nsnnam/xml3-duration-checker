@@ -4379,7 +4379,11 @@ function GuideView() {
                   "XML3",
                   "Kiểm tra trình tự logic (YL ≤ TH_YL ≤ KQ) và cảnh báo trùng mốc thời gian.",
                 ],
-                ["SO_CCCD", "XML1", "Định dạng 9–12 chữ số."],
+                [
+                  "SO_CCCD",
+                  "XML1",
+                  "Định dạng đủ 12 chữ số (cảnh báo khi trường CCCD có độ dài dưới 12 ký tự hoặc sai định dạng).",
+                ],
                 ["KET_LUAN", "XML4", "Bắt buộc có KET_LUAN khi XML3 có MA_NHOM = 2 (CĐHA)."],
               ].map(([field, position, role]) => (
                 <tr key={`${field}-${position}`} className="border-t border-slate-100">

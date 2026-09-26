@@ -18,7 +18,7 @@
 | Thời lượng  | Tính `NGAY_KQ − NGAY_TH_YL`: cảnh báo khi **thời lượng ≤ 0 phút** (hoặc dưới thời gian tối thiểu) hoặc **> 70 phút** (hoặc vượt tối đa)        |
 | Quy ước Min | Quy ước thời gian tối thiểu mặc định `> 0` phút (tối thiểu 1 phút); cho phép cấu hình ngưỡng tối thiểu riêng theo từng mã dịch vụ kỹ thuật   |
 | Trình tự    | Kiểm tra `NGAY_YL → NGAY_TH_YL → NGAY_KQ` trên mọi mã nhóm; cảnh báo mốc ngược hoặc trùng                                                      |
-| XML1        | Kiểm tra `SO_CCCD` có nội dung phải gồm 9–12 chữ số; đồng thời kiểm tra `MA_DKBD = MA_CSKCB` với `MA_DOITUONG_KCB` khác `1.1`                  |
+| XML1        | Kiểm tra `SO_CCCD` có nội dung phải đủ 12 chữ số (cảnh báo khi dưới 12 ký tự hoặc sai định dạng); đồng thời kiểm tra `MA_DKBD = MA_CSKCB` với `MA_DOITUONG_KCB` khác `1.1` |
 | XML2        | Cột 15 `TT_THAU` bắt buộc không được để rỗng (trừ thuốc trong danh mục loại trừ); cảnh báo `XML2. Chi tiết thứ xxx: Thiếu thông tin TT_THAU` |
 | Thuốc XML2  | Cho phép thêm các mã thuốc cần loại trừ khỏi cảnh báo TT_THAU ở XML2 vào Thư viện; có nút bấm loại trừ trực tiếp trên dòng cảnh báo XML2      |
 | XML3        | Khi `MA_NHOM` bằng 10 hoặc 11 (VTYT), bắt buộc cột `TT_THAU` không để rỗng; cảnh báo `XML3: TT_THAU không được để trống khi mã nhóm bằng 10 hoặc 11` |

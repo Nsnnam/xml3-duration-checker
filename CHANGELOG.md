@@ -1,5 +1,33 @@
 # Changelog
 
+## [2.3.1] — 2026-09-26
+
+- Bổ sung quy tắc kiểm tra cảnh báo trường CCCD (`SO_CCCD` / `CCCD`) trong bảng XML1: cảnh báo khi có độ dài dưới 12 ký tự (ví dụ: số CMND 9 số cũ hoặc nhập thiếu số) hoặc sai định dạng (chuẩn 12 chữ số).
+- Hiển thị rõ mã trường `SO_CCCD` và tên trường `Số CCCD / Định danh` trong bảng cảnh báo XML1 và khi xuất file Excel cảnh báo.
+
+## [2.3.0] — 2026-09-14
+
+- Cải tiến tra cứu hồ sơ bệnh nhân: Nhấn vào badge cảnh báo để hiển thị danh sách các bảng lỗi, tô nổi bật các tab XML có lỗi kèm số lượng lỗi và nút chuyển trực tiếp đến từng bảng XML.
+- Trích xuất Chẩn đoán chính từ cột 26 CHAN_DOAN_RV trong bảng XML1, lấy mã bệnh đầu tiên trước dấu chấm phẩy (;) kèm mô tả.
+- Bỏ popup hover khi di chuột; bổ sung nút nhỏ '👁️ Xem' tại ô trạng thái của dòng cảnh báo để mở modal chi tiết bệnh nhân cố định giữa màn hình, hỗ trợ bôi đen copy văn bản, nút sao chép tóm tắt và mở nhanh hồ sơ 15 bảng.
+- Phân loại cảnh báo theo 8 nhóm màu sắc trực quan (Vượt max, Thiếu min/≤0, Mã máy, TT_THAU, Trình tự/Trùng, Mã Z00.0, Giường, Kết luận XML4) và tích hợp thanh Filter Chips lọc nhanh trên bảng dữ liệu.
+- Khắc phục triệt để thanh cuộn ngang trong bảng tra cứu hồ sơ: loại bỏ container lồng nhau gây trôi scrollbar xuống tận đáy trang; bổ sung thanh cuộn ngang phụ ở đỉnh bảng, nút trượt ngang nhanh (◀ Sang trái / Sang phải ▶) và ghim cố định cột số thứ tự bên trái.
+- Ẩn mặc định lưới 16 thẻ thống kê cồng kềnh phía trên để tối ưu tối đa không gian hiển thị, đưa bảng cảnh báo lên ngay đầu màn hình và tránh trùng lặp thông tin với thanh phân loại lỗi.
+
+## [2.2.0] — 2026-09-14
+
+- Rà soát và kiểm tra bắt buộc mã máy (cột 44 MA_MAY trong Bảng 3 XML3) đối với 3,471 dịch vụ kỹ thuật theo danh mục bắt buộc (so sánh cột 3 MA_DICH_VU).
+- Cảnh báo khi dịch vụ bắt buộc bị để trống cột MA_MAY hoặc sai nguyên tắc chuẩn XX.3[xxx].Z (ví dụ: HH.3[vaynganhang].SN123).
+- Cảnh báo cấu trúc sai đối với dịch vụ không nằm trong danh mục nhưng có khai báo MA_MAY.
+- Tích hợp tab '🔬 DVKT bắt buộc mã máy' trong Thư viện quản lý với Simulator kiểm tra nhanh, phân trang tìm kiếm 3,471 DVKT, thêm/sửa/xóa, khôi phục mặc định, xuất/nhập file Excel 3 sheet đồng bộ và sao lưu JSON.
+- Cập nhật hiển thị cột MA_MAY trong tab cảnh báo XML3, chỉ dẫn badge cảnh báo, metric tổng quan XML3 · MÃ_MÁY, xuất Excel chi tiết và gửi báo cáo Telegram.
+
+## [2.1.0] — 2026-09-14
+
+- Thêm cảnh báo kiểm tra tất cả các cột mã bệnh (MA_BENH, MA_BENH_CHINH, MA_BENH_KT, MA_BENHKEMTHEO, MA_BENH_YHCT...) của tất cả các bảng XML: cảnh báo mã khám sức khỏe Z00.0 không được thanh toán BHYT (định dạng chuẩn: 'XML xx. Chi tiết thứ x: Mã bệnh  'Z00.0' là mã khám sức khỏe không được thanh toán BHYT.').
+- Hỗ trợ hiển thị tab cảnh báo linh hoạt cho tất cả các bảng XML (XML1 đến XML15), tùy chỉnh ẩn/hiện và độ rộng cột đồng bộ.
+- Cập nhật metric tổng quan 'Mã bệnh Z00.0', xuất báo cáo Excel chi tiết và gửi thông báo Telegram bao gồm chỉ tiêu Z00.0.
+
 ## [2.0.0] — 2026-09-14
 
 - Sửa định dạng ngày giờ hiển thị theo chuẩn Việt Nam: `DD/MM/YYYY HH:mm` và `DD/MM/YYYY` (thay vì bị hiển thị đảo `MM/DD/YYYY`).

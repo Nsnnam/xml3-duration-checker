@@ -3,12 +3,20 @@ export const APP_META = {
   title: "NsN_XMLcheck",
   description:
     "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, MA_MAY chuẩn XX.3[xxx].Z, cảnh báo Z00.0 & Hồ sơ 15 bảng BHYT",
-  version: "2.3.0",
-  date: "2026-09-14",
+  version: "2.3.1",
+  date: "2026-09-26",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.3.1",
+      date: "2026-09-26",
+      changes: [
+        "Bổ sung quy tắc kiểm tra cảnh báo trường CCCD (SO_CCCD / CCCD) trong bảng XML1: cảnh báo khi có độ dài dưới 12 ký tự (ví dụ: số CMND 9 số cũ hoặc nhập thiếu số) hoặc sai định dạng (chuẩn 12 chữ số).",
+        "Hiển thị rõ mã trường SO_CCCD và tên trường 'Số CCCD / Định danh' trong bảng cảnh báo XML1 và khi xuất file Excel cảnh báo.",
+      ],
+    },
     {
       version: "2.3.0",
       date: "2026-09-14",

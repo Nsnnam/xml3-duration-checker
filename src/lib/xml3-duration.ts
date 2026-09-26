@@ -579,7 +579,7 @@ export function findZ000WarningsInRows(
   return warnings;
 }
 
-function readXml1Patients(doc: Document): Map<string, PatientInfo> {
+export function readXml1Patients(doc: Document): Map<string, PatientInfo> {
   const patients = new Map<string, PatientInfo>();
   for (const node of Array.from(doc.getElementsByTagName("*"))) {
     const maLk = directTextOf(node, "MA_LK") || textOfGeneral(node, "MA_LK");
@@ -616,7 +616,11 @@ function readXml1Patients(doc: Document): Map<string, PatientInfo> {
         MA_DKBD: directTextOf(node, "MA_DKBD") || textOfGeneral(node, "MA_DKBD"),
         MA_BENH: directTextOf(node, "MA_BENH") || textOfGeneral(node, "MA_BENH"),
         TEN_BENH: directTextOf(node, "TEN_BENH") || textOfGeneral(node, "TEN_BENH"),
-        SO_CCCD: directTextOf(node, "SO_CCCD") || textOfGeneral(node, "SO_CCCD"),
+        SO_CCCD:
+          directTextOf(node, "SO_CCCD") ||
+          textOfGeneral(node, "SO_CCCD") ||
+          directTextOf(node, "CCCD") ||
+          textOfGeneral(node, "CCCD"),
         MA_CSKCB: directTextOf(node, "MA_CSKCB") || textOfGeneral(node, "MA_CSKCB"),
         MA_KHOA: directTextOf(node, "MA_KHOA") || textOfGeneral(node, "MA_KHOA"),
         MA_DOITUONG_KCB:
@@ -657,7 +661,7 @@ function readXml1Patients(doc: Document): Map<string, PatientInfo> {
   return patients;
 }
 
-function readXml1Warnings(
+export function readXml1Warnings(
   doc: Document,
   patients: ReadonlyMap<string, PatientInfo> = new Map(),
 ): ValidationWarning[] {
@@ -667,7 +671,12 @@ function readXml1Warnings(
     .map((node, index) => ({ node, detailIndex: index + 1 }));
 
   rows.forEach(({ node, detailIndex }) => {
-    const value = directTextOf(node, "SO_CCCD") || textOfGeneral(node, "SO_CCCD");
+    const cccdRaw =
+      directTextOf(node, "SO_CCCD") ||
+      textOfGeneral(node, "SO_CCCD") ||
+      directTextOf(node, "CCCD") ||
+      textOfGeneral(node, "CCCD");
+    const value = cccdRaw.trim();
     const maDkbd = directTextOf(node, "MA_DKBD") || textOfGeneral(node, "MA_DKBD");
     const maCskcb = directTextOf(node, "MA_CSKCB") || textOfGeneral(node, "MA_CSKCB");
     const maDoiTuong =
@@ -687,15 +696,28 @@ function readXml1Warnings(
       TEN_DICH_VU: "",
       patient: patient ?? { MA_LK: maLk, MA_BN: maBn, HO_TEN: hoTen },
     };
-    if (value && !/^\d{9,12}$/.test(value)) {
-      warnings.push({
-        ...base,
-        message: `XML 1. Chi tiết thứ ${detailIndex}: SO_CCCD không đúng định dạng. Giá trị sai: ${value}`,
-      });
+    if (value) {
+      if (value.length < 12) {
+        warnings.push({
+          ...base,
+          MA_DICH_VU: "SO_CCCD",
+          TEN_DICH_VU: "Số CCCD / Định danh",
+          message: `XML 1. Chi tiết thứ ${detailIndex}: Trường SO_CCCD dưới 12 ký tự (hiện có ${value.length} ký tự). Giá trị: ${value}`,
+        });
+      } else if (!/^\d{12}$/.test(value)) {
+        warnings.push({
+          ...base,
+          MA_DICH_VU: "SO_CCCD",
+          TEN_DICH_VU: "Số CCCD / Định danh",
+          message: `XML 1. Chi tiết thứ ${detailIndex}: SO_CCCD không đúng định dạng (phải đúng 12 chữ số). Giá trị sai: ${value}`,
+        });
+      }
     }
     if (maDkbd && maCskcb && maDkbd === maCskcb && maDoiTuong !== "1.1") {
       warnings.push({
         ...base,
+        MA_DICH_VU: "MA_DKBD",
+        TEN_DICH_VU: "Nơi ĐK KCB ban đầu",
         message: `XML 1. Chi tiết thứ ${detailIndex}: MA_DKBD phải khác MA_CSKCB cho đối tượng khác 1.1`,
       });
     }
@@ -1564,10 +1586,27 @@ export async function analyzeXml3File(
     xml2Warnings.push(...readXml2Warnings(outer, patients, drugRules));
   }
 
-  const hasOtherXml = fileNodes.some((fileNode) => {
-    const type = fileNode.getElementsByTagName("LOAIHOSO")[0]?.textContent?.trim() ?? "";
-    return type === "XML1" || type === "XML2" || type === "XML4";
-  });
+  const isStandaloneXml1 =
+    !fileNodes.length &&
+    (outer.getElementsByTagName("TONG_HOP").length > 0 ||
+      outer.getElementsByTagName("THONGTINBENHNHAN").length > 0 ||
+      (outer.getElementsByTagName("MA_LK").length > 0 &&
+        !outer.getElementsByTagName("CHI_TIET_DVKT").length &&
+        !outer.getElementsByTagName("CHI_TIET_THUOC").length &&
+        !outer.getElementsByTagName("CHI_TIET_CLS").length));
+
+  if (isStandaloneXml1) {
+    for (const [maLk, patient] of readXml1Patients(outer)) patients.set(maLk, patient);
+    xml1Warnings.push(...readXml1Warnings(outer, patients));
+  }
+
+  const hasOtherXml =
+    fileNodes.some((fileNode) => {
+      const type = fileNode.getElementsByTagName("LOAIHOSO")[0]?.textContent?.trim() ?? "";
+      return type === "XML1" || type === "XML2" || type === "XML4";
+    }) ||
+    isStandaloneXml1 ||
+    (!fileNodes.length && outer.getElementsByTagName("CHI_TIET_THUOC").length > 0);
   if (!tableFiles && !hasOtherXml)
     throw new Error(`${file.name}: không tìm thấy FILEHOSO có LOAIHOSO=XML3`);
 
