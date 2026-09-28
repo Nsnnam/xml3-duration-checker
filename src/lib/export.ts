@@ -33,7 +33,9 @@ function fitColumns(sheet: ExcelJS.Worksheet) {
 function detailRows(records: Xml3Record[]) {
   return records.map((record) => ({
     Trạng_thái: record.hasZ000Warning
-      ? "Z00.0"
+      ? record.detail.includes("Z30.1")
+        ? "Z30.1"
+        : "Z00.0"
       : record.hasOrderWarning
         ? "SAI THỨ TỰ"
         : record.hasEqualWarning
@@ -140,7 +142,7 @@ export async function createXml3ReportWorkbook(
       value: analysis.xml4Warnings.length,
     },
     {
-      label: "Cảnh báo mã bệnh Z00.0",
+      label: "Cảnh báo mã bệnh Z00.0 / Z30.1",
       value: analysis.z000Warnings?.length ?? 0,
     },
     {
@@ -171,7 +173,11 @@ export async function createXml3ReportWorkbook(
   styleSheet(detail);
   for (const row of detail.getRows(2, detail.rowCount) ?? []) {
     const statusVal = String(row.getCell(1).value);
-    if (["CB", "Z00.0", "SAI THỨ TỰ", "TRÙNG MỐC", "GIƯỜNG", "TT_THAU"].includes(statusVal)) {
+    if (
+      ["CB", "Z00.0", "Z30.1", "SAI THỨ TỰ", "TRÙNG MỐC", "GIƯỜNG", "TT_THAU", "MÃ MÁY"].includes(
+        statusVal,
+      )
+    ) {
       row.eachCell(
         (cell) =>
           (cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFDE68A" } }),

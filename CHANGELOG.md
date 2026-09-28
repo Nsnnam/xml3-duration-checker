@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.4.0] — 2026-09-28
+
+- Bổ sung cảnh báo mã bệnh `Z30.1` (Đặt dụng cụ tránh thai): Căn cứ Khoản 10 Điều 23 Luật Bảo hiểm y tế (dịch vụ Kế hoạch hóa gia đình không thuộc phạm vi thanh toán của quỹ BHYT). Tự động rà soát trên tất cả các bảng XML (từ XML1 đến XML15), bao gồm mã bệnh chính, mã bệnh kèm theo, mã bệnh YHCT và cột chẩn đoán văn bản (`CHAN_DOAN_RV`, `CHAN_DOAN_VAO`).
+- Định dạng cảnh báo chuẩn: `XML xx. Chi tiết thứ x: Mã bệnh  'Z30.1' là mã đặt dụng cụ tránh thai (KHHGĐ) không được thanh toán BHYT.`
+- Đồng bộ tích hợp cảnh báo `Z30.1` vào nhóm cảnh báo ICD (`Z00.0 / Z30.1`), thanh lọc Filter Chips, huy hiệu cảnh báo (Badge `Z30.1`), xuất báo cáo Excel chi tiết và thông báo Telegram.
+
 ## [2.3.1] — 2026-09-26
 
 - Bổ sung quy tắc kiểm tra cảnh báo trường CCCD (`SO_CCCD` / `CCCD`) trong bảng XML1: cảnh báo khi có độ dài dưới 12 ký tự (ví dụ: số CMND 9 số cũ hoặc nhập thiếu số) hoặc sai định dạng (chuẩn 12 chữ số).

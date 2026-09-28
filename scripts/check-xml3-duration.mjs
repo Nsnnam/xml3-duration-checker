@@ -14,7 +14,9 @@ import {
   XML_TABLE_META,
   isDiseaseCodeField,
   hasZ000DiseaseCode,
+  hasZ301DiseaseCode,
   formatZ000WarningMessage,
+  formatZ301WarningMessage,
   findZ000WarningsInRows,
   isValidMaMayUnit,
   isValidMaMay,
@@ -461,6 +463,25 @@ assert.equal(
   "XML 5. Chi tiết thứ 10: Mã bệnh  'Z00.0' là mã khám sức khỏe không được thanh toán BHYT.",
 );
 
+// Kiểm tra nhận diện mã bệnh Z30.1
+assert.equal(hasZ301DiseaseCode("Z30.1"), true);
+assert.equal(hasZ301DiseaseCode("Z301"), true);
+assert.equal(hasZ301DiseaseCode("z30.1"), true);
+assert.equal(hasZ301DiseaseCode("I10;Z30.1"), true);
+assert.equal(hasZ301DiseaseCode("Z30.1;E11"), true);
+assert.equal(hasZ301DiseaseCode("Z30.1: Đặt dụng cụ tránh thai"), true);
+assert.equal(hasZ301DiseaseCode("Z30.1 - KHHGĐ"), true);
+assert.equal(hasZ301DiseaseCode("(Z30.1)"), true);
+assert.equal(hasZ301DiseaseCode("Z30.10"), false);
+assert.equal(hasZ301DiseaseCode("Z30"), false);
+assert.equal(hasZ301DiseaseCode(""), false);
+assert.equal(hasZ301DiseaseCode(undefined), false);
+
+assert.equal(
+  formatZ301WarningMessage("XML1", 1),
+  "XML 1. Chi tiết thứ 1: Mã bệnh 'Z30.1' (Đặt dụng cụ tránh thai) không được thanh toán BHYT theo Khoản 10 Điều 23 Luật BHYT (Kế hoạch hóa gia đình).",
+);
+
 // Kiểm tra XML3 evaluateRecord với mã bệnh Z00.0
 const xml3WithZ000 = evaluateRecord(
   {
@@ -715,12 +736,21 @@ assert.equal(parsedMachineBackup.machineRules?.length, 1);
 assert.equal(parsedMachineBackup.machineRules?.[0].code, "01.0021.0001");
 
 // 16. Kiểm tra cảnh báo XML1: SO_CCCD dưới 12 ký tự hoặc sai định dạng
-function createMockXml1Element(maLk, soCccd, maBn = "BN-001", hoTen = "Nguyễn Văn A") {
+function createMockXml1Element(
+  maLk,
+  soCccd,
+  maBn = "BN-001",
+  hoTen = "Nguyễn Văn A",
+  maBenh = "",
+  chanDoanRv = "",
+) {
   const map = new Map([
     ["MA_LK", maLk],
     ["MA_BN", maBn],
     ["HO_TEN", hoTen],
     ["SO_CCCD", soCccd],
+    ["MA_BENH", maBenh],
+    ["CHAN_DOAN_RV", chanDoanRv],
   ]);
   return {
     tagName: "TONG_HOP",
@@ -766,6 +796,23 @@ const mockXml1Doc = {
         createMockXml1Element("LK-005", "1234567890123"), // 13 ký tự -> Cảnh báo sai định dạng
         createMockXml1Element("LK-006", "01234567890A"), // 12 ký tự nhưng có chữ cái -> Cảnh báo sai định dạng
         createMockXml1ElementWithCccdTag("LK-007", "987654321"), // Thẻ <CCCD> 9 ký tự -> Cảnh báo dưới 12 ký tự
+        createMockXml1Element("LK-008", "001234567890", "BN-008", "Nguyễn Thị C", "Z30.1"), // Z30.1 trong MA_BENH
+        createMockXml1Element(
+          "LK-009",
+          "001234567890",
+          "BN-009",
+          "Trần Thị D",
+          "I10",
+          "Z30.1: Đặt dụng cụ tránh thai",
+        ), // Z30.1 trong CHAN_DOAN_RV
+        createMockXml1Element(
+          "LK-010",
+          "001234567890",
+          "BN-010",
+          "Phạm Văn E",
+          "Z00.0",
+          "Z30.1 - KHHGĐ",
+        ), // Cả Z00.0 và Z30.1
       ];
     }
     return [];
@@ -773,8 +820,8 @@ const mockXml1Doc = {
 };
 
 const xml1Warnings = readXml1Warnings(mockXml1Doc);
-// LK-001, LK-002, LK-005, LK-006, LK-007 phải có cảnh báo (tổng 5 cảnh báo)
-assert.equal(xml1Warnings.length, 5);
+// LK-001 (CCCD), LK-002 (CCCD), LK-005 (CCCD), LK-006 (CCCD), LK-007 (CCCD), LK-008 (Z30.1), LK-009 (Z30.1), LK-010 (Z00.0 + Z30.1: 2 warnings) = 9 cảnh báo
+assert.equal(xml1Warnings.length, 9);
 
 // LK-001: 9 ký tự
 const wLk001 = xml1Warnings.find((w) => w.MA_LK === "LK-001");
@@ -820,6 +867,23 @@ const wLk007 = xml1Warnings.find((w) => w.MA_LK === "LK-007");
 assert.ok(wLk007);
 assert.ok(wLk007.message.includes("dưới 12 ký tự"));
 
+// LK-008: Cảnh báo Z30.1 trong MA_BENH
+const wLk008 = xml1Warnings.find((w) => w.MA_LK === "LK-008" && w.MA_DICH_VU === "Z30.1");
+assert.ok(wLk008);
+assert.ok(wLk008.message.includes("Z30.1"));
+assert.ok(wLk008.message.includes("Khoản 10 Điều 23 Luật BHYT"));
+
+// LK-009: Cảnh báo Z30.1 trong CHAN_DOAN_RV
+const wLk009 = xml1Warnings.find((w) => w.MA_LK === "LK-009" && w.MA_DICH_VU === "Z30.1");
+assert.ok(wLk009);
+assert.ok(wLk009.message.includes("Z30.1"));
+
+// LK-010: Có cả cảnh báo Z00.0 và Z30.1
+const wLk010Z000 = xml1Warnings.find((w) => w.MA_LK === "LK-010" && w.MA_DICH_VU === "Z00.0");
+const wLk010Z301 = xml1Warnings.find((w) => w.MA_LK === "LK-010" && w.MA_DICH_VU === "Z30.1");
+assert.ok(wLk010Z000);
+assert.ok(wLk010Z301);
+
 console.log(
-  "All tests passed: XML1 CCCD validation, XML2/XML3 TT_THAU validation, drug exclusion, chronology, library backup/restore, VN date format, 15 XML tables, Z00.0 validation & MA_MAY mandatory rules: OK",
+  "All tests passed: XML1 CCCD validation, Z00.0 & Z30.1 validation, XML2/XML3 TT_THAU validation, drug exclusion, chronology, library backup/restore, VN date format, 15 XML tables & MA_MAY mandatory rules: OK",
 );

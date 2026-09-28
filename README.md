@@ -1,8 +1,8 @@
 # NsN_XMLcheck
 
-**NsN_XMLcheck** là công cụ web độc lập của **Nguyễn Sơn Nam (Nsnnam)** để đọc file XML hồ sơ chứa 15 bảng, giải mã `NOIDUNGFILE` theo Base64, lấy các dòng `CHI_TIET_DVKT` của XML3, kiểm tra cảnh báo thời lượng (thời gian tối thiểu & tối đa) theo `MA_NHOM`, cảnh báo thông tin thầu `TT_THAU` trên XML2 và XML3, hỗ trợ xem hồ sơ 15 bảng XML (XML1–XML15) của từng bệnh nhân, hovercard thông tin bệnh nhân, bộ giao diện kỹ thuật số đẳng cấp & font tiếng Việt Be Vietnam Pro, quản lý thư viện dịch vụ & thuốc loại trừ, nhập/xuất file Excel mẫu danh mục, tùy biến ẩn/hiện và kéo thả độ rộng cột trên toàn bộ các tab, sao lưu backup và gửi báo cáo qua Telegram.
+**NsN_XMLcheck** là công cụ web độc lập của **Nguyễn Sơn Nam (Nsnnam)** để đọc file XML hồ sơ chứa 15 bảng, giải mã `NOIDUNGFILE` theo Base64, lấy các dòng `CHI_TIET_DVKT` của XML3, kiểm tra cảnh báo thời lượng (thời gian tối thiểu & tối đa) theo `MA_NHOM`, cảnh báo thông tin thầu `TT_THAU` trên XML2 và XML3, cảnh báo mã bệnh không được quỹ BHYT chi trả (`Z00.0`, `Z30.1` KHHGĐ), hỗ trợ xem hồ sơ 15 bảng XML (XML1–XML15) của từng bệnh nhân, hovercard thông tin bệnh nhân, bộ giao diện kỹ thuật số đẳng cấp & font tiếng Việt Be Vietnam Pro, quản lý thư viện dịch vụ & thuốc loại trừ, nhập/xuất file Excel mẫu danh mục, tùy biến ẩn/hiện và kéo thả độ rộng cột trên toàn bộ các tab, sao lưu backup và gửi báo cáo qua Telegram.
 
-> Ứng dụng này **không liên quan đến tra cứu hoặc đánh giá mã ICD**. Dữ liệu được xử lý ngay trong trình duyệt và không tải lên máy chủ.
+> Dữ liệu được xử lý hoàn toàn ngay trong trình duyệt của người dùng (Client-Side), cam kết bảo mật và tuyệt đối không tải dữ liệu bệnh nhân lên máy chủ.
 
 ## Tính năng
 
@@ -18,6 +18,7 @@
 | Thời lượng  | Tính `NGAY_KQ − NGAY_TH_YL`: cảnh báo khi **thời lượng ≤ 0 phút** (hoặc dưới thời gian tối thiểu) hoặc **> 70 phút** (hoặc vượt tối đa)        |
 | Quy ước Min | Quy ước thời gian tối thiểu mặc định `> 0` phút (tối thiểu 1 phút); cho phép cấu hình ngưỡng tối thiểu riêng theo từng mã dịch vụ kỹ thuật   |
 | Trình tự    | Kiểm tra `NGAY_YL → NGAY_TH_YL → NGAY_KQ` trên mọi mã nhóm; cảnh báo mốc ngược hoặc trùng                                                      |
+| Cảnh báo ICD| Cảnh báo mã bệnh không được thanh toán BHYT: **`Z00.0`** (khám sức khỏe) và **`Z30.1`** (đặt dụng cụ tránh thai - KHHGĐ theo Khoản 10 Điều 23 Luật BHYT) trên toàn bộ 15 bảng XML |
 | XML1        | Kiểm tra `SO_CCCD` có nội dung phải đủ 12 chữ số (cảnh báo khi dưới 12 ký tự hoặc sai định dạng); đồng thời kiểm tra `MA_DKBD = MA_CSKCB` với `MA_DOITUONG_KCB` khác `1.1` |
 | XML2        | Cột 15 `TT_THAU` bắt buộc không được để rỗng (trừ thuốc trong danh mục loại trừ); cảnh báo `XML2. Chi tiết thứ xxx: Thiếu thông tin TT_THAU` |
 | Thuốc XML2  | Cho phép thêm các mã thuốc cần loại trừ khỏi cảnh báo TT_THAU ở XML2 vào Thư viện; có nút bấm loại trừ trực tiếp trên dòng cảnh báo XML2      |

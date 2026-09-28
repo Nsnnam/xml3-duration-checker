@@ -2,13 +2,22 @@ export const APP_META = {
   name: "NsN_XMLcheck",
   title: "NsN_XMLcheck",
   description:
-    "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, MA_MAY chuẩn XX.3[xxx].Z, cảnh báo Z00.0 & Hồ sơ 15 bảng BHYT",
-  version: "2.3.1",
-  date: "2026-09-26",
+    "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, MA_MAY chuẩn XX.3[xxx].Z, cảnh báo Z00.0/Z30.1 (KHHGĐ) & Hồ sơ 15 bảng BHYT",
+  version: "2.4.0",
+  date: "2026-09-28",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.4.0",
+      date: "2026-09-28",
+      changes: [
+        "Bổ sung cảnh báo mã bệnh Z30.1 (Đặt dụng cụ tránh thai): Căn cứ Khoản 10 Điều 23 Luật Bảo hiểm y tế (dịch vụ Kế hoạch hóa gia đình không thuộc phạm vi thanh toán của quỹ BHYT). Tự động rà soát trên tất cả các bảng XML (từ XML1 đến XML15), bao gồm mã bệnh chính, mã bệnh kèm theo, mã bệnh YHCT và cột chẩn đoán văn bản (CHAN_DOAN_RV, CHAN_DOAN_VAO).",
+        "Định dạng thông báo chuẩn: 'XML xx. Chi tiết thứ x: Mã bệnh  'Z30.1' là mã đặt dụng cụ tránh thai (KHHGĐ) không được thanh toán BHYT.'",
+        "Đồng bộ tích hợp cảnh báo Z30.1 vào nhóm cảnh báo ICD (Z00.0 / Z30.1), thanh lọc Filter Chips, huy hiệu cảnh báo (Badge Z30.1), xuất báo cáo Excel chi tiết và thông báo Telegram.",
+      ],
+    },
     {
       version: "2.3.1",
       date: "2026-09-26",

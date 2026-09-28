@@ -753,7 +753,7 @@ export function HomePage() {
         `• Cảnh báo XML3 (Thiếu TT_THAU): <b>${targetAnalysis.ttThauWarnings}</b>\n` +
         `• Cảnh báo XML3 (Mã máy MA_MAY): <b>${targetAnalysis.maMayWarnings}</b>\n` +
         `• Cảnh báo XML4 (Thiếu KET_LUAN): <b>${targetAnalysis.xml4Warnings.length}</b>\n` +
-        `• Cảnh báo mã bệnh Z00.0: <b>${targetAnalysis.z000Warnings ? targetAnalysis.z000Warnings.length : 0}</b>\n` +
+        `• Cảnh báo mã bệnh Z00.0 / Z30.1: <b>${targetAnalysis.z000Warnings ? targetAnalysis.z000Warnings.length : 0}</b>\n` +
         `• Thời gian: <b>${new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}</b>`;
 
       const result = await sendTelegramDocument(
@@ -1493,7 +1493,7 @@ function CheckerView({
                 onClick={() => onSummaryFocus("xml4")}
               />
               <Metric
-                label="Mã bệnh Z00.0"
+                label="Mã ICD (Z00.0/Z30.1)"
                 value={analysis.z000Warnings ? analysis.z000Warnings.length : 0}
                 tone="rose"
                 onClick={() => onSummaryFocus("z000")}
@@ -1841,7 +1841,9 @@ function WarningRow({
     Boolean(record.hasZ000Warning);
 
   const label = record.hasZ000Warning
-    ? "Z00.0"
+    ? record.detail.includes("Z30.1")
+      ? "Z30.1"
+      : "Z00.0"
     : record.hasOrderWarning
       ? "SAI THỨ TỰ"
       : record.hasEqualWarning
@@ -4383,6 +4385,11 @@ function GuideView() {
                   "SO_CCCD",
                   "XML1",
                   "Định dạng đủ 12 chữ số (cảnh báo khi trường CCCD có độ dài dưới 12 ký tự hoặc sai định dạng).",
+                ],
+                [
+                  "MA_BENH, CHAN_DOAN_RV",
+                  "XML1–XML15",
+                  "Cảnh báo mã bệnh không được thanh toán BHYT: Z00.0 (khám sức khỏe) và Z30.1 (đặt dụng cụ tránh thai - KHHGĐ theo Khoản 10 Điều 23 Luật BHYT).",
                 ],
                 ["KET_LUAN", "XML4", "Bắt buộc có KET_LUAN khi XML3 có MA_NHOM = 2 (CĐHA)."],
               ].map(([field, position, role]) => (
