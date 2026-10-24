@@ -3,12 +3,22 @@ export const APP_META = {
   title: "NsN_XMLcheck",
   description:
     "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, MA_MAY chuẩn XX.3[xxx].Z & trùng thời gian máy, cảnh báo Z00.0/Z30.1 (KHHGĐ) & Hồ sơ 15 bảng BHYT",
-  version: "2.5.0",
+  version: "2.6.0",
   date: "2026-10-24",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.6.0",
+      date: "2026-10-24",
+      changes: [
+        "Tùy chỉnh màu sắc cảnh báo: Bổ sung bảng cấu hình màu sắc riêng biệt cho từng loại/nhóm cảnh báo (12 nhóm: Vượt max, Thiếu min, Trùng máy, Mã máy, TT_THAU, Sai thứ tự, Trùng mốc, Z00.0/Z30.1, Giường, Kết luận XML4, CCCD XML1). Hỗ trợ Color picker trực quan, bảng màu gợi ý nhanh (palette), xem trước badge và lưu trữ bền vững qua localStorage.",
+        "Bộ lọc phân loại lỗi toàn diện: Nâng cấp thanh Filter Chips hiển thị đầy đủ 12 nhóm lỗi, tích hợp swatch màu sắc tùy chỉnh, đếm số lượng lỗi tức thời và hỗ trợ chuyển tab tự động (ví dụ bấm CCCD chuyển XML1, bấm Kết luận chuyển XML4, bấm Z00.0 chuyển XML1/XML3).",
+        "Chi tiết đối chiếu trùng máy trong modal Xem (👁️): Trực quan hóa danh sách các bản ghi bị trùng (phân biệt rõ Cùng bệnh nhân / Khác bệnh nhân, thời điểm thực hiện, họ tên, mã BN, mã LK, tên dịch vụ kỹ thuật, kèm nút mở nhanh hồ sơ 15 bảng).",
+        "Xuất riêng file Excel đối chiếu trùng máy: Bổ sung tính năng xuất file Excel đối chiếu chuyên sâu ('Doi_chieu_trung_ma_may_XML3.xlsx') gồm 2 sheet: Sheet Tóm tắt các máy bị trùng và Sheet Đối chiếu chi tiết (đầy đủ các cột đối soát BHYT, phân biệt Cùng/Khác BN, gom nhóm và tô màu xen kẽ giữa các cụm trùng).",
+      ],
+    },
     {
       version: "2.5.0",
       date: "2026-10-24",

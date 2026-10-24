@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.0] — 2026-10-24
+
+- **Tùy chỉnh màu sắc cảnh báo**: Bổ sung bảng cấu hình màu sắc riêng biệt cho từng loại/nhóm cảnh báo (12 nhóm: Vượt max, Thiếu min, Trùng máy, Mã máy, TT_THAU, Sai thứ tự, Trùng mốc, Z00.0/Z30.1, Giường, Kết luận XML4, CCCD XML1). Hỗ trợ Color picker trực quan, bảng màu gợi ý nhanh (palette), xem trước badge và lưu trữ bền vững qua `localStorage`.
+- **Bộ lọc phân loại lỗi toàn diện**: Nâng cấp thanh Filter Chips hiển thị đầy đủ 12 nhóm lỗi, tích hợp swatch màu sắc tùy chỉnh, đếm số lượng lỗi tức thời và hỗ trợ chuyển tab tự động (bấm CCCD chuyển XML1, bấm Kết luận chuyển XML4, bấm Z00.0 chuyển XML1/XML3, bấm Trùng máy chuyển XML3...).
+- **Chi tiết đối chiếu trùng máy trong modal Xem (👁️)**: Trực quan hóa danh sách các bản ghi bị trùng (phân biệt rõ Cùng bệnh nhân / Khác bệnh nhân, thời điểm thực hiện, họ tên, mã BN, mã LK, tên dịch vụ kỹ thuật, kèm nút mở nhanh hồ sơ 15 bảng).
+- **Xuất riêng file Excel đối chiếu trùng máy**: Bổ sung tính năng xuất file Excel đối chiếu chuyên sâu (`Doi_chieu_trung_ma_may_XML3.xlsx`) gồm 2 sheet: Sheet Tóm tắt các máy bị trùng và Sheet Đối chiếu chi tiết (đầy đủ các cột đối soát BHYT, phân biệt Cùng/Khác BN, gom nhóm và tô màu xen kẽ giữa các cụm trùng).
+
 ## [2.5.0] — 2026-10-24
 
 - Bổ sung rà soát và cảnh báo đối với dữ liệu XML3 bị trùng thời gian trên cùng một mã máy: Cảnh báo `DVKT trùng thời gian thực hiện y lệnh cho một hoặc nhiều người bệnh trên cùng mã máy` khi có từ 2 bản ghi DVKT trở lên có cùng `MA_MAY` và trùng thời điểm `NGAY_TH_YL` (hỗ trợ kiểm tra cross-record và cross-patient/cross-file toàn bộ đợt phân tích).

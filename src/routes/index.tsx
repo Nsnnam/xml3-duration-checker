@@ -1,5 +1,10 @@
 import { useMemo, useState, useRef, useEffect } from "react";
-import { exportWarningList, exportXml3Report, createXml3ReportWorkbook } from "../lib/export.ts";
+import {
+  exportWarningList,
+  exportXml3Report,
+  createXml3ReportWorkbook,
+  exportDuplicateMachineComparisonExcel,
+} from "../lib/export.ts";
 import {
   exportLibraryTemplate,
   exportLibraryToExcel,
@@ -18,6 +23,7 @@ import {
   getXml3RecordCategory,
   getValidationWarningCategory,
   WARNING_CATEGORY_CONFIG,
+  loadWarningColors,
   type BatchAnalysis,
   type Xml3Record,
   type ServiceRule,
@@ -26,6 +32,7 @@ import {
   type ValidationWarning,
   type WarningCategory,
 } from "../lib/xml3-duration.ts";
+import { WarningColorModal } from "../lib/warning-color-modal.tsx";
 import {
   loadTelegramConfig,
   saveTelegramConfig,
@@ -249,6 +256,7 @@ type SummaryFocus =
   | "bed"
   | "ttThau"
   | "maMay"
+  | "dupMachine"
   | "z000"
   | "missing"
   | "invalid"
@@ -280,6 +288,9 @@ export function HomePage() {
   const [detailModalData, setDetailModalData] = useState<HoverCardData | null>(null);
   const [selectedDossierMaLk, setSelectedDossierMaLk] = useState<string | null>(null);
   const [warningCategoryFilter, setWarningCategoryFilter] = useState<WarningCategory>("all");
+  const [warningColors, setWarningColors] =
+    useState<Record<WarningCategory, string>>(loadWarningColors);
+  const [showColorModal, setShowColorModal] = useState(false);
 
   useEffect(() => {
     applyThemeAndFont(theme, font);
@@ -290,6 +301,27 @@ export function HomePage() {
     setView("dossier");
     setDetailModalData(null);
   };
+
+  async function handleExportDuplicateMachine() {
+    if (!analysis || !analysis.records.length) {
+      setNotice("Chưa có kết quả phân tích để xuất đối chiếu.");
+      return;
+    }
+    const hasDups = analysis.records.some((r) => r.hasDuplicateMachineWarning);
+    if (!hasDups) {
+      setNotice("Không có bản ghi nào bị trùng thời gian trên mã máy để xuất đối chiếu.");
+      return;
+    }
+    try {
+      setNotice("Đang tạo file Excel đối chiếu trùng mã máy...");
+      await exportDuplicateMachineComparisonExcel(analysis.records, analysis.patients);
+      setNotice("✅ Đã xuất file Excel đối chiếu trùng mã máy thành công!");
+    } catch (error) {
+      setNotice(
+        `❌ Lỗi xuất file đối chiếu: ${error instanceof Error ? error.message : "Không xác định"}`,
+      );
+    }
+  }
 
   // Lưu columnsConfig vào localStorage khi thay đổi
   const saveColsConfig = (next: AllTabsColumnConfig) => {
@@ -368,6 +400,7 @@ export function HomePage() {
               record.hasBedWarning ||
               record.hasTtThauWarning ||
               record.hasMaMayWarning ||
+              record.hasDuplicateMachineWarning ||
               Boolean(record.hasZ000Warning);
             const query = patientQuery.trim().toLocaleLowerCase("vi-VN");
             const matchesPatient =
@@ -388,11 +421,13 @@ export function HomePage() {
           record.status === "warning" ||
           record.status === "tt-thau-warning" ||
           record.status === "ma-may-warning" ||
+          record.status === "duplicate-machine-warning" ||
           record.hasOrderWarning ||
           record.hasEqualWarning ||
           record.hasBedWarning ||
           record.hasTtThauWarning ||
           record.hasMaMayWarning ||
+          record.hasDuplicateMachineWarning ||
           Boolean(record.hasZ000Warning),
       ),
     [filteredRecords],
@@ -405,6 +440,8 @@ export function HomePage() {
     else if (summaryFocus === "bed") source = source.filter((record) => record.hasBedWarning);
     else if (summaryFocus === "ttThau") source = source.filter((record) => record.hasTtThauWarning);
     else if (summaryFocus === "maMay") source = source.filter((record) => record.hasMaMayWarning);
+    else if (summaryFocus === "dupMachine")
+      source = source.filter((record) => record.hasDuplicateMachineWarning);
     else if (summaryFocus === "z000") source = source.filter((record) => record.hasZ000Warning);
     else if (summaryFocus === "missing")
       source = source.filter((record) => record.status === "missing");
@@ -438,6 +475,7 @@ export function HomePage() {
       else if (focus === "bed") setWarningCategoryFilter("bed");
       else if (focus === "ttThau") setWarningCategoryFilter("ttThau");
       else if (focus === "maMay") setWarningCategoryFilter("maMay");
+      else if (focus === "dupMachine") setWarningCategoryFilter("dupMachine");
       else if (focus === "missing" || focus === "invalid" || focus === "negative")
         setWarningCategoryFilter("underMin");
       else if (focus === "warnings") setWarningCategoryFilter("all");
@@ -953,6 +991,9 @@ export function HomePage() {
             onWarningCategoryFilterChange={setWarningCategoryFilter}
             onOpenDetail={setDetailModalData}
             onOpenDossier={handleOpenDossier}
+            warningColors={warningColors}
+            onOpenColorModal={() => setShowColorModal(true)}
+            onExportDuplicateMachine={handleExportDuplicateMachine}
           />
         )}
 
@@ -1128,6 +1169,19 @@ export function HomePage() {
         />
       )}
 
+      {/* Modal Tùy chỉnh màu sắc cảnh báo */}
+      {showColorModal && (
+        <WarningColorModal
+          isOpen={showColorModal}
+          onClose={() => setShowColorModal(false)}
+          currentColors={warningColors}
+          onSaveColors={(newColors) => {
+            setWarningColors(newColors);
+            setNotice("Đã cập nhật bảng màu sắc cảnh báo!");
+          }}
+        />
+      )}
+
       <footer className="border-t border-slate-200 bg-white px-4 py-4 text-center text-xs text-slate-500">
         v{APP_META.version} · {APP_META.author} ·{" "}
         <button className="text-teal-700 underline" onClick={() => setView("support")}>
@@ -1178,6 +1232,9 @@ function CheckerView({
   onWarningCategoryFilterChange,
   onOpenDetail,
   onOpenDossier,
+  warningColors,
+  onOpenColorModal,
+  onExportDuplicateMachine,
 }: {
   files: File[];
   analysis: BatchAnalysis | null;
@@ -1219,6 +1276,9 @@ function CheckerView({
   onWarningCategoryFilterChange: (cat: WarningCategory) => void;
   onOpenDetail: (data: HoverCardData) => void;
   onOpenDossier: (maLk: string) => void;
+  warningColors: Record<WarningCategory, string>;
+  onOpenColorModal: () => void;
+  onExportDuplicateMachine: () => void;
 }) {
   const categoryCounts = useMemo(() => {
     const list = onlyWarnings ? filteredWarnings : filteredRecords;
@@ -1226,12 +1286,15 @@ function CheckerView({
       all: list.length,
       overMax: 0,
       underMin: 0,
+      dupMachine: 0,
       maMay: 0,
       ttThau: 0,
       order: 0,
+      equal: 0,
       z000: 0,
       bed: 0,
       ketLuan: 0,
+      cccd: 0,
     };
     for (const r of list) {
       const cat = getXml3RecordCategory(r);
@@ -1244,6 +1307,12 @@ function CheckerView({
     }
     if (analysis?.xml4Warnings) {
       counts.ketLuan = analysis.xml4Warnings.length;
+    }
+    if (analysis?.xml1Warnings) {
+      const cccdCount = analysis.xml1Warnings.filter(
+        (w) => w.message.includes("CCCD") || w.message.includes("12 ký tự"),
+      ).length;
+      counts.cccd = cccdCount;
     }
     return counts;
   }, [onlyWarnings, filteredWarnings, filteredRecords, analysis]);
@@ -1493,7 +1562,7 @@ function CheckerView({
                 label="Trùng máy XML3"
                 value={filteredRecords.filter((record) => record.hasDuplicateMachineWarning).length}
                 tone="rose"
-                onClick={() => onSummaryFocus("maMay")}
+                onClick={() => onSummaryFocus("dupMachine")}
               />
               <Metric
                 label="XML4 · KET_LUAN"
@@ -1579,6 +1648,22 @@ function CheckerView({
                     Chỉ cảnh báo
                   </label>
                 )}
+                {alertTab === "XML3" && onExportDuplicateMachine && (
+                  <button
+                    type="button"
+                    onClick={onExportDuplicateMachine}
+                    disabled={!categoryCounts.dupMachine}
+                    className="rounded-lg border border-indigo-300 bg-indigo-50 px-2.5 py-1.5 text-xs font-bold text-indigo-800 hover:bg-indigo-100 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm flex items-center gap-1.5"
+                    title="Xuất riêng file Excel đối chiếu chi tiết các dịch vụ trùng thời gian trên cùng mã máy"
+                  >
+                    <span>📑 Xuất đối chiếu trùng máy</span>
+                    {categoryCounts.dupMachine > 0 && (
+                      <span className="rounded-full bg-indigo-600 px-1.5 py-0.2 text-[10px] font-black text-white">
+                        {categoryCounts.dupMachine}
+                      </span>
+                    )}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={onOpenColumnModal}
@@ -1631,58 +1716,97 @@ function CheckerView({
             </div>
 
             {/* Thanh Filter Chips phân loại cảnh báo theo màu sắc */}
-            <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50/50 px-5 py-2.5 md:px-6">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mr-1 flex items-center gap-1">
-                <span>🏷️</span> Phân loại lỗi:
-              </span>
-              {(
-                [
-                  "all",
-                  "overMax",
-                  "underMin",
-                  "maMay",
-                  "ttThau",
-                  "order",
-                  "z000",
-                  "bed",
-                ] as WarningCategory[]
-              ).map((catKey) => {
-                const cfg = WARNING_CATEGORY_CONFIG[catKey];
-                const count = categoryCounts[catKey] ?? 0;
-                const isActive = warningCategoryFilter === catKey;
-                return (
-                  <button
-                    key={catKey}
-                    type="button"
-                    onClick={() => {
-                      if (alertTab !== "XML3" && catKey !== "z000") {
-                        onAlertTabChange("XML3");
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/50 px-5 py-2.5 md:px-6">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mr-1 flex items-center gap-1">
+                  <span>🏷️</span> Phân loại lỗi:
+                </span>
+                {(
+                  [
+                    "all",
+                    "overMax",
+                    "underMin",
+                    "dupMachine",
+                    "maMay",
+                    "ttThau",
+                    "order",
+                    "equal",
+                    "z000",
+                    "bed",
+                    "ketLuan",
+                    "cccd",
+                  ] as WarningCategory[]
+                ).map((catKey) => {
+                  const cfg = WARNING_CATEGORY_CONFIG[catKey];
+                  const count = categoryCounts[catKey] ?? 0;
+                  const isActive = warningCategoryFilter === catKey;
+                  const customColor = warningColors?.[catKey] || cfg.defaultColor;
+                  return (
+                    <button
+                      key={catKey}
+                      type="button"
+                      onClick={() => {
+                        if (catKey === "cccd") {
+                          onAlertTabChange("XML1");
+                        } else if (catKey === "ketLuan") {
+                          onAlertTabChange("XML4");
+                        } else if (catKey === "z000") {
+                          if (analysis?.z000Warnings && analysis.z000Warnings.length > 0) {
+                            onAlertTabChange(analysis.z000Warnings[0].source);
+                          } else {
+                            onAlertTabChange("XML1");
+                          }
+                        } else if (catKey !== "all" && alertTab !== "XML3") {
+                          onAlertTabChange("XML3");
+                        }
+                        onWarningCategoryFilterChange(
+                          isActive && catKey !== "all" ? "all" : catKey,
+                        );
+                      }}
+                      style={
+                        isActive && catKey !== "all"
+                          ? {
+                              backgroundColor: customColor,
+                              borderColor: customColor,
+                              color: "#ffffff",
+                            }
+                          : undefined
                       }
-                      if (
-                        catKey === "z000" &&
-                        analysis?.z000Warnings &&
-                        analysis.z000Warnings.length > 0
-                      ) {
-                        onAlertTabChange(analysis.z000Warnings[0].source);
-                      }
-                      onWarningCategoryFilterChange(isActive && catKey !== "all" ? "all" : catKey);
-                    }}
-                    className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold transition shadow-xs ${
-                      isActive ? cfg.activeChipClass : cfg.chipClass
-                    }`}
-                  >
-                    <span>{cfg.icon}</span>
-                    <span>{cfg.label}</span>
-                    <span
-                      className={`rounded-full px-1.5 py-0.2 text-[10px] font-black ${
-                        isActive ? "bg-white/25 text-white" : "bg-black/5 text-slate-700"
+                      className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold transition shadow-xs ${
+                        isActive
+                          ? catKey === "all"
+                            ? "bg-slate-800 text-white border-slate-800 shadow-sm"
+                            : ""
+                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                       }`}
                     >
-                      {count.toLocaleString("vi-VN")}
-                    </span>
-                  </button>
-                );
-              })}
+                      {catKey !== "all" && !isActive && (
+                        <span
+                          className="inline-block h-2.5 w-2.5 rounded-full shrink-0 border border-black/10"
+                          style={{ backgroundColor: customColor }}
+                        />
+                      )}
+                      <span>{cfg.icon}</span>
+                      <span>{cfg.label}</span>
+                      <span
+                        className={`rounded-full px-1.5 py-0.2 text-[10px] font-black ${
+                          isActive ? "bg-white/25 text-white" : "bg-black/5 text-slate-700"
+                        }`}
+                      >
+                        {count.toLocaleString("vi-VN")}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                onClick={onOpenColorModal}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-purple-300 bg-purple-50 px-2.5 py-1 text-xs font-bold text-purple-800 hover:bg-purple-100 shadow-xs transition shrink-0"
+                title="Tùy chỉnh màu sắc riêng cho từng loại cảnh báo"
+              >
+                <span>🎨 Đổi màu cảnh báo</span>
+              </button>
             </div>
 
             {alertTab === "XML3" ? (
@@ -1719,6 +1843,7 @@ function CheckerView({
                           onAddServiceRule={onAddServiceRule}
                           onOpenDetail={onOpenDetail}
                           onOpenDossier={onOpenDossier}
+                          warningColors={warningColors}
                         />
                       ))}
                     </tbody>
@@ -1728,13 +1853,20 @@ function CheckerView({
             ) : (
               <ValidationTable
                 source={alertTab}
-                warnings={xmlWarnings[alertTab] || []}
+                warnings={
+                  warningCategoryFilter === "all"
+                    ? xmlWarnings[alertTab] || []
+                    : (xmlWarnings[alertTab] || []).filter(
+                        (w) => getValidationWarningCategory(w) === warningCategoryFilter,
+                      )
+                }
                 tabCols={currentTabCols}
                 onUpdateColumnWidth={onUpdateColumnWidth}
                 onExport={() => onExportWarnings(alertTab, xmlWarnings[alertTab] || [])}
                 onAddExcludedDrug={onAddExcludedDrug}
                 onOpenDetail={onOpenDetail}
                 onOpenDossier={onOpenDossier}
+                warningColors={warningColors}
               />
             )}
           </section>
@@ -1824,6 +1956,7 @@ function WarningRow({
   onAddServiceRule,
   onOpenDetail,
   onOpenDossier,
+  warningColors,
 }: {
   record: Xml3Record;
   tabCols: TabColumnState;
@@ -1834,9 +1967,11 @@ function WarningRow({
   ) => void;
   onOpenDetail?: (data: HoverCardData) => void;
   onOpenDossier?: (maLk: string) => void;
+  warningColors?: Record<WarningCategory, string>;
 }) {
   const cat = getXml3RecordCategory(record);
   const catMeta = WARNING_CATEGORY_CONFIG[cat];
+  const customColor = warningColors?.[cat] || catMeta.defaultColor;
 
   const isWarning =
     record.status === "warning" ||
@@ -1890,8 +2025,16 @@ function WarningRow({
         <td style={colWidth("status", 85)} className="px-3 py-2.5 text-center">
           <span
             className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-tight ${
-              isWarning ? catMeta.badgeClass : "bg-slate-100 text-slate-600"
+              isWarning ? "" : "bg-slate-100 text-slate-600"
             }`}
+            style={
+              isWarning
+                ? {
+                    backgroundColor: customColor,
+                    color: "#ffffff",
+                  }
+                : undefined
+            }
           >
             {label}
           </span>
@@ -2139,6 +2282,7 @@ function ValidationTable({
   onAddExcludedDrug,
   onOpenDetail,
   onOpenDossier,
+  warningColors,
 }: {
   source: AlertTab;
   warnings: ValidationWarning[];
@@ -2148,6 +2292,7 @@ function ValidationTable({
   onAddExcludedDrug: (code: string, name: string) => void;
   onOpenDetail?: (data: HoverCardData) => void;
   onOpenDossier?: (maLk: string) => void;
+  warningColors?: Record<WarningCategory, string>;
 }) {
   const isVisible = (key: string) => tabCols.visible[key] !== false;
   const colWidth = (key: string, def: number) => ({
@@ -2199,6 +2344,7 @@ function ValidationTable({
               {warnings.map((warning, index) => {
                 const warningCat = getValidationWarningCategory(warning);
                 const warningCatMeta = WARNING_CATEGORY_CONFIG[warningCat];
+                const customColor = warningColors?.[warningCat] || warningCatMeta.defaultColor;
                 return (
                   <tr
                     key={`${source}-${warning.MA_LK}-${warning.detailIndex}-${index}`}
@@ -2348,7 +2494,8 @@ function ValidationTable({
                       >
                         <div className="mb-1 flex items-center gap-1.5">
                           <span
-                            className={`inline-block rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-tight ${warningCatMeta.badgeClass}`}
+                            className="inline-block rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-tight text-white"
+                            style={{ backgroundColor: customColor }}
                           >
                             {warningCatMeta.badgeText}
                           </span>

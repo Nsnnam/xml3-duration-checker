@@ -476,6 +476,73 @@ export function PatientHoverCard({
           </div>
         )}
 
+        {/* Chi tiết đối chiếu trùng mã máy */}
+        {record?.duplicateMachineInfo && record.duplicateMachineInfo.length > 0 && (
+          <div className="mt-3 rounded-2xl border border-indigo-300 dark:border-indigo-800 bg-indigo-50/90 dark:bg-indigo-950/40 p-3.5 space-y-2.5">
+            <div className="text-[11px] font-black uppercase tracking-wider text-indigo-900 dark:text-indigo-200 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <span>⚡</span> Chi tiết đối chiếu trùng mã máy
+              </span>
+              <span className="rounded-md bg-indigo-700 text-white px-2 py-0.5 text-[10px] font-black">
+                {record.duplicateMachineInfo.length} bản ghi bị trùng
+              </span>
+            </div>
+            <div className="space-y-2 max-h-56 overflow-y-auto">
+              {record.duplicateMachineInfo.map((peer, idx) => (
+                <div
+                  key={`${peer.peerMaLk}-${peer.peerStt}-${idx}`}
+                  className="rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-white dark:bg-slate-900 p-2.5 text-xs space-y-1"
+                >
+                  <div className="flex items-center justify-between gap-1 flex-wrap">
+                    <span
+                      className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-black uppercase ${
+                        peer.isSamePatient
+                          ? "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300"
+                          : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
+                      }`}
+                    >
+                      {peer.isSamePatient ? "Cùng bệnh nhân" : "Khác bệnh nhân"}
+                    </span>
+                    <span className="font-mono text-[11px] font-bold text-slate-500">
+                      Thời điểm:{" "}
+                      <b className="text-indigo-900 dark:text-indigo-200">{peer.timeDisplay}</b>
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 pt-0.5">
+                    <div>
+                      <span className="font-bold text-slate-800 dark:text-slate-100">
+                        {peer.peerHoTen || "Bệnh nhân khác"}
+                      </span>
+                      <span className="font-mono text-[11px] text-slate-500 ml-1.5">
+                        (Mã BN: {peer.peerMaBn || "—"} · LK: {peer.peerMaLk})
+                      </span>
+                    </div>
+                    {peer.peerMaLk && peer.peerMaLk !== maLk && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose();
+                          onOpenDossier(peer.peerMaLk);
+                        }}
+                        className="rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 text-[10px] font-bold cursor-pointer transition whitespace-nowrap"
+                        title="Chuyển đến xem hồ sơ bệnh nhân bị trùng này"
+                      >
+                        🔍 Xem hồ sơ BN này
+                      </button>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-slate-600 dark:text-slate-300">
+                    Dịch vụ: <b>{peer.peerDichVu}</b> (Mã: {peer.peerMaDichVu} · STT {peer.peerStt})
+                  </div>
+                  <div className="text-[10px] font-mono text-indigo-600 dark:text-indigo-400">
+                    Mã máy: <b>{peer.machineCode}</b>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Chi tiết nội dung cảnh báo */}
         {warningMessage && (
           <div className="mt-3 rounded-2xl border border-rose-300 dark:border-rose-900/60 bg-rose-50/90 dark:bg-rose-950/40 p-3.5 text-rose-950 dark:text-rose-200 text-xs leading-relaxed">

@@ -1,7 +1,8 @@
 import ExcelJS from "exceljs";
 import fileSaver from "file-saver";
 import { formatTimestampForFilename, formatXmlDateTime } from "./timezone.ts";
-import type { BatchAnalysis, ValidationWarning, Xml3Record } from "./xml3-duration.ts";
+import type { BatchAnalysis, ValidationWarning, Xml3Record, PatientInfo } from "./xml3-duration.ts";
+import { parseXmlDateTime } from "./xml3-duration.ts";
 
 const saveAs =
   typeof fileSaver === "function"
@@ -261,6 +262,166 @@ export async function exportWarningList(
   const workbook = await createWarningWorkbook(source, warnings);
   const buffer = await workbook.xlsx.writeBuffer();
   const filename = `${formatTimestampForFilename()}_${source}_warnings.xlsx`;
+  saveAs(
+    new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }),
+    filename,
+  );
+}
+
+export async function createDuplicateMachineWorkbook(
+  records: Xml3Record[],
+  patients: ReadonlyMap<string, PatientInfo> = new Map(),
+): Promise<ExcelJS.Workbook> {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "Nguyễn Sơn Nam (Nsnnam)";
+  workbook.created = new Date();
+
+  const dupRecords = records.filter((r) => r.hasDuplicateMachineWarning);
+
+  // Sheet 1: Tóm tắt
+  const summarySheet = workbook.addWorksheet("Tóm tắt");
+  const groupMap = new Map<string, Xml3Record[]>();
+  for (const record of dupRecords) {
+    if (!record.MA_MAY) continue;
+    const date = parseXmlDateTime(record.NGAY_TH_YL);
+    if (!date) continue;
+    const timeMinute = Math.floor(date.getTime() / 60000);
+    const machines = record.MA_MAY.split(";")
+      .map((m) => m.trim().toUpperCase())
+      .filter(Boolean);
+    for (const machine of machines) {
+      const key = `${machine}|${timeMinute}`;
+      const list = groupMap.get(key) ?? [];
+      list.push(record);
+      groupMap.set(key, list);
+    }
+  }
+
+  summarySheet.columns = [
+    { header: "Chỉ tiêu", key: "label", width: 40 },
+    { header: "Số lượng / Giá trị", key: "value", width: 25 },
+  ];
+  summarySheet.addRows([
+    { label: "Tổng số lượt dịch vụ bị trùng máy", value: dupRecords.length },
+    { label: "Số cụm mốc thời điểm bị trùng", value: groupMap.size },
+    {
+      label: "Số bệnh nhân liên quan",
+      value: new Set(dupRecords.map((r) => r.MA_LK)).size,
+    },
+    {
+      label: "Số mã máy bị trùng",
+      value: new Set(Array.from(groupMap.keys()).map((k) => k.split("|")[0])).size,
+    },
+    {
+      label: "Thời gian xuất báo cáo",
+      value: new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }),
+    },
+  ]);
+  styleSheet(summarySheet);
+  fitColumns(summarySheet);
+
+  // Sheet 2: Chi tiết đối chiếu
+  const detailSheet = workbook.addWorksheet("Đối chiếu trùng máy");
+  detailSheet.columns = [
+    { header: "STT", key: "stt", width: 8 },
+    { header: "Mã máy", key: "maMay", width: 26 },
+    { header: "Thời gian TH y lệnh", key: "ngayThYl", width: 20 },
+    { header: "Phân loại trùng", key: "phanLoai", width: 18 },
+    { header: "Họ và tên BN", key: "hoTen", width: 25 },
+    { header: "Mã BN", key: "maBn", width: 15 },
+    { header: "Mã LK", key: "maLk", width: 16 },
+    { header: "CCCD / Định danh", key: "cccd", width: 16 },
+    { header: "Thẻ BHYT", key: "theBhyt", width: 18 },
+    { header: "Mã DV", key: "maDv", width: 15 },
+    { header: "Tên dịch vụ kỹ thuật", key: "tenDv", width: 35 },
+    { header: "Nhóm DV", key: "maNhom", width: 10 },
+    { header: "Khoa thực hiện", key: "khoa", width: 15 },
+    { header: "Bác sĩ chỉ định", key: "bacSi", width: 15 },
+    { header: "Người thực hiện", key: "nguoiTh", width: 18 },
+    { header: "Thời gian YL", key: "ngayYl", width: 20 },
+    { header: "Thời gian KQ", key: "ngayKq", width: 20 },
+    { header: "Đối chiếu chi tiết (Trùng với ai)", key: "doiChieu", width: 50 },
+    { header: "File nguồn", key: "fileName", width: 20 },
+  ];
+
+  let rowStt = 1;
+  const sortedKeys = Array.from(groupMap.keys()).sort();
+
+  for (let gIdx = 0; gIdx < sortedKeys.length; gIdx++) {
+    const gKey = sortedKeys[gIdx];
+    const rows = groupMap.get(gKey) ?? [];
+    const [machine] = gKey.split("|");
+    const isEvenGroup = gIdx % 2 === 0;
+    const groupBgColor = isEvenGroup ? "FFF8FAFC" : "FFFFFBEB"; // Slate-50 vs Amber-50
+
+    for (const r of rows) {
+      const pat = patients.get(r.MA_LK) || r.patient;
+      const peers = r.duplicateMachineInfo || [];
+      const samePeers = peers.filter((p) => p.isSamePatient);
+      const diffPeers = peers.filter((p) => !p.isSamePatient);
+
+      let phanLoai = "Trùng khác BN";
+      if (samePeers.length > 0 && diffPeers.length === 0) {
+        phanLoai = "Trùng cùng BN";
+      } else if (samePeers.length > 0 && diffPeers.length > 0) {
+        phanLoai = "Cả cùng & khác BN";
+      }
+
+      const peerText = peers
+        .map((p) =>
+          p.isSamePatient
+            ? `Cùng BN: DV "${p.peerDichVu}" (STT ${p.peerStt})`
+            : `BN khác: ${p.peerHoTen} (Mã BN: ${p.peerMaBn || "—"}, LK: ${p.peerMaLk}, DV: "${p.peerDichVu}")`,
+        )
+        .join(" | ");
+
+      const addedRow = detailSheet.addRow({
+        stt: rowStt++,
+        maMay: machine,
+        ngayThYl: formatXmlDateTime(r.NGAY_TH_YL) || r.NGAY_TH_YL,
+        phanLoai,
+        hoTen: r.HO_TEN || pat?.HO_TEN || "",
+        maBn: r.MA_BN || pat?.MA_BN || "",
+        maLk: r.MA_LK,
+        cccd: pat?.SO_CCCD || "",
+        theBhyt: pat?.MA_THE_BHYT || "",
+        maDv: r.MA_DICH_VU || r.MA_VAT_TU,
+        tenDv: r.TEN_DICH_VU || r.TEN_VAT_TU,
+        maNhom: r.MA_NHOM,
+        khoa: r.MA_KHOA,
+        bacSi: r.MA_BAC_SI,
+        nguoiTh: r.NGUOI_THUC_HIEN,
+        ngayYl: formatXmlDateTime(r.NGAY_YL) || r.NGAY_YL,
+        ngayKq: formatXmlDateTime(r.NGAY_KQ) || r.NGAY_KQ,
+        doiChieu: peerText,
+        fileName: r.fileName,
+      });
+
+      addedRow.eachCell((cell) => {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: groupBgColor },
+        };
+      });
+    }
+  }
+
+  styleSheet(detailSheet);
+  fitColumns(detailSheet);
+
+  return workbook;
+}
+
+export async function exportDuplicateMachineComparisonExcel(
+  records: Xml3Record[],
+  patients: ReadonlyMap<string, PatientInfo> = new Map(),
+) {
+  const workbook = await createDuplicateMachineWorkbook(records, patients);
+  const buffer = await workbook.xlsx.writeBuffer();
+  const filename = `${formatTimestampForFilename()}_Doi_chieu_trung_ma_may_XML3.xlsx`;
   saveAs(
     new Blob([buffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

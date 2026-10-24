@@ -2,6 +2,7 @@ import {
   DEFAULT_MANDATORY_MACHINE_SERVICES,
   type MachineServiceRule,
 } from "./mandatory-machine-services-data.ts";
+import { formatXmlDateTime } from "./timezone.ts";
 
 export type { MachineServiceRule };
 export { DEFAULT_MANDATORY_MACHINE_SERVICES };
@@ -46,6 +47,20 @@ export type DrugRule = {
   excluded: boolean;
 };
 
+export type DuplicateMachineInfo = {
+  machineCode: string;
+  timeMinute: number;
+  timeDisplay: string;
+  isSamePatient: boolean;
+  peerMaLk: string;
+  peerMaBn: string;
+  peerHoTen: string;
+  peerDichVu: string;
+  peerMaDichVu: string;
+  peerStt: string;
+  peerFile: string;
+};
+
 export type Xml3Record = {
   fileName: string;
   table: "XML3";
@@ -79,6 +94,7 @@ export type Xml3Record = {
   hasTtThauWarning: boolean;
   hasMaMayWarning: boolean;
   hasDuplicateMachineWarning?: boolean;
+  duplicateMachineInfo?: DuplicateMachineInfo[];
   hasZ000Warning?: boolean;
   orderIssues: string[];
   status:
@@ -361,7 +377,57 @@ export function extractPrimaryDiagnosis(
 }
 
 export type WarningCategory =
-  "all" | "overMax" | "underMin" | "maMay" | "ttThau" | "order" | "z000" | "bed" | "ketLuan";
+  | "all"
+  | "overMax"
+  | "underMin"
+  | "dupMachine"
+  | "maMay"
+  | "ttThau"
+  | "order"
+  | "equal"
+  | "z000"
+  | "bed"
+  | "ketLuan"
+  | "cccd";
+
+export const DEFAULT_WARNING_COLORS: Record<WarningCategory, string> = {
+  all: "#E11D48",
+  overMax: "#E11D48",
+  underMin: "#D97706",
+  dupMachine: "#4338CA",
+  maMay: "#7C3AED",
+  ttThau: "#0284C7",
+  order: "#CA8A04",
+  equal: "#EA580C",
+  z000: "#C026D3",
+  bed: "#78716C",
+  ketLuan: "#0F766E",
+  cccd: "#2563EB",
+};
+
+export const WARNING_COLORS_KEY = "nsn-xmlcheck-warning-colors";
+
+export function loadWarningColors(): Record<WarningCategory, string> {
+  try {
+    const saved = localStorage.getItem(WARNING_COLORS_KEY);
+    if (!saved) return { ...DEFAULT_WARNING_COLORS };
+    const parsed = JSON.parse(saved);
+    return { ...DEFAULT_WARNING_COLORS, ...parsed };
+  } catch {
+    return { ...DEFAULT_WARNING_COLORS };
+  }
+}
+
+export function saveWarningColors(colors: Partial<Record<WarningCategory, string>>): void {
+  const current = loadWarningColors();
+  const next = { ...current, ...colors };
+  localStorage.setItem(WARNING_COLORS_KEY, JSON.stringify(next));
+}
+
+export function resetWarningColors(): Record<WarningCategory, string> {
+  localStorage.removeItem(WARNING_COLORS_KEY);
+  return { ...DEFAULT_WARNING_COLORS };
+}
 
 export type WarningCategoryMeta = {
   id: WarningCategory;
@@ -371,6 +437,7 @@ export type WarningCategoryMeta = {
   chipClass: string;
   activeChipClass: string;
   icon: string;
+  defaultColor: string;
 };
 
 export const WARNING_CATEGORY_CONFIG: Record<WarningCategory, WarningCategoryMeta> = {
@@ -382,6 +449,7 @@ export const WARNING_CATEGORY_CONFIG: Record<WarningCategory, WarningCategoryMet
     chipClass: "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
     activeChipClass: "bg-slate-800 text-white border-slate-800 shadow-sm",
     icon: "📋",
+    defaultColor: DEFAULT_WARNING_COLORS.all,
   },
   overMax: {
     id: "overMax",
@@ -391,6 +459,7 @@ export const WARNING_CATEGORY_CONFIG: Record<WarningCategory, WarningCategoryMet
     chipClass: "border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100",
     activeChipClass: "bg-rose-600 text-white border-rose-600 shadow-sm",
     icon: "🔴",
+    defaultColor: DEFAULT_WARNING_COLORS.overMax,
   },
   underMin: {
     id: "underMin",
@@ -400,15 +469,27 @@ export const WARNING_CATEGORY_CONFIG: Record<WarningCategory, WarningCategoryMet
     chipClass: "border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100",
     activeChipClass: "bg-amber-600 text-white border-amber-600 shadow-sm",
     icon: "🟠",
+    defaultColor: DEFAULT_WARNING_COLORS.underMin,
+  },
+  dupMachine: {
+    id: "dupMachine",
+    label: "Trùng máy (XML3)",
+    badgeText: "TRÙNG MÁY",
+    badgeClass: "bg-indigo-700 text-white border border-indigo-800 shadow-xs",
+    chipClass: "border-indigo-200 bg-indigo-50 text-indigo-900 hover:bg-indigo-100",
+    activeChipClass: "bg-indigo-700 text-white border-indigo-700 shadow-sm",
+    icon: "⚡",
+    defaultColor: DEFAULT_WARNING_COLORS.dupMachine,
   },
   maMay: {
     id: "maMay",
-    label: "Mã máy (MA_MAY)",
+    label: "Mã máy sai/thiếu",
     badgeText: "MÃ MÁY",
-    badgeClass: "bg-indigo-600 text-white border border-indigo-700 shadow-xs",
-    chipClass: "border-indigo-200 bg-indigo-50 text-indigo-900 hover:bg-indigo-100",
-    activeChipClass: "bg-indigo-600 text-white border-indigo-600 shadow-sm",
+    badgeClass: "bg-purple-600 text-white border border-purple-700 shadow-xs",
+    chipClass: "border-purple-200 bg-purple-50 text-purple-900 hover:bg-purple-100",
+    activeChipClass: "bg-purple-600 text-white border-purple-600 shadow-sm",
     icon: "🟣",
+    defaultColor: DEFAULT_WARNING_COLORS.maMay,
   },
   ttThau: {
     id: "ttThau",
@@ -418,24 +499,37 @@ export const WARNING_CATEGORY_CONFIG: Record<WarningCategory, WarningCategoryMet
     chipClass: "border-sky-200 bg-sky-50 text-sky-900 hover:bg-sky-100",
     activeChipClass: "bg-sky-600 text-white border-sky-600 shadow-sm",
     icon: "🔵",
+    defaultColor: DEFAULT_WARNING_COLORS.ttThau,
   },
   order: {
     id: "order",
-    label: "Sai thứ tự / Trùng mốc",
-    badgeText: "TRÌNH TỰ",
+    label: "Sai thứ tự thời gian",
+    badgeText: "SAI THỨ TỰ",
     badgeClass: "bg-yellow-600 text-white border border-yellow-700 shadow-xs",
     chipClass: "border-yellow-200 bg-yellow-50 text-yellow-900 hover:bg-yellow-100",
     activeChipClass: "bg-yellow-600 text-white border-yellow-600 shadow-sm",
     icon: "🟡",
+    defaultColor: DEFAULT_WARNING_COLORS.order,
+  },
+  equal: {
+    id: "equal",
+    label: "Trùng mốc thời gian",
+    badgeText: "TRÙNG MỐC",
+    badgeClass: "bg-orange-600 text-white border border-orange-700 shadow-xs",
+    chipClass: "border-orange-200 bg-orange-50 text-orange-900 hover:bg-orange-100",
+    activeChipClass: "bg-orange-600 text-white border-orange-600 shadow-sm",
+    icon: "🟠",
+    defaultColor: DEFAULT_WARNING_COLORS.equal,
   },
   z000: {
     id: "z000",
     label: "Mã bệnh Z00.0 / Z30.1",
-    badgeText: "MÃ Z00.0/Z30.1",
+    badgeText: "Z00.0/Z30.1",
     badgeClass: "bg-fuchsia-600 text-white border border-fuchsia-700 shadow-xs",
     chipClass: "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-900 hover:bg-fuchsia-100",
     activeChipClass: "bg-fuchsia-600 text-white border-fuchsia-600 shadow-sm",
     icon: "🌸",
+    defaultColor: DEFAULT_WARNING_COLORS.z000,
   },
   bed: {
     id: "bed",
@@ -445,6 +539,7 @@ export const WARNING_CATEGORY_CONFIG: Record<WarningCategory, WarningCategoryMet
     chipClass: "border-stone-200 bg-stone-50 text-stone-900 hover:bg-stone-100",
     activeChipClass: "bg-stone-600 text-white border-stone-600 shadow-sm",
     icon: "🟤",
+    defaultColor: DEFAULT_WARNING_COLORS.bed,
   },
   ketLuan: {
     id: "ketLuan",
@@ -454,15 +549,28 @@ export const WARNING_CATEGORY_CONFIG: Record<WarningCategory, WarningCategoryMet
     chipClass: "border-teal-200 bg-teal-50 text-teal-900 hover:bg-teal-100",
     activeChipClass: "bg-teal-700 text-white border-teal-700 shadow-sm",
     icon: "🟢",
+    defaultColor: DEFAULT_WARNING_COLORS.ketLuan,
+  },
+  cccd: {
+    id: "cccd",
+    label: "CCCD dưới 12 số (XML1)",
+    badgeText: "CCCD",
+    badgeClass: "bg-blue-600 text-white border border-blue-700 shadow-xs",
+    chipClass: "border-blue-200 bg-blue-50 text-blue-900 hover:bg-blue-100",
+    activeChipClass: "bg-blue-600 text-white border-blue-600 shadow-sm",
+    icon: "🪪",
+    defaultColor: DEFAULT_WARNING_COLORS.cccd,
   },
 };
 
 export function getXml3RecordCategory(record: Xml3Record): WarningCategory {
+  if (record.hasDuplicateMachineWarning) return "dupMachine";
   if (record.hasZ000Warning) return "z000";
-  if (record.hasMaMayWarning || record.hasDuplicateMachineWarning) return "maMay";
+  if (record.hasMaMayWarning) return "maMay";
   if (record.hasTtThauWarning) return "ttThau";
   if (record.hasBedWarning) return "bed";
-  if (record.hasOrderWarning || record.hasEqualWarning) return "order";
+  if (record.hasEqualWarning) return "equal";
+  if (record.hasOrderWarning) return "order";
   if (
     record.status === "negative" ||
     record.status === "missing" ||
@@ -480,12 +588,23 @@ export function getXml3RecordCategory(record: Xml3Record): WarningCategory {
 }
 
 export function getValidationWarningCategory(warning: ValidationWarning): WarningCategory {
+  if (
+    warning.message.includes("trên cùng mã máy") ||
+    warning.message.includes("trùng thời gian thực hiện y lệnh")
+  )
+    return "dupMachine";
+  if (
+    warning.source === "XML1" &&
+    (warning.message.includes("CCCD") || warning.message.includes("12 ký tự"))
+  )
+    return "cccd";
   if (warning.message.includes("Z00.0") || warning.message.includes("Z30.1")) return "z000";
-  if (warning.source === "XML2" && warning.message.includes("TT_THAU")) return "ttThau";
+  if (warning.message.includes("TT_THAU")) return "ttThau";
   if (warning.source === "XML4" && warning.message.includes("KET_LUAN")) return "ketLuan";
   if (warning.message.includes("MA_MAY") || warning.message.includes("mã máy")) return "maMay";
   if (warning.message.includes("giường") || warning.message.includes("GIUONG")) return "bed";
-  if (warning.message.includes("thứ tự") || warning.message.includes("trùng")) return "order";
+  if (warning.message.includes("trùng mốc") || warning.message.includes("=")) return "equal";
+  if (warning.message.includes("thứ tự") || warning.message.includes("sớm hơn")) return "order";
   return "all";
 }
 
@@ -1191,23 +1310,100 @@ export function addDuplicateMachineWarnings(records: Xml3Record[]): Xml3Record[]
     }
   }
 
-  const flaggedRecordMachines = new Map<Xml3Record, Set<string>>();
+  // Thu thập danh sách các bản ghi đối chiếu cho từng record
+  const flaggedDetails = new Map<
+    Xml3Record,
+    { machines: Set<string>; peers: DuplicateMachineInfo[] }
+  >();
+
   for (const [key, rows] of groups.entries()) {
     if (rows.length <= 1) continue;
-    const machine = key.split("|")[0];
-    for (const row of rows) {
-      const set = flaggedRecordMachines.get(row) ?? new Set<string>();
-      set.add(machine);
-      flaggedRecordMachines.set(row, set);
+    const [machine, timeMinStr] = key.split("|");
+    const timeMinute = Number(timeMinStr);
+
+    for (let i = 0; i < rows.length; i++) {
+      const current = rows[i];
+      let entry = flaggedDetails.get(current);
+      if (!entry) {
+        entry = { machines: new Set<string>(), peers: [] };
+        flaggedDetails.set(current, entry);
+      }
+      entry.machines.add(machine);
+
+      for (let j = 0; j < rows.length; j++) {
+        if (i === j) continue;
+        const peer = rows[j];
+        const isSamePatient =
+          Boolean(peer.MA_LK && current.MA_LK && peer.MA_LK === current.MA_LK) ||
+          Boolean(peer.MA_BN && current.MA_BN && peer.MA_BN === current.MA_BN);
+        const timeDisplay = formatXmlDateTime(peer.NGAY_TH_YL) || peer.NGAY_TH_YL;
+
+        // Tránh trùng lặp peer
+        if (
+          !entry.peers.some(
+            (p) =>
+              p.machineCode === machine &&
+              p.peerMaLk === peer.MA_LK &&
+              p.peerStt === peer.STT &&
+              p.peerMaDichVu === (peer.MA_DICH_VU || peer.MA_VAT_TU),
+          )
+        ) {
+          entry.peers.push({
+            machineCode: machine,
+            timeMinute,
+            timeDisplay,
+            isSamePatient,
+            peerMaLk: peer.MA_LK,
+            peerMaBn: peer.MA_BN,
+            peerHoTen: peer.HO_TEN || peer.patient?.HO_TEN || "",
+            peerDichVu: peer.TEN_DICH_VU || peer.TEN_VAT_TU || peer.MA_DICH_VU,
+            peerMaDichVu: peer.MA_DICH_VU || peer.MA_VAT_TU,
+            peerStt: peer.STT || "",
+            peerFile: peer.fileName,
+          });
+        }
+      }
     }
   }
 
   return records.map((record) => {
-    const machines = flaggedRecordMachines.get(record);
-    if (!machines || machines.size === 0) return record;
+    const detailData = flaggedDetails.get(record);
+    if (!detailData || detailData.machines.size === 0) return record;
+
     const detailIndex = record.STT || "xx";
-    const machineListStr = Array.from(machines).join(", ");
-    const message = formatDuplicateMachineWarningMessage(detailIndex, machineListStr);
+    const machineListStr = Array.from(detailData.machines).join(", ");
+
+    // Tạo chuỗi tóm tắt đối chiếu
+    let peerSummary = "";
+    if (detailData.peers.length > 0) {
+      const diffPatientPeers = detailData.peers.filter((p) => !p.isSamePatient);
+      const samePatientPeers = detailData.peers.filter((p) => p.isSamePatient);
+
+      const parts: string[] = [];
+      if (diffPatientPeers.length > 0) {
+        const bnNames = Array.from(
+          new Set(
+            diffPatientPeers.map(
+              (p) =>
+                `${p.peerHoTen || "BN chưa rõ tên"} (Mã BN: ${p.peerMaBn || "—"}, LK: ${p.peerMaLk})`,
+            ),
+          ),
+        );
+        parts.push(`Trùng với BN: ${bnNames.join("; ")} lúc ${diffPatientPeers[0].timeDisplay}`);
+      }
+      if (samePatientPeers.length > 0) {
+        const dvNames = Array.from(
+          new Set(samePatientPeers.map((p) => `"${p.peerDichVu}" (STT ${p.peerStt})`)),
+        );
+        parts.push(
+          `Trùng cùng BN: DV ${dvNames.join(", ")} lúc ${samePatientPeers[0].timeDisplay}`,
+        );
+      }
+      peerSummary = ` [${parts.join(" · ")}]`;
+    }
+
+    const baseMessage = formatDuplicateMachineWarningMessage(detailIndex, machineListStr);
+    const message = `${baseMessage}${peerSummary}`;
 
     const alreadyHasMessage = record.detail.includes("trùng thời gian thực hiện y lệnh");
     const newDetail = alreadyHasMessage
@@ -1219,6 +1415,7 @@ export function addDuplicateMachineWarnings(records: Xml3Record[]): Xml3Record[]
     return {
       ...record,
       hasDuplicateMachineWarning: true,
+      duplicateMachineInfo: detailData.peers,
       status: record.status === "ok" ? "duplicate-machine-warning" : record.status,
       detail: newDetail,
     };

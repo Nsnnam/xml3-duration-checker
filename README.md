@@ -24,7 +24,10 @@
 | Thuốc XML2  | Cho phép thêm các mã thuốc cần loại trừ khỏi cảnh báo TT_THAU ở XML2 vào Thư viện; có nút bấm loại trừ trực tiếp trên dòng cảnh báo XML2      |
 | XML3        | Khi `MA_NHOM` bằng 10 hoặc 11 (VTYT), bắt buộc cột `TT_THAU` không để rỗng; cảnh báo `XML3: TT_THAU không được để trống khi mã nhóm bằng 10 hoặc 11` |
 | Mã máy XML3 | Cột 44 `MA_MAY` bắt buộc đối với 3,471 DVKT theo danh mục chuẩn (so sánh cột 3 `MA_DICH_VU`); kiểm tra chuẩn `XX.3[xxx].Z` (ngăn cách bằng `;`) |
-| Trùng máy   | Cảnh báo DVKT trùng thời gian thực hiện y lệnh (`NGAY_TH_YL`) cho một hoặc nhiều người bệnh trên cùng mã máy |
+| Trùng máy   | Cảnh báo DVKT trùng thời gian thực hiện y lệnh (`NGAY_TH_YL`) cho một hoặc nhiều người bệnh trên cùng mã máy; hiển thị chi tiết đối chiếu trong modal Xem (👁️) |
+| Xuất trùng máy| Xuất riêng file Excel đối chiếu trùng mã máy (`Doi_chieu_trung_ma_may_XML3.xlsx`) gồm Sheet Tóm tắt và Sheet Đối chiếu chi tiết (phân biệt cùng/khác BN) |
+| Tùy chỉnh màu| Tùy chỉnh bảng màu riêng biệt cho từng loại cảnh báo (12 nhóm), kèm Color picker, Palette mẫu và lưu `localStorage` |
+| Bộ lọc lỗi  | Thanh Filter Chips lọc theo 12 nhóm cảnh báo, hiển thị swatch màu tùy chỉnh và tự động chuyển tab tương ứng |
 | XML4        | Với XML3 `MA_NHOM=2`, đối chiếu `MA_DICH_VU`/`NGAY_KQ`, cảnh báo thiếu `KET_LUAN`/`NGAY_KQ`, kèm mã và tên dịch vụ                             |
 | Giường      | Cảnh báo khi cùng `MA_LK`, `MA_BN` có nhiều hơn một `MA_GIUONG` trong một ngày                                                                 |
 | Tùy biến cột| Tùy chỉnh ẩn/hiện cột và kéo thả viền cột (resizable) trên **TẤT CẢ các tab** (XML1, XML2, XML3, XML4); tự động lưu cấu hình vào localStorage|

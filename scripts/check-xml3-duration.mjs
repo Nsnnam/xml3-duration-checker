@@ -24,7 +24,15 @@ import {
   DEFAULT_MANDATORY_MACHINE_SERVICES,
   formatDuplicateMachineWarningMessage,
   addDuplicateMachineWarnings,
+  getXml3RecordCategory,
+  getValidationWarningCategory,
+  DEFAULT_WARNING_COLORS,
+  WARNING_CATEGORY_CONFIG,
+  loadWarningColors,
+  saveWarningColors,
+  resetWarningColors,
 } from "../src/lib/xml3-duration.ts";
+import { createDuplicateMachineWorkbook } from "../src/lib/export.ts";
 import { formatXmlDateTime, formatXmlDate } from "../src/lib/timezone.ts";
 import {
   parseBackupJson,
@@ -1125,6 +1133,71 @@ assert.equal(checkedMachines[3].hasDuplicateMachineWarning, true); // Trùng SA.
 assert.equal(checkedMachines[4].hasDuplicateMachineWarning, true); // Trùng SA.3[khoan].02
 assert.equal(checkedMachines[5].hasDuplicateMachineWarning, undefined); // Không có mã máy
 
+// Test DuplicateMachineInfo details
+assert.ok(Array.isArray(checkedMachines[0].duplicateMachineInfo));
+assert.equal(checkedMachines[0].duplicateMachineInfo.length, 1);
+assert.equal(checkedMachines[0].duplicateMachineInfo[0].machineCode, "XQ.3[KHOAN].SN01");
+assert.equal(checkedMachines[0].duplicateMachineInfo[0].isSamePatient, false);
+assert.equal(checkedMachines[0].duplicateMachineInfo[0].peerMaLk, "LK-M2");
+
+// Test categories
+assert.equal(getXml3RecordCategory(checkedMachines[0]), "dupMachine");
+assert.equal(
+  getValidationWarningCategory({
+    source: "XML3",
+    detailIndex: "1",
+    MA_LK: "LK-01",
+    message: "DVKT trùng thời gian thực hiện y lệnh cho một hoặc nhiều người bệnh trên cùng mã máy",
+  }),
+  "dupMachine",
+);
+assert.equal(
+  getValidationWarningCategory({
+    source: "XML1",
+    detailIndex: "1",
+    MA_LK: "LK-01",
+    message: "Số định danh / CCCD không hợp lệ (dưới 12 ký tự)",
+  }),
+  "cccd",
+);
+
+// Test color config & load
+assert.equal(Object.keys(DEFAULT_WARNING_COLORS).length, 12);
+assert.equal(Object.keys(WARNING_CATEGORY_CONFIG).length, 12);
+const colors = loadWarningColors();
+assert.equal(typeof colors.dupMachine, "string");
+assert.equal(typeof colors.overMax, "string");
+assert.equal(colors.dupMachine, DEFAULT_WARNING_COLORS.dupMachine);
+
+// Test createDuplicateMachineWorkbook
+const mockPatients = new Map([
+  [
+    "LK-M1",
+    {
+      MA_LK: "LK-M1",
+      MA_BN: "BN-01",
+      HO_TEN: "Bệnh nhân 1",
+      SO_CCCD: "001234567890",
+      MA_THE_BHYT: "DN4010123456789",
+    },
+  ],
+  [
+    "LK-M2",
+    {
+      MA_LK: "LK-M2",
+      MA_BN: "BN-02",
+      HO_TEN: "Bệnh nhân 2",
+      SO_CCCD: "001234567891",
+      MA_THE_BHYT: "DN4010123456790",
+    },
+  ],
+]);
+const wb = await createDuplicateMachineWorkbook(checkedMachines, mockPatients);
+assert.equal(wb.worksheets.length, 2);
+assert.equal(wb.worksheets[0].name, "Tóm tắt");
+assert.equal(wb.worksheets[1].name, "Đối chiếu trùng máy");
+assert.ok(wb.worksheets[1].rowCount > 1);
+
 console.log(
-  "All tests passed: XML1 CCCD validation, Z00.0 & Z30.1 validation, XML3 duplicate machine time validation, XML2/XML3 TT_THAU validation, drug exclusion, chronology, library backup/restore, VN date format, 15 XML tables & MA_MAY mandatory rules: OK",
+  "All tests passed: XML1 CCCD validation, Z00.0 & Z30.1 validation, XML3 duplicate machine time validation, duplicate machine excel export & warning colors: OK",
 );
