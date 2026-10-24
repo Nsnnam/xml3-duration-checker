@@ -17,6 +17,7 @@ export const APP_META = {
         "Bộ lọc phân loại lỗi toàn diện: Nâng cấp thanh Filter Chips hiển thị đầy đủ 12 nhóm lỗi, tích hợp swatch màu sắc tùy chỉnh, đếm số lượng lỗi tức thời và hỗ trợ chuyển tab tự động (ví dụ bấm CCCD chuyển XML1, bấm Kết luận chuyển XML4, bấm Z00.0 chuyển XML1/XML3).",
         "Chi tiết đối chiếu trùng máy trong modal Xem (👁️): Trực quan hóa danh sách các bản ghi bị trùng (phân biệt rõ Cùng bệnh nhân / Khác bệnh nhân, thời điểm thực hiện, họ tên, mã BN, mã LK, tên dịch vụ kỹ thuật, kèm nút mở nhanh hồ sơ 15 bảng).",
         "Xuất riêng file Excel đối chiếu trùng máy: Bổ sung tính năng xuất file Excel đối chiếu chuyên sâu ('Doi_chieu_trung_ma_may_XML3.xlsx') gồm 2 sheet: Sheet Tóm tắt các máy bị trùng và Sheet Đối chiếu chi tiết (đầy đủ các cột đối soát BHYT, phân biệt Cùng/Khác BN, gom nhóm và tô màu xen kẽ giữa các cụm trùng).",
+        "Loại trừ kiểm tra trùng máy với MA_NHOM = 1: Bỏ qua kiểm tra và cảnh báo trùng thời gian thực hiện trên cùng mã máy đối với các dịch vụ khám bệnh / tiền khám có mã nhóm bằng 1.",
       ],
     },
     {

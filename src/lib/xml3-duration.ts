@@ -1295,6 +1295,10 @@ export function addDuplicateMachineWarnings(records: Xml3Record[]): Xml3Record[]
   const groups = new Map<string, Xml3Record[]>();
   for (const record of records) {
     if (!record.MA_MAY || !record.MA_MAY.trim()) continue;
+    // Bỏ qua cảnh báo trùng thời gian trên cùng mã máy đối với các dịch vụ có mã nhóm bằng 1 (MA_NHOM = 1)
+    const nhom = String(record.MA_NHOM || "").trim();
+    if (nhom === "1" || nhom === "01") continue;
+
     const date = parseXmlDateTime(record.NGAY_TH_YL);
     if (!date) continue;
     const timeMinute = Math.floor(date.getTime() / 60000);

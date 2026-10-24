@@ -1133,6 +1133,81 @@ assert.equal(checkedMachines[3].hasDuplicateMachineWarning, true); // Trùng SA.
 assert.equal(checkedMachines[4].hasDuplicateMachineWarning, true); // Trùng SA.3[khoan].02
 assert.equal(checkedMachines[5].hasDuplicateMachineWarning, undefined); // Không có mã máy
 
+// Test bỏ qua trùng máy khi MA_NHOM = "1"
+const mockRecordsNhom1 = [
+  {
+    fileName: "file6.xml",
+    table: "XML3",
+    MA_LK: "LK-N1",
+    MA_BN: "BN-N1",
+    HO_TEN: "BN Nhóm 1 A",
+    STT: "1",
+    MA_DICH_VU: "DV_KB_1",
+    MA_VAT_TU: "",
+    TEN_DICH_VU: "Khám chuyên khoa",
+    TEN_VAT_TU: "",
+    MA_NHOM: "1", // Nhóm 1
+    MA_KHOA: "K01",
+    MA_GIUONG: "",
+    MA_BAC_SI: "",
+    NGUOI_THUC_HIEN: "",
+    MA_BENH: "",
+    MA_BENH_YHCT: "",
+    NGAY_YL: "202609010800",
+    NGAY_TH_YL: "202609010830",
+    NGAY_KQ: "202609010845",
+    MA_MAY: "MAY.01.SN99",
+    MA_HIEU_SP: "",
+    TT_THAU: "",
+    durationMinutes: 15,
+    hasOrderWarning: false,
+    hasEqualWarning: false,
+    hasBedWarning: false,
+    hasTtThauWarning: false,
+    hasMaMayWarning: false,
+    orderIssues: [],
+    status: "ok",
+    detail: "",
+  },
+  {
+    fileName: "file7.xml",
+    table: "XML3",
+    MA_LK: "LK-N2",
+    MA_BN: "BN-N2",
+    HO_TEN: "BN Nhóm 1 B",
+    STT: "2",
+    MA_DICH_VU: "DV_KB_2",
+    MA_VAT_TU: "",
+    TEN_DICH_VU: "Khám nội",
+    TEN_VAT_TU: "",
+    MA_NHOM: "1", // Nhóm 1 cùng máy và cùng thời điểm
+    MA_KHOA: "K01",
+    MA_GIUONG: "",
+    MA_BAC_SI: "",
+    NGUOI_THUC_HIEN: "",
+    MA_BENH: "",
+    MA_BENH_YHCT: "",
+    NGAY_YL: "202609010800",
+    NGAY_TH_YL: "202609010830",
+    NGAY_KQ: "202609010845",
+    MA_MAY: "MAY.01.SN99",
+    MA_HIEU_SP: "",
+    TT_THAU: "",
+    durationMinutes: 15,
+    hasOrderWarning: false,
+    hasEqualWarning: false,
+    hasBedWarning: false,
+    hasTtThauWarning: false,
+    hasMaMayWarning: false,
+    orderIssues: [],
+    status: "ok",
+    detail: "",
+  },
+];
+const checkedNhom1 = addDuplicateMachineWarnings(mockRecordsNhom1);
+assert.equal(checkedNhom1[0].hasDuplicateMachineWarning, undefined);
+assert.equal(checkedNhom1[1].hasDuplicateMachineWarning, undefined);
+
 // Test DuplicateMachineInfo details
 assert.ok(Array.isArray(checkedMachines[0].duplicateMachineInfo));
 assert.equal(checkedMachines[0].duplicateMachineInfo.length, 1);
