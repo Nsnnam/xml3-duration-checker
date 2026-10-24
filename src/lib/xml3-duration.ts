@@ -78,6 +78,7 @@ export type Xml3Record = {
   hasBedWarning: boolean;
   hasTtThauWarning: boolean;
   hasMaMayWarning: boolean;
+  hasDuplicateMachineWarning?: boolean;
   hasZ000Warning?: boolean;
   orderIssues: string[];
   status:
@@ -87,6 +88,7 @@ export type Xml3Record = {
     | "bed-warning"
     | "tt-thau-warning"
     | "ma-may-warning"
+    | "duplicate-machine-warning"
     | "ok"
     | "missing"
     | "invalid"
@@ -155,6 +157,7 @@ export type Xml3Analysis = {
   bedWarnings: number;
   ttThauWarnings: number;
   maMayWarnings: number;
+  duplicateMachineWarnings: number;
   log: string[];
 };
 
@@ -177,6 +180,7 @@ export type BatchAnalysis = {
   bedWarnings: number;
   ttThauWarnings: number;
   maMayWarnings: number;
+  duplicateMachineWarnings: number;
   dossiers: PatientDossier[];
   dossierMap: Map<string, PatientDossier>;
   patients: Map<string, PatientInfo>;
@@ -455,7 +459,7 @@ export const WARNING_CATEGORY_CONFIG: Record<WarningCategory, WarningCategoryMet
 
 export function getXml3RecordCategory(record: Xml3Record): WarningCategory {
   if (record.hasZ000Warning) return "z000";
-  if (record.hasMaMayWarning) return "maMay";
+  if (record.hasMaMayWarning || record.hasDuplicateMachineWarning) return "maMay";
   if (record.hasTtThauWarning) return "ttThau";
   if (record.hasBedWarning) return "bed";
   if (record.hasOrderWarning || record.hasEqualWarning) return "order";
@@ -1158,6 +1162,69 @@ function addBedWarnings(records: Xml3Record[]): Xml3Record[] {
   });
 }
 
+export function formatDuplicateMachineWarningMessage(
+  detailIndex: string | number,
+  machineCode?: string,
+): string {
+  if (machineCode) {
+    return `XML3. Chi tiết thứ ${detailIndex}: DVKT trùng thời gian thực hiện y lệnh cho một hoặc nhiều người bệnh trên cùng mã máy (${machineCode}).`;
+  }
+  return `XML3. Chi tiết thứ ${detailIndex}: DVKT trùng thời gian thực hiện y lệnh cho một hoặc nhiều người bệnh trên cùng mã máy.`;
+}
+
+export function addDuplicateMachineWarnings(records: Xml3Record[]): Xml3Record[] {
+  const groups = new Map<string, Xml3Record[]>();
+  for (const record of records) {
+    if (!record.MA_MAY || !record.MA_MAY.trim()) continue;
+    const date = parseXmlDateTime(record.NGAY_TH_YL);
+    if (!date) continue;
+    const timeMinute = Math.floor(date.getTime() / 60000);
+    const machines = record.MA_MAY.split(";")
+      .map((m) => m.trim().toUpperCase())
+      .filter(Boolean);
+    const uniqueMachines = Array.from(new Set(machines));
+    for (const machine of uniqueMachines) {
+      const key = `${machine}|${timeMinute}`;
+      const list = groups.get(key) ?? [];
+      list.push(record);
+      groups.set(key, list);
+    }
+  }
+
+  const flaggedRecordMachines = new Map<Xml3Record, Set<string>>();
+  for (const [key, rows] of groups.entries()) {
+    if (rows.length <= 1) continue;
+    const machine = key.split("|")[0];
+    for (const row of rows) {
+      const set = flaggedRecordMachines.get(row) ?? new Set<string>();
+      set.add(machine);
+      flaggedRecordMachines.set(row, set);
+    }
+  }
+
+  return records.map((record) => {
+    const machines = flaggedRecordMachines.get(record);
+    if (!machines || machines.size === 0) return record;
+    const detailIndex = record.STT || "xx";
+    const machineListStr = Array.from(machines).join(", ");
+    const message = formatDuplicateMachineWarningMessage(detailIndex, machineListStr);
+
+    const alreadyHasMessage = record.detail.includes("trùng thời gian thực hiện y lệnh");
+    const newDetail = alreadyHasMessage
+      ? record.detail
+      : record.detail
+        ? `${record.detail} · ${message}`
+        : message;
+
+    return {
+      ...record,
+      hasDuplicateMachineWarning: true,
+      status: record.status === "ok" ? "duplicate-machine-warning" : record.status,
+      detail: newDetail,
+    };
+  });
+}
+
 function chronologyIssues(fields: Record<Xml3Field, string>): string[] {
   return getChronologyIssues(fields.NGAY_YL, fields.NGAY_TH_YL, fields.NGAY_KQ);
 }
@@ -1373,6 +1440,7 @@ export function evaluateRecord(
     hasBedWarning: false,
     hasTtThauWarning,
     hasMaMayWarning,
+    hasDuplicateMachineWarning: false,
     hasZ000Warning: Boolean(hasZ000Warning || hasZ301Warning),
     orderIssues,
     status,
@@ -1389,11 +1457,13 @@ export function isWarning(record: Xml3Record): boolean {
     record.status === "warning" ||
     record.status === "tt-thau-warning" ||
     record.status === "ma-may-warning" ||
+    record.status === "duplicate-machine-warning" ||
     record.hasOrderWarning ||
     record.hasEqualWarning ||
     record.hasBedWarning ||
     record.hasTtThauWarning ||
     record.hasMaMayWarning ||
+    Boolean(record.hasDuplicateMachineWarning) ||
     Boolean(record.hasZ000Warning)
   );
 }
@@ -1712,7 +1782,8 @@ export async function analyzeXml3File(
   if (!tableFiles && !hasOtherXml)
     throw new Error(`${file.name}: không tìm thấy FILEHOSO có LOAIHOSO=XML3`);
 
-  const records = addBedWarnings(rawRecords);
+  const recordsWithBed = addBedWarnings(rawRecords);
+  const records = addDuplicateMachineWarnings(recordsWithBed);
   const warnings = records.filter(isWarning);
   const xml3Warnings = warnings.map(toXml3Warning);
   const xml4Warnings = createXml4Warnings(records, xml4Records, patients);
@@ -1729,9 +1800,12 @@ export async function analyzeXml3File(
   const bedWarnings = records.filter((record) => record.hasBedWarning).length;
   const ttThauWarnings = records.filter((record) => record.hasTtThauWarning).length;
   const maMayWarnings = records.filter((record) => record.hasMaMayWarning).length;
+  const duplicateMachineWarnings = records.filter(
+    (record) => record.hasDuplicateMachineWarning,
+  ).length;
 
   log.push(
-    `XML3: ${records.length} dòng; cảnh báo: ${warnings.length}; mã máy: ${maMayWarnings}; thứ tự: ${orderWarnings}; giường: ${bedWarnings}; TT_THAU (nhóm 10/11): ${ttThauWarnings}; Z00.0/Z30.1: ${z000Warnings.length}; XML1: ${xml1Warnings.length}; XML2: ${xml2Warnings.length}; XML4: ${xml4Warnings.length}; thiếu thời gian: ${missingTimes}; không hợp lệ: ${invalidTimes}; âm: ${negativeTimes}`,
+    `XML3: ${records.length} dòng; cảnh báo: ${warnings.length}; mã máy: ${maMayWarnings}; trùng máy: ${duplicateMachineWarnings}; thứ tự: ${orderWarnings}; giường: ${bedWarnings}; TT_THAU (nhóm 10/11): ${ttThauWarnings}; Z00.0/Z30.1: ${z000Warnings.length}; XML1: ${xml1Warnings.length}; XML2: ${xml2Warnings.length}; XML4: ${xml4Warnings.length}; thiếu thời gian: ${missingTimes}; không hợp lệ: ${invalidTimes}; âm: ${negativeTimes}`,
   );
   return {
     fileName: file.name,
@@ -1750,6 +1824,7 @@ export async function analyzeXml3File(
     bedWarnings,
     ttThauWarnings,
     maMayWarnings,
+    duplicateMachineWarnings,
     log,
   };
 }
@@ -1939,6 +2014,21 @@ export async function analyzeXml3Files(
     }
   }
 
+  // Quét kiểm tra trùng thời gian mã máy trên toàn bộ các file (cross-patient / cross-file)
+  const updatedAllRecords = addDuplicateMachineWarnings(allRecords);
+  allRecords.splice(0, allRecords.length, ...updatedAllRecords);
+
+  const updatedXml3Warnings = allRecords.filter(isWarning).map(toXml3Warning);
+  for (const uw of updatedXml3Warnings) {
+    if (
+      !xml3Warnings.some(
+        (w) => w.MA_LK === uw.MA_LK && w.detailIndex === uw.detailIndex && w.message === uw.message,
+      )
+    ) {
+      xml3Warnings.push(uw);
+    }
+  }
+
   const xml4Warnings = createXml4Warnings(allRecords, xml4Records, sharedPatients);
 
   const allValidationWarnings: ValidationWarning[] = [];
@@ -2042,6 +2132,8 @@ export async function analyzeXml3Files(
     bedWarnings: allRecords.filter((record) => record.hasBedWarning).length,
     ttThauWarnings: allRecords.filter((record) => record.hasTtThauWarning).length,
     maMayWarnings: allRecords.filter((record) => record.hasMaMayWarning).length,
+    duplicateMachineWarnings: allRecords.filter((record) => record.hasDuplicateMachineWarning)
+      .length,
     dossiers,
     dossierMap,
     patients: sharedPatients,

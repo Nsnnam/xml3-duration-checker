@@ -32,25 +32,27 @@ function fitColumns(sheet: ExcelJS.Worksheet) {
 
 function detailRows(records: Xml3Record[]) {
   return records.map((record) => ({
-    Trạng_thái: record.hasZ000Warning
-      ? record.detail.includes("Z30.1")
-        ? "Z30.1"
-        : "Z00.0"
-      : record.hasOrderWarning
-        ? "SAI THỨ TỰ"
-        : record.hasEqualWarning
-          ? "TRÙNG MỐC"
-          : record.hasBedWarning
-            ? "GIƯỜNG"
-            : record.hasTtThauWarning
-              ? "TT_THAU"
-              : record.hasMaMayWarning
-                ? "MÃ MÁY"
-                : record.status === "warning"
-                  ? "CB"
-                  : record.status === "ok"
-                    ? "Đạt"
-                    : record.status,
+    Trạng_thái: record.hasDuplicateMachineWarning
+      ? "TRÙNG MÁY"
+      : record.hasZ000Warning
+        ? record.detail.includes("Z30.1")
+          ? "Z30.1"
+          : "Z00.0"
+        : record.hasOrderWarning
+          ? "SAI THỨ TỰ"
+          : record.hasEqualWarning
+            ? "TRÙNG MỐC"
+            : record.hasBedWarning
+              ? "GIƯỜNG"
+              : record.hasTtThauWarning
+                ? "TT_THAU"
+                : record.hasMaMayWarning
+                  ? "MÃ MÁY"
+                  : record.status === "warning"
+                    ? "CB"
+                    : record.status === "ok"
+                      ? "Đạt"
+                      : record.status,
     MA_LK: record.MA_LK,
     HO_TEN: record.HO_TEN,
     MA_BN: record.MA_BN,
@@ -130,6 +132,10 @@ export async function createXml3ReportWorkbook(
       value: records.filter((record) => record.hasMaMayWarning).length,
     },
     {
+      label: "Cảnh báo XML3 trùng thời gian trên mã máy",
+      value: records.filter((record) => record.hasDuplicateMachineWarning).length,
+    },
+    {
       label: "Cảnh báo XML1",
       value: analysis.xml1Warnings.length,
     },
@@ -174,9 +180,17 @@ export async function createXml3ReportWorkbook(
   for (const row of detail.getRows(2, detail.rowCount) ?? []) {
     const statusVal = String(row.getCell(1).value);
     if (
-      ["CB", "Z00.0", "Z30.1", "SAI THỨ TỰ", "TRÙNG MỐC", "GIƯỜNG", "TT_THAU", "MÃ MÁY"].includes(
-        statusVal,
-      )
+      [
+        "CB",
+        "Z00.0",
+        "Z30.1",
+        "SAI THỨ TỰ",
+        "TRÙNG MỐC",
+        "GIƯỜNG",
+        "TT_THAU",
+        "MÃ MÁY",
+        "TRÙNG MÁY",
+      ].includes(statusVal)
     ) {
       row.eachCell(
         (cell) =>

@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.5.0] — 2026-10-24
+
+- Bổ sung rà soát và cảnh báo đối với dữ liệu XML3 bị trùng thời gian trên cùng một mã máy: Cảnh báo `DVKT trùng thời gian thực hiện y lệnh cho một hoặc nhiều người bệnh trên cùng mã máy` khi có từ 2 bản ghi DVKT trở lên có cùng `MA_MAY` và trùng thời điểm `NGAY_TH_YL` (hỗ trợ kiểm tra cross-record và cross-patient/cross-file toàn bộ đợt phân tích).
+- Hiển thị huy hiệu `TRÙNG MÁY` nổi bật trên bảng cảnh báo, Metric đếm riêng `Trùng máy XML3`, tích hợp vào nhóm lọc mã máy, xuất trạng thái `TRÙNG MÁY` và tô vàng trên file báo cáo Excel.
+- Khắc phục triệt để lỗi `Failed to fetch` khi gửi Telegram: Hỗ trợ cấu hình tùy chỉnh Telegram API Endpoint / Reverse Proxy trong cài đặt, diễn giải chi tiết nguyên nhân nhà mạng chặn tên miền `api.telegram.org` và hướng dẫn người dùng kết nối thông suốt.
+
 ## [2.4.0] — 2026-09-28
 
 - Bổ sung cảnh báo mã bệnh `Z30.1` (Đặt dụng cụ tránh thai): Căn cứ Khoản 10 Điều 23 Luật Bảo hiểm y tế (dịch vụ Kế hoạch hóa gia đình không thuộc phạm vi thanh toán của quỹ BHYT). Tự động rà soát trên tất cả các bảng XML (từ XML1 đến XML15), bao gồm mã bệnh chính, mã bệnh kèm theo, mã bệnh YHCT và cột chẩn đoán văn bản (`CHAN_DOAN_RV`, `CHAN_DOAN_VAO`).

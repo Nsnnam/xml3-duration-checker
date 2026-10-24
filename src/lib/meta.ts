@@ -2,13 +2,22 @@ export const APP_META = {
   name: "NsN_XMLcheck",
   title: "NsN_XMLcheck",
   description:
-    "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, MA_MAY chuẩn XX.3[xxx].Z, cảnh báo Z00.0/Z30.1 (KHHGĐ) & Hồ sơ 15 bảng BHYT",
-  version: "2.4.0",
-  date: "2026-09-28",
+    "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, MA_MAY chuẩn XX.3[xxx].Z & trùng thời gian máy, cảnh báo Z00.0/Z30.1 (KHHGĐ) & Hồ sơ 15 bảng BHYT",
+  version: "2.5.0",
+  date: "2026-10-24",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.5.0",
+      date: "2026-10-24",
+      changes: [
+        "Bổ sung rà soát và cảnh báo đối với dữ liệu XML3 bị trùng thời gian trên cùng một mã máy: Cảnh báo 'DVKT trùng thời gian thực hiện y lệnh cho một hoặc nhiều người bệnh trên cùng mã máy' khi có từ 2 bản ghi DVKT trở lên có cùng MA_MAY và trùng thời điểm NGAY_TH_YL (hỗ trợ kiểm tra cross-record và cross-patient/cross-file toàn bộ đợt phân tích).",
+        "Hiển thị huy hiệu 'TRÙNG MÁY' nổi bật trên bảng cảnh báo, Metric đếm riêng 'Trùng máy XML3', tích hợp vào nhóm lọc mã máy, xuất trạng thái TRÙNG MÁY và tô vàng trên file báo cáo Excel.",
+        "Khắc phục triệt để lỗi 'Failed to fetch' khi gửi Telegram: Hỗ trợ cấu hình tùy chỉnh Telegram API Endpoint / Reverse Proxy trong cài đặt, diễn giải chi tiết nguyên nhân nhà mạng chặn tên miền api.telegram.org và hướng dẫn người dùng kết nối thông suốt.",
+      ],
+    },
     {
       version: "2.4.0",
       date: "2026-09-28",

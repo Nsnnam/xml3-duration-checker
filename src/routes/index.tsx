@@ -752,6 +752,7 @@ export function HomePage() {
         `• Cảnh báo XML2 (Thiếu TT_THAU): <b>${targetAnalysis.xml2Warnings.length}</b>\n` +
         `• Cảnh báo XML3 (Thiếu TT_THAU): <b>${targetAnalysis.ttThauWarnings}</b>\n` +
         `• Cảnh báo XML3 (Mã máy MA_MAY): <b>${targetAnalysis.maMayWarnings}</b>\n` +
+        `• Cảnh báo XML3 (Trùng mã máy): <b>${targetAnalysis.duplicateMachineWarnings ?? targetAnalysis.records.filter((r) => r.hasDuplicateMachineWarning).length}</b>\n` +
         `• Cảnh báo XML4 (Thiếu KET_LUAN): <b>${targetAnalysis.xml4Warnings.length}</b>\n` +
         `• Cảnh báo mã bệnh Z00.0 / Z30.1: <b>${targetAnalysis.z000Warnings ? targetAnalysis.z000Warnings.length : 0}</b>\n` +
         `• Thời gian: <b>${new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}</b>`;
@@ -762,6 +763,7 @@ export function HomePage() {
         caption,
         blob,
         filename,
+        telegramConfig.apiHost,
       );
 
       if (result.ok) {
@@ -813,6 +815,7 @@ export function HomePage() {
         caption,
         blob,
         filename,
+        telegramConfig.apiHost,
       );
 
       if (result.ok) {
@@ -999,8 +1002,8 @@ export function HomePage() {
               saveTelegramConfig(cfg);
               setNotice("Đã lưu cấu hình Telegram.");
             }}
-            onTestTelegram={async (token, chatId) => {
-              const res = await testTelegramConnection(token, chatId);
+            onTestTelegram={async (token, chatId, apiHost) => {
+              const res = await testTelegramConnection(token, chatId, apiHost);
               if (res.ok) {
                 setNotice("✅ Kiểm tra kết nối Telegram thành công! Bot đã gửi tin nhắn thử.");
               } else {
@@ -1487,6 +1490,12 @@ function CheckerView({
                 onClick={() => onSummaryFocus("maMay")}
               />
               <Metric
+                label="Trùng máy XML3"
+                value={filteredRecords.filter((record) => record.hasDuplicateMachineWarning).length}
+                tone="rose"
+                onClick={() => onSummaryFocus("maMay")}
+              />
+              <Metric
                 label="XML4 · KET_LUAN"
                 value={analysis.xml4Warnings.length}
                 tone="amber"
@@ -1833,32 +1842,36 @@ function WarningRow({
     record.status === "warning" ||
     record.status === "tt-thau-warning" ||
     record.status === "ma-may-warning" ||
+    record.status === "duplicate-machine-warning" ||
     record.hasOrderWarning ||
     record.hasEqualWarning ||
     record.hasBedWarning ||
     record.hasTtThauWarning ||
     record.hasMaMayWarning ||
+    record.hasDuplicateMachineWarning ||
     Boolean(record.hasZ000Warning);
 
-  const label = record.hasZ000Warning
-    ? record.detail.includes("Z30.1")
-      ? "Z30.1"
-      : "Z00.0"
-    : record.hasOrderWarning
-      ? "SAI THỨ TỰ"
-      : record.hasEqualWarning
-        ? "TRÙNG MỐC"
-        : record.hasBedWarning
-          ? "GIƯỜNG"
-          : record.hasTtThauWarning
-            ? "TT_THAU"
-            : record.hasMaMayWarning
-              ? "MÃ MÁY"
-              : record.status === "warning"
-                ? "VƯỢT MAX"
-                : record.status === "ok"
-                  ? "ĐẠT"
-                  : record.status.toUpperCase();
+  const label = record.hasDuplicateMachineWarning
+    ? "TRÙNG MÁY"
+    : record.hasZ000Warning
+      ? record.detail.includes("Z30.1")
+        ? "Z30.1"
+        : "Z00.0"
+      : record.hasOrderWarning
+        ? "SAI THỨ TỰ"
+        : record.hasEqualWarning
+          ? "TRÙNG MỐC"
+          : record.hasBedWarning
+            ? "GIƯỜNG"
+            : record.hasTtThauWarning
+              ? "TT_THAU"
+              : record.hasMaMayWarning
+                ? "MÃ MÁY"
+                : record.status === "warning"
+                  ? "VƯỢT MAX"
+                  : record.status === "ok"
+                    ? "ĐẠT"
+                    : record.status.toUpperCase();
 
   const isVisible = (key: string) => tabCols.visible[key] !== false;
   const colWidth = (key: string, def: number) => ({
@@ -3967,7 +3980,11 @@ function SettingsBackupView({
   telegramConfig: TelegramConfig;
   columnsConfig: AllTabsColumnConfig;
   onSaveTelegramConfig: (cfg: TelegramConfig) => void;
-  onTestTelegram: (token: string, chatId: string) => Promise<{ ok: boolean; description?: string }>;
+  onTestTelegram: (
+    token: string,
+    chatId: string,
+    apiHost?: string,
+  ) => Promise<{ ok: boolean; description?: string }>;
   onResetColumnsForTab: (tab: AlertTab) => void;
   onResetAllColumns: () => void;
   onExportLibraryBackup: () => void;
@@ -3980,6 +3997,7 @@ function SettingsBackupView({
 }) {
   const [botToken, setBotToken] = useState(telegramConfig.botToken);
   const [chatId, setChatId] = useState(telegramConfig.chatId);
+  const [apiHost, setApiHost] = useState(telegramConfig.apiHost || "https://api.telegram.org");
   const [enabled, setEnabled] = useState(telegramConfig.enabled);
   const [autoSend, setAutoSend] = useState(telegramConfig.autoSendOnAnalysis);
   const [isTesting, setIsTesting] = useState(false);
@@ -3990,6 +4008,7 @@ function SettingsBackupView({
     onSaveTelegramConfig({
       botToken: botToken.trim(),
       chatId: chatId.trim(),
+      apiHost: apiHost.trim() || "https://api.telegram.org",
       enabled,
       autoSendOnAnalysis: autoSend,
     });
@@ -3998,7 +4017,7 @@ function SettingsBackupView({
   const handleTest = async () => {
     setIsTesting(true);
     try {
-      await onTestTelegram(botToken, chatId);
+      await onTestTelegram(botToken, chatId, apiHost);
     } finally {
       setIsTesting(false);
     }
@@ -4079,6 +4098,23 @@ function SettingsBackupView({
               />
               <p className="mt-1 text-[11px] text-slate-400">
                 Lấy qua <b>@userinfobot</b> hoặc <b>@getidsbot</b>
+              </p>
+            </div>
+            <div className="md:col-span-2">
+              <label className="block font-bold text-slate-700 mb-1">
+                API Endpoint / Reverse Proxy Telegram (Tùy chọn)
+              </label>
+              <input
+                type="text"
+                value={apiHost}
+                onChange={(e) => setApiHost(e.target.value)}
+                placeholder="https://api.telegram.org"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-xs text-slate-900 focus:border-teal-500 focus:outline-none"
+              />
+              <p className="mt-1 text-[11px] text-slate-400">
+                Mặc định: <b>https://api.telegram.org</b>. Nếu gặp lỗi <i>Failed to fetch</i> do
+                mạng bệnh viện/nhà mạng VN chặn Telegram, bạn có thể bật VPN/WARP 1.1.1.1 hoặc nhập
+                URL Cloudflare Worker / Reverse Proxy.
               </p>
             </div>
           </div>
@@ -4390,6 +4426,11 @@ function GuideView() {
                   "MA_BENH, CHAN_DOAN_RV",
                   "XML1–XML15",
                   "Cảnh báo mã bệnh không được thanh toán BHYT: Z00.0 (khám sức khỏe) và Z30.1 (đặt dụng cụ tránh thai - KHHGĐ theo Khoản 10 Điều 23 Luật BHYT).",
+                ],
+                [
+                  "MA_MAY, NGAY_TH_YL",
+                  "XML3",
+                  "Cảnh báo DVKT trùng thời gian thực hiện y lệnh cho một hoặc nhiều người bệnh trên cùng mã máy (cùng thời điểm NGAY_TH_YL).",
                 ],
                 ["KET_LUAN", "XML4", "Bắt buộc có KET_LUAN khi XML3 có MA_NHOM = 2 (CĐHA)."],
               ].map(([field, position, role]) => (

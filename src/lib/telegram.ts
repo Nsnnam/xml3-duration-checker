@@ -3,6 +3,7 @@ export type TelegramConfig = {
   chatId: string;
   enabled: boolean;
   autoSendOnAnalysis: boolean;
+  apiHost?: string;
 };
 
 export const TELEGRAM_CONFIG_KEY = "nsn-xmlcheck-telegram-config";
@@ -12,6 +13,7 @@ export const DEFAULT_TELEGRAM_CONFIG: TelegramConfig = {
   chatId: "",
   enabled: false,
   autoSendOnAnalysis: false,
+  apiHost: "https://api.telegram.org",
 };
 
 export function loadTelegramConfig(): TelegramConfig {
@@ -24,6 +26,10 @@ export function loadTelegramConfig(): TelegramConfig {
       chatId: typeof parsed.chatId === "string" ? parsed.chatId.trim() : "",
       enabled: Boolean(parsed.enabled),
       autoSendOnAnalysis: Boolean(parsed.autoSendOnAnalysis),
+      apiHost:
+        typeof parsed.apiHost === "string" && parsed.apiHost.trim()
+          ? parsed.apiHost.trim()
+          : "https://api.telegram.org",
     };
   } catch {
     return { ...DEFAULT_TELEGRAM_CONFIG };
@@ -34,9 +40,23 @@ export function saveTelegramConfig(config: TelegramConfig): void {
   localStorage.setItem(TELEGRAM_CONFIG_KEY, JSON.stringify(config));
 }
 
+function getTelegramUrl(token: string, method: string, apiHost?: string): string {
+  const host = (apiHost?.trim() || "https://api.telegram.org").replace(/\/+$/, "");
+  return `${host}/bot${token}/${method}`;
+}
+
+function formatTelegramNetworkError(error: unknown): string {
+  const msg = error instanceof Error ? error.message : "Lỗi kết nối mạng";
+  if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
+    return `Không thể kết nối đến máy chủ Telegram (Failed to fetch). Tại Việt Nam, tên miền api.telegram.org thường bị nhà mạng chặn. Hãy bật VPN / WARP 1.1.1.1 hoặc nhập Proxy / Reverse Proxy Endpoint trong cấu hình Telegram.`;
+  }
+  return msg;
+}
+
 export async function testTelegramConnection(
   token: string,
   chatId: string,
+  apiHost?: string,
 ): Promise<{ ok: boolean; description?: string }> {
   const cleanToken = token.trim();
   const cleanChatId = chatId.trim();
@@ -47,13 +67,14 @@ export async function testTelegramConnection(
   const now = new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
   const text = `🔔 [NsN_XMLcheck] Kiểm tra kết nối thành công!\n⏱ Thời gian: ${now}\n✅ Bot Telegram đã sẵn sàng nhận báo cáo Excel & file backup.`;
 
-  return sendTelegramMessage(cleanToken, cleanChatId, text);
+  return sendTelegramMessage(cleanToken, cleanChatId, text, apiHost);
 }
 
 export async function sendTelegramMessage(
   token: string,
   chatId: string,
   text: string,
+  apiHost?: string,
 ): Promise<{ ok: boolean; description?: string }> {
   const cleanToken = token.trim();
   const cleanChatId = chatId.trim();
@@ -62,7 +83,7 @@ export async function sendTelegramMessage(
   }
 
   try {
-    const url = `https://api.telegram.org/bot${cleanToken}/sendMessage`;
+    const url = getTelegramUrl(cleanToken, "sendMessage", apiHost);
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -81,7 +102,7 @@ export async function sendTelegramMessage(
   } catch (error) {
     return {
       ok: false,
-      description: error instanceof Error ? error.message : "Lỗi kết nối mạng đến Telegram API.",
+      description: formatTelegramNetworkError(error),
     };
   }
 }
@@ -92,6 +113,7 @@ export async function sendTelegramDocument(
   caption: string,
   blob: Blob,
   filename: string,
+  apiHost?: string,
 ): Promise<{ ok: boolean; description?: string }> {
   const cleanToken = token.trim();
   const cleanChatId = chatId.trim();
@@ -100,7 +122,7 @@ export async function sendTelegramDocument(
   }
 
   try {
-    const url = `https://api.telegram.org/bot${cleanToken}/sendDocument`;
+    const url = getTelegramUrl(cleanToken, "sendDocument", apiHost);
     const formData = new FormData();
     formData.append("chat_id", cleanChatId);
     formData.append("caption", caption);
@@ -120,8 +142,7 @@ export async function sendTelegramDocument(
   } catch (error) {
     return {
       ok: false,
-      description:
-        error instanceof Error ? error.message : "Lỗi kết nối mạng khi gửi file qua Telegram.",
+      description: formatTelegramNetworkError(error),
     };
   }
 }
