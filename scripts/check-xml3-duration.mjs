@@ -25,6 +25,7 @@ import {
   formatDuplicateMachineWarningMessage,
   addDuplicateMachineWarnings,
   getXml3RecordCategory,
+  getRecordStatusLabel,
   getValidationWarningCategory,
   DEFAULT_WARNING_COLORS,
   WARNING_CATEGORY_CONFIG,
@@ -1435,6 +1436,43 @@ assert.equal(wb.worksheets[0].name, "Tóm tắt");
 assert.equal(wb.worksheets[1].name, "Đối chiếu trùng máy");
 assert.ok(wb.worksheets[1].rowCount > 1);
 
+// Test getRecordStatusLabel
+assert.equal(getRecordStatusLabel(checkedMachines[0]), "TRÙNG MÁY");
+assert.equal(
+  getRecordStatusLabel({
+    ...checkedMachines[0],
+    hasDuplicateMachineWarning: false,
+    hasZ000Warning: true,
+    detail: "Phát hiện mã bệnh Z30.1",
+  }),
+  "Z30.1",
+);
+assert.equal(
+  getRecordStatusLabel({
+    ...checkedMachines[0],
+    hasDuplicateMachineWarning: false,
+    hasZ000Warning: true,
+    detail: "Phát hiện mã bệnh Z00.0",
+  }),
+  "Z00.0",
+);
+assert.equal(
+  getRecordStatusLabel({
+    ...checkedMachines[0],
+    hasDuplicateMachineWarning: false,
+    status: "warning",
+  }),
+  "VƯỢT MAX",
+);
+assert.equal(
+  getRecordStatusLabel({
+    ...checkedMachines[0],
+    hasDuplicateMachineWarning: false,
+    status: "ok",
+  }),
+  "ĐẠT",
+);
+
 console.log(
-  "All tests passed: XML1 CCCD validation, Z00.0 & Z30.1 validation, XML3 duplicate machine time validation, duplicate machine excel export & warning colors: OK",
+  "All tests passed: XML1 CCCD validation, Z00.0 & Z30.1 validation, XML3 duplicate machine time validation, duplicate machine excel export, warning colors & column filter/sort helpers: OK",
 );

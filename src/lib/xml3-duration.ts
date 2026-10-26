@@ -587,6 +587,24 @@ export function getXml3RecordCategory(record: Xml3Record): WarningCategory {
   return "all";
 }
 
+export function getRecordStatusLabel(record: Xml3Record): string {
+  if (record.hasDuplicateMachineWarning) return "TRÙNG MÁY";
+  if (record.hasZ000Warning) {
+    return record.detail.includes("Z30.1") ? "Z30.1" : "Z00.0";
+  }
+  if (record.hasOrderWarning) return "SAI THỨ TỰ";
+  if (record.hasEqualWarning) return "TRÙNG MỐC";
+  if (record.hasBedWarning) return "GIƯỜNG";
+  if (record.hasTtThauWarning) return "TT_THAU";
+  if (record.hasMaMayWarning) return "MÃ MÁY";
+  if (record.status === "warning") return "VƯỢT MAX";
+  if (record.status === "ok") return "ĐẠT";
+  if (record.status === "missing") return "THIẾU";
+  if (record.status === "invalid") return "LỖI";
+  if (record.status === "negative") return "THỜI GIAN ÂM";
+  return record.status.toUpperCase();
+}
+
 export function getValidationWarningCategory(warning: ValidationWarning): WarningCategory {
   if (
     warning.message.includes("trên cùng mã máy") ||

@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.7.0] — 2026-10-26
+
+- **Bật bộ lọc cột và tìm kiếm trực tiếp trên tiêu đề**: Thêm nút `🔍 Bộ lọc cột` trên toolbar cho phép bật/tắt tức thì hàng input tìm kiếm ngay dưới tiêu đề bảng (thead dính cố định khi cuộn trang). Từng cột có ô tìm kiếm/lọc riêng biệt.
+- **Bộ lọc trạng thái & số phút thông minh**: Cột Trạng thái hỗ trợ dropdown chọn nhanh các nhãn chuẩn (`ĐẠT`, `VƯỢT MAX`, `TRÙNG MÁY`, `MÃ MÁY`, `TT_THAU`, `SAI THỨ TỰ`, `TRÙNG MỐC`, `GIƯỜNG`, `Z00.0`, `Z30.1`, `THIẾU / LỖI`). Cột Số phút và Vượt ngưỡng hỗ trợ cú pháp so sánh toán tử thông minh (`>70`, `<=0`, `>=50`, `<10` hoặc số cụ thể).
+- **Bộ lọc chuỗi & tìm kiếm ô trống**: Cột `TT_THAU` và `Mã máy` hỗ trợ tìm kiếm từ khóa hoặc gõ `trống` / `rỗng` để lọc nhanh các dòng chưa có dữ liệu. Tất cả các cột văn bản hỗ trợ tìm kiếm không phân biệt hoa/thường và tiếng Việt không dấu.
+- **Sắp xếp trực tiếp trên tiêu đề cột (Sort)**: Click trực tiếp vào tiêu đề cột để luân chuyển sắp xếp: Tăng dần (`▲`) ➔ Giảm dần (`▼`) ➔ Hủy sắp xếp (`↕`). Đảm bảo không xung đột với thao tác kéo thả chỉnh độ rộng cột (`ResizableTh`).
+- **Nút xóa lọc & hủy xếp nhanh**: Tự động hiển thị nút `✕ Xóa lọc` (kèm số lượng bộ lọc đang kích hoạt) và nút `↕ Hủy xếp` khi có sắp xếp hoặc lọc đang áp dụng.
+- **Áp dụng đồng bộ cho tất cả các bảng**: Hỗ trợ đầy đủ cho bảng chính **XML3** và toàn bộ các bảng cảnh báo liên quan **XML1**, **XML2**, **XML4** (`ValidationTable`).
+
 ## [2.6.0] — 2026-10-24
 
 - **Tùy chỉnh màu sắc cảnh báo**: Bổ sung bảng cấu hình màu sắc riêng biệt cho từng loại/nhóm cảnh báo (12 nhóm: Vượt max, Thiếu min, Trùng máy, Mã máy, TT_THAU, Sai thứ tự, Trùng mốc, Z00.0/Z30.1, Giường, Kết luận XML4, CCCD XML1). Hỗ trợ Color picker trực quan, bảng màu gợi ý nhanh (palette), xem trước badge và lưu trữ bền vững qua `localStorage`.

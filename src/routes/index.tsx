@@ -21,6 +21,7 @@ import {
   isMandatoryMachineService,
   DEFAULT_MANDATORY_MACHINE_SERVICES,
   getXml3RecordCategory,
+  getRecordStatusLabel,
   getValidationWarningCategory,
   WARNING_CATEGORY_CONFIG,
   loadWarningColors,
@@ -1193,6 +1194,66 @@ export function HomePage() {
 }
 
 // ---------------------------------------------------------------------------
+// COLUMN FILTER & SORT HELPERS
+// ---------------------------------------------------------------------------
+function removeVietnameseTones(str: string): string {
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D");
+}
+
+function matchesTextFilter(text: string | null | undefined, query: string): boolean {
+  if (!query) return true;
+  const qClean = query.trim().toLowerCase();
+  if (!qClean) return true;
+
+  if (qClean === "trống" || qClean === "rỗng" || qClean === "empty") {
+    return !text || text.trim() === "" || text.trim() === "—";
+  }
+
+  if (!text) return false;
+  const tLower = text.toLowerCase();
+  if (tLower.includes(qClean)) return true;
+
+  const tNorm = removeVietnameseTones(tLower);
+  const qNorm = removeVietnameseTones(qClean);
+  return tNorm.includes(qNorm);
+}
+
+function matchesNumberFilter(value: number | null | undefined, filterStr: string): boolean {
+  const trimmed = filterStr.trim();
+  if (!trimmed) return true;
+  if (value === null || value === undefined) return false;
+
+  if (trimmed.startsWith(">=")) {
+    const threshold = parseFloat(trimmed.slice(2));
+    return !isNaN(threshold) && value >= threshold;
+  }
+  if (trimmed.startsWith("<=")) {
+    const threshold = parseFloat(trimmed.slice(2));
+    return !isNaN(threshold) && value <= threshold;
+  }
+  if (trimmed.startsWith(">")) {
+    const threshold = parseFloat(trimmed.slice(1));
+    return !isNaN(threshold) && value > threshold;
+  }
+  if (trimmed.startsWith("<")) {
+    const threshold = parseFloat(trimmed.slice(1));
+    return !isNaN(threshold) && value < threshold;
+  }
+  if (trimmed.startsWith("=")) {
+    const threshold = parseFloat(trimmed.slice(1));
+    return !isNaN(threshold) && value === threshold;
+  }
+
+  const num = parseFloat(trimmed);
+  if (!isNaN(num) && value === num) return true;
+  return String(value).includes(trimmed);
+}
+
+// ---------------------------------------------------------------------------
 // CHECKER VIEW
 // ---------------------------------------------------------------------------
 function CheckerView({
@@ -1318,6 +1379,219 @@ function CheckerView({
   }, [onlyWarnings, filteredWarnings, filteredRecords, analysis]);
 
   const [showMetricsGrid, setShowMetricsGrid] = useState(false);
+
+  const [showColumnFilter, setShowColumnFilter] = useState(() => {
+    try {
+      return localStorage.getItem("nsn_show_col_filter_xml3") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
+  const [sortConfig, setSortConfig] = useState<{ key: string; dir: "asc" | "desc" } | null>(null);
+
+  const activeFilterCount = useMemo(() => {
+    return Object.values(columnFilters).filter((v) => v && v.trim() !== "").length;
+  }, [columnFilters]);
+
+  const handleSort = (key: string) => {
+    setSortConfig((prev) => {
+      if (!prev || prev.key !== key) return { key, dir: "asc" };
+      if (prev.dir === "asc") return { key, dir: "desc" };
+      return null;
+    });
+  };
+
+  const handleFilterChange = (key: string, val: string) => {
+    setColumnFilters((prev) => ({
+      ...prev,
+      [key]: val,
+    }));
+  };
+
+  const handleClearColumnFilters = () => {
+    setColumnFilters({});
+  };
+
+  const handleToggleColumnFilter = () => {
+    setShowColumnFilter((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("nsn_show_col_filter_xml3", String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
+  const displayRecords = useMemo(() => {
+    let list = records;
+
+    const hasFilter = Object.keys(columnFilters).some(
+      (k) => (columnFilters[k] || "").trim() !== "",
+    );
+    if (hasFilter) {
+      list = list.filter((r) => {
+        for (const [key, val] of Object.entries(columnFilters)) {
+          const query = (val || "").trim();
+          if (!query) continue;
+
+          switch (key) {
+            case "status": {
+              const label = getRecordStatusLabel(r);
+              if (!matchesTextFilter(label, query) && !matchesTextFilter(r.status, query)) {
+                return false;
+              }
+              break;
+            }
+            case "maLk":
+              if (!matchesTextFilter(r.MA_LK, query)) return false;
+              break;
+            case "hoTen":
+              if (!matchesTextFilter(r.HO_TEN, query)) return false;
+              break;
+            case "maBn":
+              if (!matchesTextFilter(r.MA_BN, query)) return false;
+              break;
+            case "duration":
+              if (!matchesNumberFilter(r.durationMinutes, query)) return false;
+              break;
+            case "overLimit": {
+              const limit = r.serviceRule?.maxMinutes ?? 70;
+              const over =
+                r.durationMinutes !== null && r.durationMinutes > limit
+                  ? r.durationMinutes - limit
+                  : 0;
+              if (!matchesNumberFilter(over, query) && !matchesTextFilter(String(over), query))
+                return false;
+              break;
+            }
+            case "detail": {
+              const text = `${r.detail} ${r.orderIssues?.join(" ") || ""}`;
+              if (!matchesTextFilter(text, query)) return false;
+              break;
+            }
+            case "service": {
+              const text = `${r.MA_DICH_VU} ${r.TEN_DICH_VU} ${r.MA_VAT_TU} ${r.TEN_VAT_TU}`;
+              if (!matchesTextFilter(text, query)) return false;
+              break;
+            }
+            case "group":
+              if (!matchesTextFilter(r.MA_NHOM, query)) return false;
+              break;
+            case "ttThau":
+              if (!matchesTextFilter(r.TT_THAU, query)) return false;
+              break;
+            case "maMay":
+              if (!matchesTextFilter(r.MA_MAY, query)) return false;
+              break;
+            case "khoa":
+              if (!matchesTextFilter(r.MA_KHOA, query)) return false;
+              break;
+            case "ngayYl":
+              if (
+                !matchesTextFilter(r.NGAY_YL, query) &&
+                !matchesTextFilter(formatXmlDateTime(r.NGAY_YL), query)
+              )
+                return false;
+              break;
+            case "ngayThYl":
+              if (
+                !matchesTextFilter(r.NGAY_TH_YL, query) &&
+                !matchesTextFilter(formatXmlDateTime(r.NGAY_TH_YL), query)
+              )
+                return false;
+              break;
+            case "ngayKq":
+              if (
+                !matchesTextFilter(r.NGAY_KQ, query) &&
+                !matchesTextFilter(formatXmlDateTime(r.NGAY_KQ), query)
+              )
+                return false;
+              break;
+            case "fileName":
+              if (!matchesTextFilter(r.fileName, query)) return false;
+              break;
+            case "stt":
+              if (!matchesTextFilter(r.STT, query)) return false;
+              break;
+            default:
+              break;
+          }
+        }
+        return true;
+      });
+    }
+
+    if (sortConfig) {
+      const { key, dir } = sortConfig;
+      const factor = dir === "asc" ? 1 : -1;
+      list = [...list].sort((a, b) => {
+        switch (key) {
+          case "status":
+            return factor * getRecordStatusLabel(a).localeCompare(getRecordStatusLabel(b), "vi");
+          case "maLk":
+            return factor * (a.MA_LK || "").localeCompare(b.MA_LK || "", "vi");
+          case "hoTen":
+            return factor * (a.HO_TEN || "").localeCompare(b.HO_TEN || "", "vi");
+          case "maBn":
+            return factor * (a.MA_BN || "").localeCompare(b.MA_BN || "", "vi");
+          case "duration": {
+            const valA = a.durationMinutes ?? (dir === "asc" ? 999999 : -999999);
+            const valB = b.durationMinutes ?? (dir === "asc" ? 999999 : -999999);
+            return factor * (valA - valB);
+          }
+          case "overLimit": {
+            const limitA = a.serviceRule?.maxMinutes ?? 70;
+            const overA =
+              a.durationMinutes !== null && a.durationMinutes > limitA
+                ? a.durationMinutes - limitA
+                : 0;
+            const limitB = b.serviceRule?.maxMinutes ?? 70;
+            const overB =
+              b.durationMinutes !== null && b.durationMinutes > limitB
+                ? b.durationMinutes - limitB
+                : 0;
+            return factor * (overA - overB);
+          }
+          case "detail":
+            return factor * (a.detail || "").localeCompare(b.detail || "", "vi");
+          case "service": {
+            const textA = a.TEN_DICH_VU || a.MA_DICH_VU || "";
+            const textB = b.TEN_DICH_VU || b.MA_DICH_VU || "";
+            return factor * textA.localeCompare(textB, "vi");
+          }
+          case "group":
+            return factor * (a.MA_NHOM || "").localeCompare(b.MA_NHOM || "", "vi");
+          case "ttThau":
+            return factor * (a.TT_THAU || "").localeCompare(b.TT_THAU || "", "vi");
+          case "maMay":
+            return factor * (a.MA_MAY || "").localeCompare(b.MA_MAY || "", "vi");
+          case "khoa":
+            return factor * (a.MA_KHOA || "").localeCompare(b.MA_KHOA || "", "vi");
+          case "ngayYl":
+            return factor * (a.NGAY_YL || "").localeCompare(b.NGAY_YL || "");
+          case "ngayThYl":
+            return factor * (a.NGAY_TH_YL || "").localeCompare(b.NGAY_TH_YL || "");
+          case "ngayKq":
+            return factor * (a.NGAY_KQ || "").localeCompare(b.NGAY_KQ || "");
+          case "fileName":
+            return factor * (a.fileName || "").localeCompare(b.fileName || "");
+          case "stt": {
+            const numA = parseInt(a.STT, 10) || 0;
+            const numB = parseInt(b.STT, 10) || 0;
+            return factor * (numA - numB);
+          }
+          default:
+            return 0;
+        }
+      });
+    }
+
+    return list;
+  }, [records, columnFilters, sortConfig]);
 
   return (
     <div className="space-y-6">
@@ -1672,6 +1946,47 @@ function CheckerView({
                 >
                   <span>⚙️ Tùy chỉnh cột ({alertTab})</span>
                 </button>
+                {alertTab === "XML3" && (
+                  <button
+                    type="button"
+                    onClick={handleToggleColumnFilter}
+                    className={`rounded-lg border px-2.5 py-1.5 text-xs font-bold shadow-sm flex items-center gap-1.5 transition ${
+                      showColumnFilter
+                        ? "border-teal-600 bg-teal-700 text-white hover:bg-teal-800"
+                        : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                    }`}
+                    title="Bật/tắt thanh tìm kiếm và lọc trực tiếp ngay dưới tiêu đề từng cột"
+                  >
+                    <span>🔍 Bộ lọc cột</span>
+                    {activeFilterCount > 0 && (
+                      <span className="rounded-full bg-amber-400 px-1.5 py-0.2 text-[10px] font-black text-slate-900">
+                        {activeFilterCount}
+                      </span>
+                    )}
+                  </button>
+                )}
+                {alertTab === "XML3" && activeFilterCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearColumnFilters}
+                    className="rounded-lg border border-rose-300 bg-rose-50 px-2 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100 shadow-sm flex items-center gap-1"
+                    title="Xóa tất cả bộ lọc ở từng cột"
+                  >
+                    <span>✕ Xóa lọc ({activeFilterCount})</span>
+                  </button>
+                )}
+                {alertTab === "XML3" && sortConfig && (
+                  <button
+                    type="button"
+                    onClick={() => setSortConfig(null)}
+                    className="rounded-lg border border-teal-300 bg-teal-50 px-2 py-1.5 text-xs font-bold text-teal-800 hover:bg-teal-100 shadow-sm flex items-center gap-1"
+                    title="Hủy sắp xếp cột"
+                  >
+                    <span>
+                      ↕ Hủy xếp ({sortConfig.key} {sortConfig.dir === "asc" ? "▲" : "▼"})
+                    </span>
+                  </button>
+                )}
                 <button
                   disabled={
                     alertTab === "XML3"
@@ -1814,10 +2129,23 @@ function CheckerView({
                 <div className="px-6 py-12 text-center text-sm text-slate-500">
                   Không có dòng phù hợp với bộ lọc hiện tại.
                 </div>
+              ) : displayRecords.length === 0 ? (
+                <div className="px-6 py-12 text-center text-sm text-slate-500">
+                  <span>Không có dòng phù hợp với bộ lọc cột hiện tại.</span>
+                  {activeFilterCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleClearColumnFilters}
+                      className="ml-2 font-bold text-teal-700 underline hover:text-teal-800"
+                    >
+                      Xóa bộ lọc cột ({activeFilterCount})
+                    </button>
+                  )}
+                </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-slate-100/90 text-[11px] uppercase tracking-wide text-slate-600 sticky top-0 z-10 select-none">
+                    <thead className="bg-slate-100/95 text-[11px] uppercase tracking-wide text-slate-600 sticky top-0 z-10 select-none shadow-xs">
                       <tr>
                         {TAB_COLUMNS.XML3.filter(
                           (col) => currentTabCols.visible[col.key] !== false,
@@ -1828,14 +2156,87 @@ function CheckerView({
                             onResize={(w) => onUpdateColumnWidth(col.key, w)}
                             isCompact={col.isCompact}
                             isWide={col.isWide}
+                            sortDir={sortConfig?.key === col.key ? sortConfig.dir : null}
+                            onSort={() => handleSort(col.key)}
+                            hasFilter={Boolean(columnFilters[col.key]?.trim())}
                           >
                             {col.label}
                           </ResizableTh>
                         ))}
                       </tr>
+                      {showColumnFilter && (
+                        <tr className="bg-slate-50 border-t border-slate-200 text-slate-700 font-normal normal-case">
+                          {TAB_COLUMNS.XML3.filter(
+                            (col) => currentTabCols.visible[col.key] !== false,
+                          ).map((col) => {
+                            const filterVal = columnFilters[col.key] || "";
+                            const colWidthStyle = {
+                              width: `${currentTabCols.widths[col.key] || col.defaultWidth}px`,
+                              minWidth: `${currentTabCols.widths[col.key] || col.defaultWidth}px`,
+                              maxWidth: `${currentTabCols.widths[col.key] || col.defaultWidth}px`,
+                            };
+                            return (
+                              <th
+                                key={`filter-${col.key}`}
+                                style={colWidthStyle}
+                                className="p-1 border-r border-slate-200 last:border-r-0 bg-slate-50/95"
+                              >
+                                {col.key === "status" ? (
+                                  <select
+                                    value={filterVal}
+                                    onChange={(e) => handleFilterChange(col.key, e.target.value)}
+                                    className="w-full rounded border border-slate-300 bg-white px-1 py-1 text-[11px] font-medium text-slate-700 focus:border-teal-500 focus:outline-none"
+                                  >
+                                    <option value="">Tất cả</option>
+                                    <option value="ĐẠT">ĐẠT</option>
+                                    <option value="VƯỢT MAX">VƯỢT MAX</option>
+                                    <option value="TRÙNG MÁY">TRÙNG MÁY</option>
+                                    <option value="MÃ MÁY">MÃ MÁY</option>
+                                    <option value="TT_THAU">TT_THAU</option>
+                                    <option value="SAI THỨ TỰ">SAI THỨ TỰ</option>
+                                    <option value="TRÙNG MỐC">TRÙNG MỐC</option>
+                                    <option value="GIƯỜNG">GIƯỜNG</option>
+                                    <option value="Z00.0">Z00.0</option>
+                                    <option value="Z30.1">Z30.1</option>
+                                    <option value="THIẾU">THIẾU / LỖI</option>
+                                  </select>
+                                ) : (
+                                  <div className="relative flex items-center">
+                                    <input
+                                      type="text"
+                                      value={filterVal}
+                                      onChange={(e) => handleFilterChange(col.key, e.target.value)}
+                                      placeholder={
+                                        col.key === "duration"
+                                          ? "vd >70"
+                                          : col.key === "overLimit"
+                                            ? "vd >0"
+                                            : col.key === "ttThau" || col.key === "maMay"
+                                              ? "Tìm/trống"
+                                              : "Lọc..."
+                                      }
+                                      className="w-full rounded border border-slate-300 bg-white px-1.5 py-1 text-[11px] font-normal text-slate-800 placeholder:text-slate-400 focus:border-teal-500 focus:outline-none"
+                                    />
+                                    {filterVal && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleFilterChange(col.key, "")}
+                                        className="absolute right-1 text-slate-400 hover:text-rose-600 text-[10px] font-bold"
+                                        title="Xóa ô lọc này"
+                                      >
+                                        ✕
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+                              </th>
+                            );
+                          })}
+                        </tr>
+                      )}
                     </thead>
                     <tbody>
-                      {records.map((record, index) => (
+                      {displayRecords.map((record, index) => (
                         <WarningRow
                           key={`${record.fileName}-${record.MA_LK}-${record.STT}-${index}`}
                           record={record}
@@ -1896,12 +2297,18 @@ function ResizableTh({
   onResize,
   isCompact = false,
   isWide = false,
+  sortDir,
+  onSort,
+  hasFilter = false,
 }: {
   children: React.ReactNode;
   width?: number;
   onResize: (width: number) => void;
   isCompact?: boolean;
   isWide?: boolean;
+  sortDir?: "asc" | "desc" | null;
+  onSort?: () => void;
+  hasFilter?: boolean;
 }) {
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
@@ -1933,13 +2340,40 @@ function ResizableTh({
         minWidth: width ? `${width}px` : undefined,
         maxWidth: width ? `${width}px` : undefined,
       }}
-      className={`relative px-3 py-3 font-bold border-r border-slate-200 last:border-r-0 ${
+      onClick={() => {
+        if (onSort) onSort();
+      }}
+      className={`group/th relative px-3 py-2.5 font-bold border-r border-slate-200 last:border-r-0 select-none transition-colors ${
+        onSort ? "cursor-pointer hover:bg-slate-200/80" : ""
+      } ${sortDir ? "bg-teal-50/90 text-teal-900 border-b-2 border-b-teal-600" : ""} ${
         isCompact ? "bg-amber-50/70 text-amber-900" : isWide ? "bg-teal-50/70 text-teal-900" : ""
       }`}
+      title={onSort ? "Bấm để sắp xếp theo cột này" : undefined}
     >
-      <div className="truncate pr-2">{children}</div>
+      <div className="flex items-center justify-between gap-1 pr-2">
+        <span className="truncate">{children}</span>
+        <div className="flex items-center gap-1 shrink-0">
+          {hasFilter && (
+            <span className="text-[10px] text-teal-700 font-black" title="Cột này đang có bộ lọc">
+              🔍
+            </span>
+          )}
+          {onSort && (
+            <span
+              className={`text-[11px] transition-opacity ${
+                sortDir
+                  ? "opacity-100 font-black text-teal-700"
+                  : "opacity-30 group-hover/th:opacity-80 text-slate-400"
+              }`}
+            >
+              {sortDir === "asc" ? "▲" : sortDir === "desc" ? "▼" : "↕"}
+            </span>
+          )}
+        </div>
+      </div>
       <div
         onMouseDown={handleMouseDown}
+        onClick={(e) => e.stopPropagation()}
         className="absolute top-0 right-0 h-full w-2 cursor-col-resize hover:bg-teal-500/50 select-none z-10"
         title="Kéo thả để chỉnh độ rộng cột"
       />
@@ -1986,27 +2420,7 @@ function WarningRow({
     record.hasDuplicateMachineWarning ||
     Boolean(record.hasZ000Warning);
 
-  const label = record.hasDuplicateMachineWarning
-    ? "TRÙNG MÁY"
-    : record.hasZ000Warning
-      ? record.detail.includes("Z30.1")
-        ? "Z30.1"
-        : "Z00.0"
-      : record.hasOrderWarning
-        ? "SAI THỨ TỰ"
-        : record.hasEqualWarning
-          ? "TRÙNG MỐC"
-          : record.hasBedWarning
-            ? "GIƯỜNG"
-            : record.hasTtThauWarning
-              ? "TT_THAU"
-              : record.hasMaMayWarning
-                ? "MÃ MÁY"
-                : record.status === "warning"
-                  ? "VƯỢT MAX"
-                  : record.status === "ok"
-                    ? "ĐẠT"
-                    : record.status.toUpperCase();
+  const label = getRecordStatusLabel(record);
 
   const isVisible = (key: string) => tabCols.visible[key] !== false;
   const colWidth = (key: string, def: number) => ({
@@ -2303,29 +2717,192 @@ function ValidationTable({
 
   const columns = getTabColumns(source);
 
+  const [showColumnFilter, setShowColumnFilter] = useState(false);
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
+  const [sortConfig, setSortConfig] = useState<{ key: string; dir: "asc" | "desc" } | null>(null);
+
+  const activeFilterCount = useMemo(() => {
+    return Object.values(columnFilters).filter((v) => v && v.trim() !== "").length;
+  }, [columnFilters]);
+
+  const handleSort = (key: string) => {
+    if (key === "action") return;
+    setSortConfig((prev) => {
+      if (!prev || prev.key !== key) return { key, dir: "asc" };
+      if (prev.dir === "asc") return { key, dir: "desc" };
+      return null;
+    });
+  };
+
+  const handleFilterChange = (key: string, val: string) => {
+    setColumnFilters((prev) => ({
+      ...prev,
+      [key]: val,
+    }));
+  };
+
+  const handleClearColumnFilters = () => {
+    setColumnFilters({});
+  };
+
+  const displayWarnings = useMemo(() => {
+    let list = warnings;
+
+    const hasFilter = Object.keys(columnFilters).some(
+      (k) => (columnFilters[k] || "").trim() !== "",
+    );
+    if (hasFilter) {
+      list = list.filter((w) => {
+        for (const [key, val] of Object.entries(columnFilters)) {
+          const query = (val || "").trim();
+          if (!query) continue;
+
+          switch (key) {
+            case "detailIndex":
+              if (
+                !matchesNumberFilter(w.detailIndex, query) &&
+                !matchesTextFilter(String(w.detailIndex), query)
+              )
+                return false;
+              break;
+            case "maLk":
+              if (!matchesTextFilter(w.MA_LK, query)) return false;
+              break;
+            case "hoTen":
+              if (!matchesTextFilter(w.HO_TEN, query)) return false;
+              break;
+            case "maBn":
+              if (!matchesTextFilter(w.MA_BN, query)) return false;
+              break;
+            case "maDichVu":
+            case "maThuoc":
+              if (!matchesTextFilter(w.MA_DICH_VU, query)) return false;
+              break;
+            case "tenDichVu":
+            case "tenThuoc":
+              if (!matchesTextFilter(w.TEN_DICH_VU, query)) return false;
+              break;
+            case "message":
+              if (!matchesTextFilter(w.message, query)) return false;
+              break;
+            default:
+              break;
+          }
+        }
+        return true;
+      });
+    }
+
+    if (sortConfig) {
+      const { key, dir } = sortConfig;
+      const factor = dir === "asc" ? 1 : -1;
+      list = [...list].sort((a, b) => {
+        switch (key) {
+          case "detailIndex":
+            return factor * ((a.detailIndex || 0) - (b.detailIndex || 0));
+          case "maLk":
+            return factor * (a.MA_LK || "").localeCompare(b.MA_LK || "", "vi");
+          case "hoTen":
+            return factor * (a.HO_TEN || "").localeCompare(b.HO_TEN || "", "vi");
+          case "maBn":
+            return factor * (a.MA_BN || "").localeCompare(b.MA_BN || "", "vi");
+          case "maDichVu":
+          case "maThuoc":
+            return factor * (a.MA_DICH_VU || "").localeCompare(b.MA_DICH_VU || "", "vi");
+          case "tenDichVu":
+          case "tenThuoc":
+            return factor * (a.TEN_DICH_VU || "").localeCompare(b.TEN_DICH_VU || "", "vi");
+          case "message":
+            return factor * (a.message || "").localeCompare(b.message || "", "vi");
+          default:
+            return 0;
+        }
+      });
+    }
+
+    return list;
+  }, [warnings, columnFilters, sortConfig]);
+
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-3 md:px-6 bg-slate-50/50">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-3 md:px-6 bg-slate-50/50">
         <p className="text-xs text-slate-600">
-          <b>{warnings.length.toLocaleString("vi-VN")}</b> cảnh báo {source}; thông tin liên kết
-          theo MA_LK, HO_TEN, MA_BN.
+          <b>{displayWarnings.length.toLocaleString("vi-VN")}</b>
+          {displayWarnings.length !== warnings.length && (
+            <span className="text-slate-400"> / {warnings.length.toLocaleString("vi-VN")}</span>
+          )}{" "}
+          cảnh báo {source}; thông tin liên kết theo MA_LK, HO_TEN, MA_BN.
         </p>
-        <button
-          disabled={!warnings.length}
-          onClick={onExport}
-          className="rounded-lg bg-teal-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-40 shadow-sm"
-        >
-          Xuất {source} XLSX
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowColumnFilter((prev) => !prev)}
+            className={`rounded-lg border px-2.5 py-1.5 text-xs font-bold shadow-sm flex items-center gap-1.5 transition ${
+              showColumnFilter
+                ? "border-teal-600 bg-teal-700 text-white hover:bg-teal-800"
+                : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+            }`}
+            title="Bật/tắt thanh tìm kiếm và lọc trực tiếp ngay dưới tiêu đề từng cột"
+          >
+            <span>🔍 Bộ lọc cột</span>
+            {activeFilterCount > 0 && (
+              <span className="rounded-full bg-amber-400 px-1.5 py-0.2 text-[10px] font-black text-slate-900">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+          {activeFilterCount > 0 && (
+            <button
+              type="button"
+              onClick={handleClearColumnFilters}
+              className="rounded-lg border border-rose-300 bg-rose-50 px-2 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100 shadow-sm flex items-center gap-1"
+              title="Xóa tất cả bộ lọc ở từng cột"
+            >
+              <span>✕ Xóa lọc ({activeFilterCount})</span>
+            </button>
+          )}
+          {sortConfig && (
+            <button
+              type="button"
+              onClick={() => setSortConfig(null)}
+              className="rounded-lg border border-teal-300 bg-teal-50 px-2 py-1.5 text-xs font-bold text-teal-800 hover:bg-teal-100 shadow-sm flex items-center gap-1"
+              title="Hủy sắp xếp cột"
+            >
+              <span>
+                ↕ Hủy xếp ({sortConfig.key} {sortConfig.dir === "asc" ? "▲" : "▼"})
+              </span>
+            </button>
+          )}
+          <button
+            disabled={!warnings.length}
+            onClick={onExport}
+            className="rounded-lg bg-teal-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-40 shadow-sm"
+          >
+            Xuất {source} XLSX
+          </button>
+        </div>
       </div>
       {warnings.length === 0 ? (
         <div className="px-6 py-12 text-center text-sm text-slate-500">
           Không có cảnh báo {source}.
         </div>
+      ) : displayWarnings.length === 0 ? (
+        <div className="px-6 py-12 text-center text-sm text-slate-500">
+          <span>Không có cảnh báo phù hợp với bộ lọc cột hiện tại.</span>
+          {activeFilterCount > 0 && (
+            <button
+              type="button"
+              onClick={handleClearColumnFilters}
+              className="ml-2 font-bold text-teal-700 underline hover:text-teal-800"
+            >
+              Xóa bộ lọc cột ({activeFilterCount})
+            </button>
+          )}
+        </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-slate-100 text-[11px] uppercase tracking-wide text-slate-600 select-none">
+            <thead className="bg-slate-100 text-[11px] uppercase tracking-wide text-slate-600 select-none sticky top-0 z-10 shadow-xs">
               <tr>
                 {columns
                   .filter((col) => isVisible(col.key))
@@ -2334,14 +2911,64 @@ function ValidationTable({
                       key={col.key}
                       width={tabCols.widths[col.key] || col.defaultWidth}
                       onResize={(w) => onUpdateColumnWidth(col.key, w)}
+                      sortDir={sortConfig?.key === col.key ? sortConfig.dir : null}
+                      onSort={col.key !== "action" ? () => handleSort(col.key) : undefined}
+                      hasFilter={Boolean(columnFilters[col.key]?.trim())}
                     >
                       {col.label}
                     </ResizableTh>
                   ))}
               </tr>
+              {showColumnFilter && (
+                <tr className="bg-slate-50 border-t border-slate-200 text-slate-700 font-normal normal-case">
+                  {columns
+                    .filter((col) => isVisible(col.key))
+                    .map((col) => {
+                      if (col.key === "action") {
+                        return (
+                          <th
+                            key={`filter-${col.key}`}
+                            style={colWidth(col.key, source === "XML2" ? 115 : 95)}
+                            className="p-1 border-r border-slate-200 bg-slate-50 text-center text-slate-400 text-[10px]"
+                          >
+                            —
+                          </th>
+                        );
+                      }
+                      const filterVal = columnFilters[col.key] || "";
+                      return (
+                        <th
+                          key={`filter-${col.key}`}
+                          style={colWidth(col.key, col.defaultWidth)}
+                          className="p-1 border-r border-slate-200 last:border-r-0 bg-slate-50/95"
+                        >
+                          <div className="relative flex items-center">
+                            <input
+                              type="text"
+                              value={filterVal}
+                              onChange={(e) => handleFilterChange(col.key, e.target.value)}
+                              placeholder="Lọc..."
+                              className="w-full rounded border border-slate-300 bg-white px-1.5 py-1 text-[11px] font-normal text-slate-800 placeholder:text-slate-400 focus:border-teal-500 focus:outline-none"
+                            />
+                            {filterVal && (
+                              <button
+                                type="button"
+                                onClick={() => handleFilterChange(col.key, "")}
+                                className="absolute right-1 text-slate-400 hover:text-rose-600 text-[10px] font-bold"
+                                title="Xóa ô lọc này"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                        </th>
+                      );
+                    })}
+                </tr>
+              )}
             </thead>
             <tbody>
-              {warnings.map((warning, index) => {
+              {displayWarnings.map((warning, index) => {
                 const warningCat = getValidationWarningCategory(warning);
                 const warningCatMeta = WARNING_CATEGORY_CONFIG[warningCat];
                 const customColor = warningColors?.[warningCat] || warningCatMeta.defaultColor;

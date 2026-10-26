@@ -3,12 +3,24 @@ export const APP_META = {
   title: "NsN_XMLcheck",
   description:
     "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, MA_MAY chuẩn XX.3[xxx].Z & trùng thời gian máy, cảnh báo Z00.0/Z30.1 (KHHGĐ) & Hồ sơ 15 bảng BHYT",
-  version: "2.6.0",
-  date: "2026-10-24",
+  version: "2.7.0",
+  date: "2026-10-26",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.7.0",
+      date: "2026-10-26",
+      changes: [
+        "Bật bộ lọc cột và tìm kiếm trực tiếp trên tiêu đề: Thêm nút '🔍 Bộ lọc cột' trên toolbar cho phép bật/tắt hàng input tìm kiếm ngay dưới hàng tiêu đề bảng (thead cố định). Từng cột có ô tìm kiếm/lọc riêng biệt.",
+        "Bộ lọc trạng thái & số phút thông minh: Cột Trạng thái hỗ trợ dropdown chọn nhanh các nhãn chuẩn (ĐẠT, VƯỢT MAX, TRÙNG MÁY, MÃ MÁY, TT_THAU, SAI THỨ TỰ, TRÙNG MỐC, GIƯỜNG, Z00.0, Z30.1, THIẾU/LỖI). Cột Số phút và Vượt ngưỡng hỗ trợ cú pháp so sánh toán tử thông minh (>70, <=0, >=50, =0, v.v.).",
+        "Bộ lọc chuỗi & tìm kiếm ô trống: Cột TT_THAU và Mã máy hỗ trợ tìm kiếm từ khóa hoặc gõ 'trống'/'rỗng' để lọc nhanh các dòng chưa có dữ liệu. Tất cả các cột văn bản hỗ trợ tìm kiếm không phân biệt hoa/thường và tiếng Việt không dấu.",
+        "Sắp xếp trực tiếp trên tiêu đề cột (Sort): Click trực tiếp vào tiêu đề cột để luân chuyển sắp xếp: Tăng dần (▲) ➔ Giảm dần (▼) ➔ Hủy sắp xếp (↕). Đảm bảo không xung đột với thao tác kéo thả chỉnh độ rộng cột (ResizableTh).",
+        "Nút xóa lọc & hủy xếp nhanh: Tự động hiển thị nút '✕ Xóa lọc' (kèm số lượng bộ lọc đang kích hoạt) và nút '↕ Hủy xếp' khi có sắp xếp hoặc lọc đang áp dụng.",
+        "Áp dụng đồng bộ cho tất cả các bảng: Hỗ trợ đầy đủ cho bảng chính XML3 và toàn bộ các bảng cảnh báo liên quan XML1, XML2, XML4 (ValidationTable).",
+      ],
+    },
     {
       version: "2.6.0",
       date: "2026-10-24",
