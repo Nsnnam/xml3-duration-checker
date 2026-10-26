@@ -1295,9 +1295,9 @@ export function addDuplicateMachineWarnings(records: Xml3Record[]): Xml3Record[]
   const groups = new Map<string, Xml3Record[]>();
   for (const record of records) {
     if (!record.MA_MAY || !record.MA_MAY.trim()) continue;
-    // Bỏ qua cảnh báo trùng thời gian trên cùng mã máy đối với các dịch vụ có mã nhóm bằng 1 (MA_NHOM = 1)
+    // Bỏ qua cảnh báo trùng thời gian trên cùng mã máy đối với các dịch vụ có mã nhóm bằng 1 (MA_NHOM = 1) hoặc mã nhóm 10 (vật tư đi kèm DVKT)
     const nhom = String(record.MA_NHOM || "").trim();
-    if (nhom === "1" || nhom === "01") continue;
+    if (nhom === "1" || nhom === "01" || nhom === "10") continue;
 
     const date = parseXmlDateTime(record.NGAY_TH_YL);
     if (!date) continue;
@@ -1524,22 +1524,28 @@ export function evaluateRecord(
   const isGroup10Or11 = groupCode === "10" || groupCode === "11";
   const hasTtThauWarning = isGroup10Or11 && (!fields.TT_THAU || !fields.TT_THAU.trim());
 
-  const isMandatoryMachine = isMandatoryMachineService(fields.MA_DICH_VU, mandatoryMachineRules);
+  // Mã nhóm bằng 10 (vật tư đi kèm dịch vụ kỹ thuật) loại trừ ra khỏi cảnh báo mã máy
+  const isGroup10 = groupCode === "10";
+  const isMandatoryMachine =
+    !isGroup10 && isMandatoryMachineService(fields.MA_DICH_VU, mandatoryMachineRules);
   const maMayVal = fields.MA_MAY ? fields.MA_MAY.trim() : "";
   let hasMaMayWarning = false;
   let maMayWarningMessage = "";
 
-  if (isMandatoryMachine) {
-    if (!maMayVal) {
-      hasMaMayWarning = true;
-      maMayWarningMessage = "XML3: Dịch vụ kỹ thuật bắt buộc gửi kèm mã máy nhưng cột MA_MAY rỗng";
-    } else if (!isValidMaMay(maMayVal)) {
+  if (!isGroup10) {
+    if (isMandatoryMachine) {
+      if (!maMayVal) {
+        hasMaMayWarning = true;
+        maMayWarningMessage =
+          "XML3: Dịch vụ kỹ thuật bắt buộc gửi kèm mã máy nhưng cột MA_MAY rỗng";
+      } else if (!isValidMaMay(maMayVal)) {
+        hasMaMayWarning = true;
+        maMayWarningMessage = `XML3: Mã máy '${maMayVal}' sai định dạng chuẩn (yêu cầu XX.3[xxx].Z)`;
+      }
+    } else if (maMayVal && !isValidMaMay(maMayVal)) {
       hasMaMayWarning = true;
       maMayWarningMessage = `XML3: Mã máy '${maMayVal}' sai định dạng chuẩn (yêu cầu XX.3[xxx].Z)`;
     }
-  } else if (maMayVal && !isValidMaMay(maMayVal)) {
-    hasMaMayWarning = true;
-    maMayWarningMessage = `XML3: Mã máy '${maMayVal}' sai định dạng chuẩn (yêu cầu XX.3[xxx].Z)`;
   }
 
   let status: Xml3Record["status"] = "ok";

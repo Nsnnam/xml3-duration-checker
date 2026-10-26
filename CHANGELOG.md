@@ -7,6 +7,7 @@
 - **Chi tiết đối chiếu trùng máy trong modal Xem (👁️)**: Trực quan hóa danh sách các bản ghi bị trùng (phân biệt rõ Cùng bệnh nhân / Khác bệnh nhân, thời điểm thực hiện, họ tên, mã BN, mã LK, tên dịch vụ kỹ thuật, kèm nút mở nhanh hồ sơ 15 bảng).
 - **Xuất riêng file Excel đối chiếu trùng máy**: Bổ sung tính năng xuất file Excel đối chiếu chuyên sâu (`Doi_chieu_trung_ma_may_XML3.xlsx`) gồm 2 sheet: Sheet Tóm tắt các máy bị trùng và Sheet Đối chiếu chi tiết (đầy đủ các cột đối soát BHYT, phân biệt Cùng/Khác BN, gom nhóm và tô màu xen kẽ giữa các cụm trùng).
 - **Loại trừ kiểm tra trùng máy với MA_NHOM = 1**: Bỏ qua cảnh báo trùng thời gian thực hiện y lệnh trên cùng mã máy đối với các dịch vụ khám bệnh / tiền khám có mã nhóm bằng 1.
+- **Loại trừ cảnh báo mã máy với MA_NHOM = 10**: Bỏ qua kiểm tra và cảnh báo mã máy (bắt buộc rỗng / sai định dạng chuẩn) cũng như cảnh báo trùng máy đối với vật tư đi kèm dịch vụ kỹ thuật có mã nhóm bằng 10.
 
 ## [2.5.0] — 2026-10-24
 

@@ -1208,6 +1208,168 @@ const checkedNhom1 = addDuplicateMachineWarnings(mockRecordsNhom1);
 assert.equal(checkedNhom1[0].hasDuplicateMachineWarning, undefined);
 assert.equal(checkedNhom1[1].hasDuplicateMachineWarning, undefined);
 
+// Test loại trừ cảnh báo mã máy với MA_NHOM = "10" (Vật tư đi kèm DVKT)
+const sampleMandatoryServiceCode = DEFAULT_MANDATORY_MACHINE_SERVICES[0].code;
+
+// Case 1: MA_NHOM = "10", MA_DICH_VU bắt buộc mã máy nhưng để trống MA_MAY -> KHÔNG cảnh báo mã máy
+const recGroup10EmptyMachine = evaluateRecord(
+  {
+    MA_LK: "LK-G10-1",
+    STT: "1",
+    MA_DICH_VU: sampleMandatoryServiceCode,
+    MA_VAT_TU: "VT01",
+    TEN_DICH_VU: "Kim luồn tĩnh mạch",
+    TEN_VAT_TU: "Kim luồn tĩnh mạch",
+    MA_NHOM: "10",
+    MA_KHOA: "K01",
+    MA_GIUONG: "",
+    MA_BAC_SI: "BS01",
+    NGUOI_THUC_HIEN: "BS01",
+    MA_BENH: "I10",
+    MA_BENH_YHCT: "",
+    NGAY_YL: "202609010800",
+    NGAY_TH_YL: "202609010810",
+    NGAY_KQ: "202609010820",
+    MA_MAY: "",
+    MA_HIEU_SP: "",
+    TT_THAU: "01/2026/Goi1",
+  },
+  "test.xml",
+);
+assert.equal(recGroup10EmptyMachine.hasMaMayWarning, false);
+assert.ok(!recGroup10EmptyMachine.detail.includes("MA_MAY rỗng"));
+
+// Case 2: MA_NHOM = "10", MA_MAY sai định dạng -> KHÔNG cảnh báo mã máy
+const recGroup10InvalidMachine = evaluateRecord(
+  {
+    MA_LK: "LK-G10-2",
+    STT: "2",
+    MA_DICH_VU: "VT_KHAC",
+    MA_VAT_TU: "VT02",
+    TEN_DICH_VU: "Bông băng cồn gạc",
+    TEN_VAT_TU: "Bông băng cồn gạc",
+    MA_NHOM: "10",
+    MA_KHOA: "K01",
+    MA_GIUONG: "",
+    MA_BAC_SI: "BS01",
+    NGUOI_THUC_HIEN: "BS01",
+    MA_BENH: "I10",
+    MA_BENH_YHCT: "",
+    NGAY_YL: "202609010800",
+    NGAY_TH_YL: "202609010810",
+    NGAY_KQ: "202609010820",
+    MA_MAY: "MAY_KHONG_CHUAN_123",
+    MA_HIEU_SP: "",
+    TT_THAU: "01/2026/Goi1",
+  },
+  "test.xml",
+);
+assert.equal(recGroup10InvalidMachine.hasMaMayWarning, false);
+assert.ok(!recGroup10InvalidMachine.detail.includes("sai định dạng chuẩn"));
+
+// Case 3: So sánh với MA_NHOM = "2", dịch vụ bắt buộc rỗng MA_MAY -> PHẢI cảnh báo mã máy
+const recGroup2EmptyMachine = evaluateRecord(
+  {
+    MA_LK: "LK-G2",
+    STT: "3",
+    MA_DICH_VU: sampleMandatoryServiceCode,
+    MA_VAT_TU: "",
+    TEN_DICH_VU: "Chụp X-quang",
+    TEN_VAT_TU: "",
+    MA_NHOM: "2",
+    MA_KHOA: "K01",
+    MA_GIUONG: "",
+    MA_BAC_SI: "BS01",
+    NGUOI_THUC_HIEN: "BS01",
+    MA_BENH: "I10",
+    MA_BENH_YHCT: "",
+    NGAY_YL: "202609010800",
+    NGAY_TH_YL: "202609010810",
+    NGAY_KQ: "202609010820",
+    MA_MAY: "",
+    MA_HIEU_SP: "",
+    TT_THAU: "",
+  },
+  "test.xml",
+);
+assert.equal(recGroup2EmptyMachine.hasMaMayWarning, true);
+assert.ok(recGroup2EmptyMachine.detail.includes("MA_MAY rỗng"));
+
+// Case 4: MA_NHOM = "10" cùng máy và cùng thời điểm TH_YL với bản ghi khác -> Không bị cảnh báo trùng máy
+const mockRecordsNhom10Dups = [
+  {
+    fileName: "file8.xml",
+    table: "XML3",
+    MA_LK: "LK-N10-1",
+    MA_BN: "BN-N10-1",
+    HO_TEN: "BN Nhóm 10 A",
+    STT: "1",
+    MA_DICH_VU: "VT_01",
+    MA_VAT_TU: "VT_01",
+    TEN_DICH_VU: "Vật tư 1",
+    TEN_VAT_TU: "Vật tư 1",
+    MA_NHOM: "10",
+    MA_KHOA: "K01",
+    MA_GIUONG: "",
+    MA_BAC_SI: "",
+    NGUOI_THUC_HIEN: "",
+    MA_BENH: "",
+    MA_BENH_YHCT: "",
+    NGAY_YL: "202609010800",
+    NGAY_TH_YL: "202609010830",
+    NGAY_KQ: "202609010845",
+    MA_MAY: "XQ.3[KHOAN].SN01",
+    MA_HIEU_SP: "",
+    TT_THAU: "Goi1",
+    durationMinutes: 15,
+    hasOrderWarning: false,
+    hasEqualWarning: false,
+    hasBedWarning: false,
+    hasTtThauWarning: false,
+    hasMaMayWarning: false,
+    orderIssues: [],
+    status: "ok",
+    detail: "",
+  },
+  {
+    fileName: "file9.xml",
+    table: "XML3",
+    MA_LK: "LK-N10-2",
+    MA_BN: "BN-N10-2",
+    HO_TEN: "BN Nhóm 10 B",
+    STT: "2",
+    MA_DICH_VU: "VT_02",
+    MA_VAT_TU: "VT_02",
+    TEN_DICH_VU: "Vật tư 2",
+    TEN_VAT_TU: "Vật tư 2",
+    MA_NHOM: "10",
+    MA_KHOA: "K01",
+    MA_GIUONG: "",
+    MA_BAC_SI: "",
+    NGUOI_THUC_HIEN: "",
+    MA_BENH: "",
+    MA_BENH_YHCT: "",
+    NGAY_YL: "202609010800",
+    NGAY_TH_YL: "202609010830",
+    NGAY_KQ: "202609010845",
+    MA_MAY: "XQ.3[KHOAN].SN01",
+    MA_HIEU_SP: "",
+    TT_THAU: "Goi1",
+    durationMinutes: 15,
+    hasOrderWarning: false,
+    hasEqualWarning: false,
+    hasBedWarning: false,
+    hasTtThauWarning: false,
+    hasMaMayWarning: false,
+    orderIssues: [],
+    status: "ok",
+    detail: "",
+  },
+];
+const checkedNhom10 = addDuplicateMachineWarnings(mockRecordsNhom10Dups);
+assert.equal(checkedNhom10[0].hasDuplicateMachineWarning, undefined);
+assert.equal(checkedNhom10[1].hasDuplicateMachineWarning, undefined);
+
 // Test DuplicateMachineInfo details
 assert.ok(Array.isArray(checkedMachines[0].duplicateMachineInfo));
 assert.equal(checkedMachines[0].duplicateMachineInfo.length, 1);
