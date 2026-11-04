@@ -125,6 +125,7 @@ export type ValidationWarning = {
   message: string;
   record?: Xml3Record;
   patient?: PatientInfo;
+  giaTri?: string;
 };
 
 export type Xml4Record = {
@@ -134,6 +135,7 @@ export type Xml4Record = {
   MA_DICH_VU: string;
   NGAY_KQ: string;
   KET_LUAN: string;
+  GIA_TRI?: string;
   MA_BENH?: string;
 };
 
@@ -1089,6 +1091,7 @@ function readXml4Records(doc: Document, fileName: string): Xml4Record[] {
       MA_DICH_VU: directTextOf(item, "MA_DICH_VU") || textOfGeneral(item, "MA_DICH_VU"),
       NGAY_KQ: directTextOf(item, "NGAY_KQ") || textOfGeneral(item, "NGAY_KQ"),
       KET_LUAN: directTextOf(item, "KET_LUAN") || textOfGeneral(item, "KET_LUAN"),
+      GIA_TRI: directTextOf(item, "GIA_TRI") || textOfGeneral(item, "GIA_TRI"),
       MA_BENH:
         directTextOf(item, "MA_BENH") ||
         textOfGeneral(item, "MA_BENH") ||
@@ -1158,6 +1161,7 @@ function createXml4Warnings(
       message: `XML 4. Chi tiết thứ ${detailIndex}: Thiếu thông tin KET_LUAN khi XML3 MA_NHOM = 2. Mã dịch vụ: ${match.MA_DICH_VU || "—"}. Tên dịch vụ: ${match.TEN_DICH_VU || match.TEN_VAT_TU || "—"}`,
       record: match,
       patient: patient ?? match.patient,
+      giaTri: xml4.GIA_TRI?.trim() || "",
     });
   });
   return warnings;

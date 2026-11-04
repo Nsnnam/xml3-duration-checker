@@ -9,6 +9,225 @@ import {
 } from "./xml3-duration.ts";
 import { formatXmlDateTime, formatXmlDate } from "./timezone.ts";
 
+const COMMON_FIELD_LABELS: Record<string, string> = {
+  STT: "Số thứ tự",
+  MA_LK: "Mã liên kết",
+  MA_BN: "Mã bệnh nhân",
+  HO_TEN: "Họ và tên",
+  MA_DICH_VU: "Mã dịch vụ kỹ thuật / cận lâm sàng",
+  TEN_DICH_VU: "Tên dịch vụ kỹ thuật",
+  MA_THUOC: "Mã thuốc",
+  TEN_THUOC: "Tên thuốc",
+  MA_VAT_TU: "Mã vật tư y tế",
+  TEN_VAT_TU: "Tên vật tư y tế",
+  MA_NHOM: "Mã nhóm BHYT",
+  MA_KHOA: "Mã khoa",
+  MA_GIUONG: "Mã giường bệnh",
+  MA_BAC_SI: "Mã bác sĩ chỉ định",
+  NGUOI_THUC_HIEN: "Người thực hiện",
+  NGAY_YL: "Ngày giờ y lệnh",
+  NGAY_TH_YL: "Ngày giờ thực hiện y lệnh",
+  NGAY_KQ: "Ngày giờ có kết quả",
+  MA_MAY: "Mã máy thực hiện (XX.3[xxx].Z)",
+  MA_HIEU_SP: "Mã hiệu sản phẩm",
+  TT_THAU: "Thông tin thầu",
+  KET_LUAN: "Kết luận cận lâm sàng",
+  GIA_TRI: "Chỉ số / Giá trị kết quả",
+  MO_TA: "Mô tả hình ảnh / chi tiết CLS",
+  DON_VI_TINH: "Đơn vị tính",
+  SO_LUONG: "Số lượng",
+  DON_GIA: "Đơn giá",
+  DON_GIA_BV: "Đơn giá bệnh viện",
+  TYLE_TT: "Tỷ lệ thanh toán",
+  THANH_TIEN: "Thành tiền",
+  THANH_TIEN_BV: "Thành tiền bệnh viện",
+  T_TRANTT: "Trần thanh toán",
+  T_BHTT: "Tiền bảo hiểm thanh toán",
+  T_BNCCT: "Tiền bệnh nhân cùng chi trả",
+  T_BNTT: "Tiền bệnh nhân tự trả",
+  T_NGOAIDS: "Tiền ngoài danh sách BHYT",
+  T_NGUONKHAC: "Tiền nguồn khác",
+  MA_BENH: "Mã bệnh ICD-10",
+  MA_BENH_YHCT: "Mã bệnh YHCT",
+  TEN_BENH: "Tên bệnh",
+  HAM_LUONG: "Hàm lượng",
+  DUONG_DUNG: "Đường dùng",
+  DANG_BAO_CHE: "Dạng bào chế",
+  LIEU_DUNG: "Liều dùng",
+  SO_DANG_KY: "Số đăng ký",
+  SO_CCCD: "Số CCCD / Định danh",
+};
+
+function getFieldLabel(key: string): string {
+  const k = key.toUpperCase();
+  return XML1_FIELD_LABELS[k] || COMMON_FIELD_LABELS[k] || key;
+}
+
+function RowDetailModal({
+  isOpen,
+  onClose,
+  tableKey,
+  rowIndex,
+  totalRows,
+  headers,
+  row,
+  onPrev,
+  onNext,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  tableKey: string;
+  rowIndex: number;
+  totalRows: number;
+  headers: string[];
+  row: Record<string, string>;
+  onPrev?: () => void;
+  onNext?: () => void;
+}) {
+  const [filter, setFilter] = useState("");
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [copiedAll, setCopiedAll] = useState(false);
+
+  if (!isOpen || !row) return null;
+
+  const displayEntries = headers
+    .map((h) => ({
+      key: h,
+      label: getFieldLabel(h),
+      val: row[h] ?? "",
+    }))
+    .filter((it) => {
+      if (!filter) return true;
+      const q = filter.toLowerCase();
+      return (
+        it.key.toLowerCase().includes(q) ||
+        it.label.toLowerCase().includes(q) ||
+        String(it.val).toLowerCase().includes(q)
+      );
+    });
+
+  const handleCopyKey = (key: string, val: string) => {
+    navigator.clipboard.writeText(val);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 1500);
+  };
+
+  const handleCopyAll = () => {
+    navigator.clipboard.writeText(JSON.stringify(row, null, 2));
+    setCopiedAll(true);
+    setTimeout(() => setCopiedAll(false), 1500);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+      <div className="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-3xl bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r from-teal-50 to-white dark:from-slate-800 dark:to-slate-900 px-6 py-4">
+          <div>
+            <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2">
+              <span>🔍</span>
+              <span>
+                Chi tiết dòng #{rowIndex} / {totalRows} · {tableKey}
+              </span>
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {XML_TABLE_META[tableKey]?.title || tableKey} — Toàn bộ {headers.length} trường dữ
+              liệu
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-xl border border-slate-200 dark:border-slate-700 p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-700 transition"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Toolbar */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-6 py-2.5 text-xs">
+          <input
+            type="text"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Lọc tên trường hoặc giá trị..."
+            className="w-64 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:outline-none"
+          />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={!onPrev || rowIndex <= 1}
+              onClick={onPrev}
+              className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1 text-xs font-bold text-slate-700 dark:text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-700"
+            >
+              ◀ Dòng trước
+            </button>
+            <button
+              type="button"
+              disabled={!onNext || rowIndex >= totalRows}
+              onClick={onNext}
+              className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1 text-xs font-bold text-slate-700 dark:text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-700"
+            >
+              Dòng sau ▶
+            </button>
+            <button
+              type="button"
+              onClick={handleCopyAll}
+              className="rounded-lg bg-teal-700 text-white px-3 py-1 text-xs font-bold hover:bg-teal-800 shadow-xs"
+            >
+              {copiedAll ? "✓ Đã chép JSON!" : "📋 Chép cả dòng (JSON)"}
+            </button>
+          </div>
+        </div>
+
+        {/* Entries list */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          {displayEntries.map((it) => (
+            <div
+              key={it.key}
+              className="group flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 p-3 hover:bg-teal-50/40 dark:hover:bg-slate-800/70 transition"
+            >
+              <div className="min-w-[220px]">
+                <div className="font-mono font-bold text-teal-800 dark:text-cyan-400 text-xs">
+                  {it.key}
+                </div>
+                {it.label && it.label !== it.key && (
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">{it.label}</div>
+                )}
+              </div>
+              <div className="flex-1 flex items-center justify-between gap-2">
+                <div className="font-mono text-xs text-slate-800 dark:text-slate-200 break-words whitespace-normal selection:bg-teal-200">
+                  {it.val ? it.val : <span className="text-slate-400 italic">(trống)</span>}
+                </div>
+                {it.val && (
+                  <button
+                    type="button"
+                    onClick={() => handleCopyKey(it.key, it.val)}
+                    className="opacity-0 group-hover:opacity-100 transition rounded px-2 py-0.5 text-[10px] font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-teal-700 shadow-xs whitespace-nowrap"
+                    title="Sao chép giá trị này"
+                  >
+                    {copiedKey === it.key ? "✓ Đã chép" : "Chép"}
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-6 py-3 flex justify-between items-center text-xs text-slate-500">
+          <span>💡 Mẹo: Bấm phím mũi tên hoặc nút trước/sau để duyệt nhanh các dòng.</span>
+          <button
+            onClick={onClose}
+            className="rounded-xl bg-slate-800 dark:bg-slate-700 px-4 py-1.5 font-bold text-white hover:bg-slate-900"
+          >
+            Đóng
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function PatientDossierView({
   dossiers,
   selectedMaLk,
@@ -31,6 +250,7 @@ export function PatientDossierView({
   const [patientFieldSearch, setPatientFieldSearch] = useState("");
   const [copiedPatientField, setCopiedPatientField] = useState<string | null>(null);
   const [copiedAllDossierAdmin, setCopiedAllDossierAdmin] = useState(false);
+  const [detailRowIndex, setDetailRowIndex] = useState<number | null>(null);
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const topScrollRef = useRef<HTMLDivElement>(null);
@@ -885,6 +1105,10 @@ export function PatientDossierView({
                           />
                           <span className="text-xs text-slate-400 whitespace-nowrap">
                             Hiển thị {filteredTableRows.length}/{currentTableData.rows.length} dòng
+                            ·{" "}
+                            <span className="text-teal-700 dark:text-cyan-400 font-semibold">
+                              💡 Click đúp vào dòng để xem chi tiết
+                            </span>
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5">
@@ -959,7 +1183,9 @@ export function PatientDossierView({
                               {filteredTableRows.map((row, idx) => (
                                 <tr
                                   key={idx}
-                                  className="hover:bg-teal-50/40 dark:hover:bg-slate-800/60 transition"
+                                  onDoubleClick={() => setDetailRowIndex(idx)}
+                                  className="hover:bg-teal-50/60 dark:hover:bg-slate-800/80 transition cursor-pointer select-text"
+                                  title="💡 Click đúp để xem chi tiết toàn bộ các trường của dòng này"
                                 >
                                   <td className="px-3 py-2 text-center text-slate-400 font-mono text-[11px] sticky left-0 bg-white dark:bg-slate-950 z-10 border-r border-slate-100 dark:border-slate-800/60">
                                     {idx + 1}
@@ -1008,6 +1234,25 @@ export function PatientDossierView({
           )}
         </div>
       </div>
+
+      {/* Modal Xem chi tiết dòng khi click đúp */}
+      {detailRowIndex !== null && filteredTableRows[detailRowIndex] && currentTableData && (
+        <RowDetailModal
+          isOpen={true}
+          onClose={() => setDetailRowIndex(null)}
+          tableKey={activeTableKey}
+          rowIndex={detailRowIndex + 1}
+          totalRows={filteredTableRows.length}
+          headers={currentTableData.headers}
+          row={filteredTableRows[detailRowIndex]}
+          onPrev={detailRowIndex > 0 ? () => setDetailRowIndex(detailRowIndex - 1) : undefined}
+          onNext={
+            detailRowIndex < filteredTableRows.length - 1
+              ? () => setDetailRowIndex(detailRowIndex + 1)
+              : undefined
+          }
+        />
+      )}
     </div>
   );
 }

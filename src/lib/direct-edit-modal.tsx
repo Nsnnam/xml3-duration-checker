@@ -1,10 +1,25 @@
 import { useState, useMemo, useEffect } from "react";
 import type { Xml3Record, ValidationWarning } from "./xml3-duration.ts";
+import { parseXmlDateTime } from "./xml3-duration.ts";
+import { formatXmlDateTime } from "./timezone.ts";
 import {
   type CorrectionItem,
   toHisDateString,
   addMinutesToXmlDateTime,
 } from "./correction-plan.ts";
+
+function calcDiffMinutes(startStr?: string, endStr?: string): number | null {
+  if (!startStr || !endStr) return null;
+  const dStart = parseXmlDateTime(startStr);
+  const dEnd = parseXmlDateTime(endStr);
+  if (!dStart || !dEnd) return null;
+  return Math.round((dEnd.getTime() - dStart.getTime()) / 60000);
+}
+
+function formatDisplayDateTime(val?: string): string {
+  if (!val) return "—";
+  return formatXmlDateTime(val) || val;
+}
 
 export function DirectEditModal({
   isOpen,
@@ -151,6 +166,25 @@ export function DirectEditModal({
     }
   };
 
+  const applySuggestExamSync = () => {
+    if (record?.NGAY_TH_YL) {
+      setSelectedField("NGAY_YL");
+      setNewValue(record.NGAY_TH_YL);
+      setLyDo(
+        "Công khám (nhóm 13): Đồng bộ NGAY_YL = NGAY_TH_YL (cho phép trùng thời gian y lệnh và thực hiện)",
+      );
+    }
+  };
+
+  const applySuggestFromGiaTri = () => {
+    const gt = warning?.giaTri?.trim();
+    if (gt) {
+      setSelectedField("KET_LUAN");
+      setNewValue(gt);
+      setLyDo("Sao chép kết quả từ ô GIA_TRI của XML4 sang KET_LUAN");
+    }
+  };
+
   const applySuggestPaddedCccd = () => {
     const raw = (patient?.SO_CCCD || currentOldValue || "").trim();
     if (raw) {
@@ -165,6 +199,20 @@ export function DirectEditModal({
     setNewValue(text);
     setLyDo("Bổ sung nội dung kết luận chẩn đoán xét nghiệm / CLS");
   };
+
+  const isExamGroup13 = record?.MA_NHOM?.trim() === "13";
+  const ylOld = record?.NGAY_YL || "";
+  const thOld = record?.NGAY_TH_YL || "";
+  const kqOld = record?.NGAY_KQ || "";
+
+  const ylNew = selectedField === "NGAY_YL" ? newValue : ylOld;
+  const thNew = selectedField === "NGAY_TH_YL" ? newValue : thOld;
+  const kqNew = selectedField === "NGAY_KQ" ? newValue : kqOld;
+
+  const waitOld = calcDiffMinutes(ylOld, thOld);
+  const waitNew = calcDiffMinutes(ylNew, thNew);
+  const durationOld = calcDiffMinutes(thOld, kqOld);
+  const durationNew = calcDiffMinutes(thNew, kqNew);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -204,7 +252,7 @@ export function DirectEditModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-      <div className="w-full max-w-xl rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+      <div className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-teal-50 to-white px-6 py-4">
           <div className="flex items-center gap-2">
@@ -253,8 +301,195 @@ export function DirectEditModal({
           )}
         </div>
 
-        {/* Form chỉnh sửa */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        {/* Form chỉnh sửa có cuộn nếu dài */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
+          {/* Bảng đối chiếu 3 mốc thời gian Trước & Sau (Dành cho XML3) */}
+          {source === "XML3" && record && (
+            <div className="rounded-2xl border border-teal-200 bg-teal-50/40 p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between text-xs font-bold text-teal-900">
+                <span className="flex items-center gap-1.5">
+                  <span>🕒</span> Bảng đối chiếu 3 mốc thời gian (Trước & Sau chỉnh sửa):
+                </span>
+                {isExamGroup13 && (
+                  <span className="rounded bg-teal-100 text-teal-800 text-[10px] px-2 py-0.5 font-bold">
+                    🩺 Công khám (nhóm 13)
+                  </span>
+                )}
+              </div>
+
+              <div className="overflow-hidden rounded-xl border border-teal-200/80 bg-white shadow-xs">
+                <table className="w-full text-xs text-left border-collapse">
+                  <thead className="bg-slate-50 text-[11px] font-bold text-slate-600 border-b border-slate-200">
+                    <tr>
+                      <th className="px-3 py-1.5 w-32">Mốc thời gian</th>
+                      <th className="px-3 py-1.5 w-40">Trước (Hiện tại)</th>
+                      <th className="px-3 py-1.5 w-40 bg-teal-50/50 text-teal-900">
+                        Sau (Dự kiến)
+                      </th>
+                      <th className="px-2 py-1.5 text-center w-24">Chọn sửa</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-[11px]">
+                    {/* NGAY_YL */}
+                    <tr className={selectedField === "NGAY_YL" ? "bg-amber-50/60" : ""}>
+                      <td className="px-3 py-1.5 font-bold text-slate-700">1. NGAY_YL (Y lệnh)</td>
+                      <td className="px-3 py-1.5 font-mono text-slate-600">
+                        <div>{ylOld || "—"}</div>
+                        <div className="text-[10px] text-slate-400">
+                          {formatDisplayDateTime(ylOld)}
+                        </div>
+                      </td>
+                      <td className="px-3 py-1.5 font-mono font-bold text-teal-800 bg-teal-50/30">
+                        <div>{ylNew || "—"}</div>
+                        <div className="text-[10px] text-teal-600">
+                          {formatDisplayDateTime(ylNew)}
+                        </div>
+                      </td>
+                      <td className="px-2 py-1.5 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleFieldChange("NGAY_YL")}
+                          className={`rounded px-2 py-0.5 text-[10px] font-bold transition ${
+                            selectedField === "NGAY_YL"
+                              ? "bg-amber-500 text-white shadow-xs"
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          }`}
+                        >
+                          {selectedField === "NGAY_YL" ? "Đang sửa" : "Sửa ô này"}
+                        </button>
+                      </td>
+                    </tr>
+
+                    {/* NGAY_TH_YL */}
+                    <tr className={selectedField === "NGAY_TH_YL" ? "bg-amber-50/60" : ""}>
+                      <td className="px-3 py-1.5 font-bold text-slate-700">
+                        2. NGAY_TH_YL (Thực hiện)
+                      </td>
+                      <td className="px-3 py-1.5 font-mono text-slate-600">
+                        <div>{thOld || "—"}</div>
+                        <div className="text-[10px] text-slate-400">
+                          {formatDisplayDateTime(thOld)}
+                        </div>
+                      </td>
+                      <td className="px-3 py-1.5 font-mono font-bold text-teal-800 bg-teal-50/30">
+                        <div>{thNew || "—"}</div>
+                        <div className="text-[10px] text-teal-600">
+                          {formatDisplayDateTime(thNew)}
+                        </div>
+                      </td>
+                      <td className="px-2 py-1.5 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleFieldChange("NGAY_TH_YL")}
+                          className={`rounded px-2 py-0.5 text-[10px] font-bold transition ${
+                            selectedField === "NGAY_TH_YL"
+                              ? "bg-amber-500 text-white shadow-xs"
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          }`}
+                        >
+                          {selectedField === "NGAY_TH_YL" ? "Đang sửa" : "Sửa ô này"}
+                        </button>
+                      </td>
+                    </tr>
+
+                    {/* NGAY_KQ */}
+                    <tr className={selectedField === "NGAY_KQ" ? "bg-amber-50/60" : ""}>
+                      <td className="px-3 py-1.5 font-bold text-slate-700">3. NGAY_KQ (Kết quả)</td>
+                      <td className="px-3 py-1.5 font-mono text-slate-600">
+                        <div>{kqOld || "—"}</div>
+                        <div className="text-[10px] text-slate-400">
+                          {formatDisplayDateTime(kqOld)}
+                        </div>
+                      </td>
+                      <td className="px-3 py-1.5 font-mono font-bold text-teal-800 bg-teal-50/30">
+                        <div>{kqNew || "—"}</div>
+                        <div className="text-[10px] text-teal-600">
+                          {formatDisplayDateTime(kqNew)}
+                        </div>
+                      </td>
+                      <td className="px-2 py-1.5 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleFieldChange("NGAY_KQ")}
+                          className={`rounded px-2 py-0.5 text-[10px] font-bold transition ${
+                            selectedField === "NGAY_KQ"
+                              ? "bg-amber-500 text-white shadow-xs"
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          }`}
+                        >
+                          {selectedField === "NGAY_KQ" ? "Đang sửa" : "Sửa ô này"}
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Đánh giá khoảng thời gian Trước -> Sau */}
+              <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                <div className="rounded-xl border border-slate-200 bg-white p-2">
+                  <div className="text-slate-500 font-semibold mb-0.5">
+                    ⏱️ Chờ thực hiện (TH_YL - YL):
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span
+                      className={
+                        waitOld !== null && (isExamGroup13 ? waitOld < 0 : waitOld <= 0)
+                          ? "text-rose-600 font-bold"
+                          : "text-slate-700"
+                      }
+                    >
+                      Trước: {waitOld !== null ? `${waitOld}p` : "—"}
+                    </span>
+                    <span>➔</span>
+                    <span
+                      className={
+                        waitNew !== null && (isExamGroup13 ? waitNew >= 0 : waitNew > 0)
+                          ? "text-emerald-700 font-bold"
+                          : "text-rose-600 font-bold"
+                      }
+                    >
+                      Sau: {waitNew !== null ? `${waitNew}p` : "—"}{" "}
+                      {waitNew !== null && (isExamGroup13 ? waitNew >= 0 : waitNew > 0)
+                        ? "✓"
+                        : "⚠️"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white p-2">
+                  <div className="text-slate-500 font-semibold mb-0.5">
+                    ⏱️ Thời lượng (KQ - TH_YL):
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span
+                      className={
+                        durationOld !== null && (durationOld > 70 || durationOld <= 0)
+                          ? "text-rose-600 font-bold"
+                          : "text-slate-700"
+                      }
+                    >
+                      Trước: {durationOld !== null ? `${durationOld}p` : "—"}
+                    </span>
+                    <span>➔</span>
+                    <span
+                      className={
+                        durationNew !== null && durationNew > 0 && durationNew <= 70
+                          ? "text-emerald-700 font-bold"
+                          : "text-rose-600 font-bold"
+                      }
+                    >
+                      Sau: {durationNew !== null ? `${durationNew}p` : "—"}{" "}
+                      {durationNew !== null && durationNew > 0 && durationNew <= 70
+                        ? "✓ (<=70p)"
+                        : "⚠️"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -326,6 +561,16 @@ export function DirectEditModal({
             <div className="flex flex-wrap gap-1.5 text-xs">
               {source === "XML3" && (
                 <>
+                  {isExamGroup13 && (
+                    <button
+                      type="button"
+                      onClick={applySuggestExamSync}
+                      className="rounded-lg border border-teal-500 bg-teal-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-teal-700 shadow-xs"
+                      title="Gán NGAY_YL = NGAY_TH_YL (ở công khám nhóm 13 hai thời gian này được phép trùng nhau)"
+                    >
+                      🩺 [Công khám 13] Đồng bộ NGAY_YL = NGAY_TH_YL
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => applySuggestShortenDuration(30)}
@@ -380,6 +625,20 @@ export function DirectEditModal({
               )}
               {source === "XML4" && (
                 <>
+                  {warning?.giaTri ? (
+                    <button
+                      type="button"
+                      onClick={applySuggestFromGiaTri}
+                      className="rounded-lg border border-teal-500 bg-teal-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-teal-700 shadow-xs"
+                      title="Copy trực tiếp từ ô GIA_TRI trong XML4 của BA đó xuống ô KET_LUAN"
+                    >
+                      📋 Lấy từ ô GIA_TRI: "
+                      {warning.giaTri.length > 25
+                        ? warning.giaTri.slice(0, 25) + "..."
+                        : warning.giaTri}
+                      "
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() =>
@@ -482,7 +741,7 @@ export function CorrectionPlanModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-      <div className="w-full max-w-4xl max-h-[90vh] flex flex-col rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+      <div className="w-full max-w-6xl max-h-[90vh] flex flex-col rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-teal-50 to-white px-6 py-4">
           <div className="flex items-center gap-2">
@@ -569,19 +828,33 @@ export function CorrectionPlanModal({
             </div>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-slate-200">
-              <table className="w-full text-left text-xs border-collapse">
+              <table className="w-full min-w-[1100px] text-left text-xs border-collapse">
                 <thead className="bg-slate-100 text-[11px] uppercase tracking-wider text-slate-600 select-none">
                   <tr>
-                    <th className="px-3 py-2 border-r border-slate-200 w-12 text-center">STT</th>
-                    <th className="px-3 py-2 border-r border-slate-200 w-28">Mã Bệnh Án</th>
-                    <th className="px-3 py-2 border-r border-slate-200 w-36">Bệnh nhân</th>
-                    <th className="px-3 py-2 border-r border-slate-200 w-28">Thời gian (HIS)</th>
-                    <th className="px-3 py-2 border-r border-slate-200 w-20">Tab</th>
-                    <th className="px-3 py-2 border-r border-slate-200 w-48">Dịch vụ / Trường</th>
-                    <th className="px-3 py-2 border-r border-slate-200 w-32">Giá trị cũ</th>
-                    <th className="px-3 py-2 border-r border-slate-200 w-36">Giá trị mới</th>
-                    <th className="px-3 py-2 border-r border-slate-200">Lý do</th>
-                    <th className="px-2 py-2 text-center w-12">Xóa</th>
+                    <th className="px-3 py-2 border-r border-slate-200 w-12 min-w-[48px] text-center">
+                      STT
+                    </th>
+                    <th className="px-3 py-2 border-r border-slate-200 w-28 min-w-[110px]">
+                      Mã Bệnh Án
+                    </th>
+                    <th className="px-3 py-2 border-r border-slate-200 w-40 min-w-[150px]">
+                      Bệnh nhân
+                    </th>
+                    <th className="px-3 py-2 border-r border-slate-200 w-28 min-w-[110px]">
+                      Thời gian (HIS)
+                    </th>
+                    <th className="px-3 py-2 border-r border-slate-200 w-20 min-w-[80px]">Tab</th>
+                    <th className="px-3 py-2 border-r border-slate-200 w-48 min-w-[180px]">
+                      Dịch vụ / Trường
+                    </th>
+                    <th className="px-3 py-2 border-r border-slate-200 w-32 min-w-[130px]">
+                      Giá trị cũ
+                    </th>
+                    <th className="px-3 py-2 border-r border-slate-200 w-64 min-w-[240px] max-w-[360px]">
+                      Giá trị mới
+                    </th>
+                    <th className="px-3 py-2 border-r border-slate-200 min-w-[220px]">Lý do</th>
+                    <th className="px-2 py-2 text-center w-12 min-w-[48px]">Xóa</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -616,13 +889,13 @@ export function CorrectionPlanModal({
                           </div>
                         )}
                       </td>
-                      <td className="px-3 py-2 font-mono text-[11px] text-rose-700 line-through break-all">
+                      <td className="px-3 py-2 font-mono text-[11px] text-rose-700 line-through break-words">
                         {item.oldValue || "(trống)"}
                       </td>
-                      <td className="px-3 py-2 font-mono text-[11px] font-bold text-teal-700 break-all bg-teal-50/30">
+                      <td className="px-3 py-2 font-mono text-[11px] font-bold text-teal-800 break-words whitespace-normal bg-teal-50/40">
                         {item.newValue}
                       </td>
-                      <td className="px-3 py-2 text-slate-600 text-[11px] leading-tight">
+                      <td className="px-3 py-2 text-slate-600 text-[11px] leading-tight break-words">
                         {item.lyDo}
                       </td>
                       <td className="px-2 py-2 text-center">

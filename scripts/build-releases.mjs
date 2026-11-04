@@ -28,17 +28,47 @@ fs.mkdirSync(singleDir, { recursive: true });
 const htmlPath = path.join(root, "dist-web", "index.html");
 let html = fs.readFileSync(htmlPath, "utf8");
 const assetDir = path.join(root, "dist-web", "assets");
+
+// Bước 1: Thay thế các file ảnh thành Data URI Base64
 for (const asset of fs.readdirSync(assetDir)) {
   const absolute = path.join(assetDir, asset);
   if (!fs.statSync(absolute).isFile()) continue;
-  const data = fs.readFileSync(absolute);
-  const mime = asset.endsWith(".css")
-    ? "text/css"
-    : asset.endsWith(".jpg") || asset.endsWith(".jpeg")
-      ? "image/jpeg"
-      : "application/octet-stream";
-  const dataUrl = `data:${mime};base64,${data.toString("base64")}`;
-  html = html.replaceAll(`./assets/${asset}`, dataUrl).replaceAll(`/assets/${asset}`, dataUrl);
+  if (
+    asset.endsWith(".jpg") ||
+    asset.endsWith(".jpeg") ||
+    asset.endsWith(".png") ||
+    asset.endsWith(".webp")
+  ) {
+    const data = fs.readFileSync(absolute);
+    const mime = asset.endsWith(".png") ? "image/png" : "image/jpeg";
+    const dataUrl = `data:${mime};base64,${data.toString("base64")}`;
+    html = html.replaceAll(`./assets/${asset}`, dataUrl).replaceAll(`/assets/${asset}`, dataUrl);
+  }
 }
+
+// Bước 2: Inline CSS trực tiếp vào thẻ <style>
+for (const asset of fs.readdirSync(assetDir)) {
+  if (asset.endsWith(".css")) {
+    const absolute = path.join(assetDir, asset);
+    const cssContent = fs.readFileSync(absolute, "utf8");
+    const cssLinkRegex = new RegExp(`<link[^>]*href=["'][^"']*${asset}["'][^>]*>`, "gi");
+    html = html.replace(cssLinkRegex, `<style>\n${cssContent}\n</style>`);
+  }
+}
+
+// Bước 3: Inline JS trực tiếp vào thẻ <script type="module"> (an toàn 100% khi mở file:/// offline)
+for (const asset of fs.readdirSync(assetDir)) {
+  if (asset.endsWith(".js")) {
+    const absolute = path.join(assetDir, asset);
+    let jsContent = fs.readFileSync(absolute, "utf8");
+    jsContent = jsContent.replaceAll("</script>", "<\\/script>");
+    const jsScriptRegex = new RegExp(
+      `<script[^>]*src=["'][^"']*${asset}["'][^>]*>\\s*<\\/script>`,
+      "gi",
+    );
+    html = html.replace(jsScriptRegex, `<script type="module">\n${jsContent}\n</script>`);
+  }
+}
+
 fs.writeFileSync(path.join(singleDir, "xml3-duration-checker.html"), html);
 console.log("Release folders ready under releases/web and releases/single-page");

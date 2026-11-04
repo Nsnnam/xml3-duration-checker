@@ -212,31 +212,30 @@ export function generateAutoCorrectionPlan(analysis: BatchAnalysis): CorrectionI
         toHisDateString(ngayRa) || toHisDateString(ngayVao) || toHisDateString(r.NGAY_YL);
       const denNgay = toHisDateString(ngayRa) || tuNgay;
 
-      const dYl = parseXmlDateTime(r.NGAY_YL);
-      const dTh = parseXmlDateTime(r.NGAY_TH_YL);
-      if (dYl && dTh && dTh < dYl) {
-        // Đặt NGAY_YL = NGAY_TH_YL - 5 phút
-        const newYl = addMinutesToXmlDateTime(r.NGAY_TH_YL, -5);
-        plan.push({
-          id: `CORR_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-          maLk: r.MA_LK,
-          maBa: r.MA_BN || patient?.MA_BN || "",
-          hoTen: r.HO_TEN || patient?.HO_TEN || "",
-          ngayVao,
-          ngayRa,
-          tuNgay,
-          denNgay,
-          tab: "XML3",
-          stt: r.STT,
-          maDichVu: r.MA_DICH_VU,
-          tenDichVu: r.TEN_DICH_VU,
-          field: "NGAY_YL",
-          oldValue: r.NGAY_YL,
-          newValue: newYl,
-          lyDo: `Khắc phục lỗi thứ tự: NGAY_TH_YL sớm hơn NGAY_YL (điều chỉnh NGAY_YL trước 5 phút)`,
-          createdAt: nowStr,
-        });
-      }
+      const isExam = r.MA_NHOM?.trim() === "13";
+      // Đối với công khám (nhóm 13): copy ngược NGAY_TH_YL vào NGAY_YL (2 thời gian trùng nhau được)
+      const newYl = isExam ? r.NGAY_TH_YL : addMinutesToXmlDateTime(r.NGAY_TH_YL, -5);
+      plan.push({
+        id: `CORR_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        maLk: r.MA_LK,
+        maBa: r.MA_BN || patient?.MA_BN || "",
+        hoTen: r.HO_TEN || patient?.HO_TEN || "",
+        ngayVao,
+        ngayRa,
+        tuNgay,
+        denNgay,
+        tab: "XML3",
+        stt: r.STT,
+        maDichVu: r.MA_DICH_VU,
+        tenDichVu: r.TEN_DICH_VU,
+        field: "NGAY_YL",
+        oldValue: r.NGAY_YL,
+        newValue: newYl,
+        lyDo: isExam
+          ? "Công khám (nhóm 13): Đồng bộ NGAY_YL = NGAY_TH_YL (cho phép trùng thời gian y lệnh và thực hiện)"
+          : `Khắc phục lỗi thứ tự: NGAY_TH_YL sớm hơn NGAY_YL (điều chỉnh NGAY_YL trước 5 phút)`,
+        createdAt: nowStr,
+      });
     }
   }
 
@@ -277,6 +276,45 @@ export function generateAutoCorrectionPlan(analysis: BatchAnalysis): CorrectionI
     }
   }
 
+  // 4. Quét XML4 cảnh báo thiếu KET_LUAN (Sao chép trực tiếp từ ô GIA_TRI nếu có)
+  if (analysis.xml4Warnings) {
+    for (const w of analysis.xml4Warnings) {
+      if (w.message.includes("KET_LUAN")) {
+        const patient = w.patient;
+        const ngayRa = patient?.NGAY_RA || "";
+        const ngayVao = patient?.NGAY_VAO || "";
+        const tuNgay = toHisDateString(ngayRa) || toHisDateString(ngayVao);
+        const denNgay = toHisDateString(ngayRa) || tuNgay;
+
+        const hasGiaTri = Boolean(w.giaTri && w.giaTri.trim());
+        const newKLuann = hasGiaTri ? w.giaTri!.trim() : "Bình thường";
+        const lyDo = hasGiaTri
+          ? "Sao chép kết quả từ ô GIA_TRI trong XML4 sang KET_LUAN"
+          : "Bổ sung kết luận dịch vụ CLS theo quy định";
+
+        plan.push({
+          id: `CORR_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          maLk: w.MA_LK,
+          maBa: w.MA_BN || patient?.MA_BN || "",
+          hoTen: w.HO_TEN || patient?.HO_TEN || "",
+          ngayVao,
+          ngayRa,
+          tuNgay,
+          denNgay,
+          tab: "XML4",
+          stt: String(w.detailIndex || "1"),
+          maDichVu: w.MA_DICH_VU,
+          tenDichVu: w.TEN_DICH_VU,
+          field: "KET_LUAN",
+          oldValue: "(trống)",
+          newValue: newKLuann,
+          lyDo,
+          createdAt: nowStr,
+        });
+      }
+    }
+  }
+
   return plan;
 }
 
@@ -288,7 +326,7 @@ export function exportCorrectionPlanJson(items: CorrectionItem[]): void {
   const fileName = `Ke_hoach_chinh_sua_HIS_${ts}.json`;
   const exportPayload = {
     source: "NsN_XMLcheck",
-    version: "2.7.0",
+    version: "2.8.0",
     exportTime: new Date().toISOString(),
     totalItems: items.length,
     items,
