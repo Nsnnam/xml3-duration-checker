@@ -3,12 +3,22 @@ export const APP_META = {
   title: "NsN_XMLcheck",
   description:
     "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, MA_MAY chuẩn XX.3[xxx].Z & trùng thời gian máy, cảnh báo Z00.0/Z30.1 (KHHGĐ) & Hồ sơ 15 bảng BHYT",
-  version: "2.7.0",
-  date: "2026-10-26",
+  version: "2.8.0",
+  date: "2026-11-04",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.8.0",
+      date: "2026-11-04",
+      changes: [
+        "Tính năng Sửa trực tiếp dòng XML bị cảnh báo (Direct Edit): Bổ sung nút '✏️ Sửa' trực tiếp trên từng dòng dữ liệu bị cảnh báo (XML3 WarningRow và XML1, XML2, XML4 ValidationTable). Cung cấp hộp thoại sửa nhanh với các gợi ý thông minh (Rút ngắn thời lượng 30p/60p, Dịch mốc máy +5p/+10p, Chuẩn hóa 12 số CCCD, Mẫu kết luận XML4).",
+        "Quản lý Kế hoạch chỉnh sửa tự động (Correction Plan): Thư viện quản lý kế hoạch sửa đổi tập trung, hỗ trợ lưu trữ cục bộ, nút '⚡ Tự tạo kế hoạch' quét và tự động sinh toàn bộ kế hoạch sửa tối ưu cho hàng trăm hồ sơ cùng lúc.",
+        "Xuất Kế hoạch chỉnh sửa ra JSON và Excel: Hỗ trợ xuất file JSON chuẩn định dạng cho Chrome Extension 'vncare-xml130-auto-editor' và file Excel XLSX 2 sheet chuyên nghiệp để theo dõi, đối soát.",
+        "Tích hợp huy hiệu 'Đã sửa ✏️' ngay trên bảng dữ liệu để người dùng dễ dàng nhận biết các dòng đã được lập lịch sửa đổi.",
+      ],
+    },
     {
       version: "2.7.0",
       date: "2026-10-26",

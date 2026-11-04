@@ -64,6 +64,15 @@ import {
   type ThemeId,
   type FontId,
 } from "../lib/theme-manager.ts";
+import {
+  type CorrectionItem,
+  loadCorrectionPlan,
+  saveCorrectionPlan,
+  generateAutoCorrectionPlan,
+  exportCorrectionPlanJson,
+  exportCorrectionPlanExcel,
+} from "../lib/correction-plan.ts";
+import { DirectEditModal, CorrectionPlanModal } from "../lib/direct-edit-modal.tsx";
 import coffeeQr from "../assets/coffee-qr.jpg";
 
 type View = "checker" | "dossier" | "library" | "settings" | "guide" | "about" | "support";
@@ -292,6 +301,82 @@ export function HomePage() {
   const [warningColors, setWarningColors] =
     useState<Record<WarningCategory, string>>(loadWarningColors);
   const [showColorModal, setShowColorModal] = useState(false);
+  const [correctionPlan, setCorrectionPlan] = useState<CorrectionItem[]>(loadCorrectionPlan);
+  const [directEditTarget, setDirectEditTarget] = useState<{
+    record?: Xml3Record;
+    warning?: ValidationWarning;
+    source: string;
+  } | null>(null);
+  const [showCorrectionPlanModal, setShowCorrectionPlanModal] = useState(false);
+
+  const handleSaveCorrectionItem = (item: CorrectionItem) => {
+    setCorrectionPlan((prev) => {
+      const filtered = prev.filter(
+        (x) =>
+          !(
+            x.maLk === item.maLk &&
+            x.tab === item.tab &&
+            x.stt === item.stt &&
+            x.field === item.field
+          ),
+      );
+      const next = [item, ...filtered];
+      saveCorrectionPlan(next);
+      return next;
+    });
+    setNotice(`Đã thêm vào kế hoạch sửa: ${item.tab}.${item.field} của BN ${item.hoTen}`);
+  };
+
+  const handleRemoveCorrectionItem = (id: string) => {
+    setCorrectionPlan((prev) => {
+      const next = prev.filter((x) => x.id !== id);
+      saveCorrectionPlan(next);
+      return next;
+    });
+  };
+
+  const handleClearAllCorrections = () => {
+    if (confirm("Bạn có chắc chắn muốn xóa toàn bộ kế hoạch chỉnh sửa?")) {
+      setCorrectionPlan([]);
+      saveCorrectionPlan([]);
+      setNotice("Đã xóa toàn bộ kế hoạch chỉnh sửa.");
+    }
+  };
+
+  const handleAutoGeneratePlan = () => {
+    if (!analysis) {
+      setNotice("Vui lòng nạp và phân tích file XML trước!");
+      return;
+    }
+    const autoItems = generateAutoCorrectionPlan(analysis);
+    if (autoItems.length === 0) {
+      setNotice("Không tìm thấy mục nào cần tự động đề xuất!");
+      return;
+    }
+    setCorrectionPlan((prev) => {
+      const existingKeys = new Set(prev.map((x) => `${x.maLk}_${x.tab}_${x.stt}_${x.field}`));
+      const newOnly = autoItems.filter(
+        (x) => !existingKeys.has(`${x.maLk}_${x.tab}_${x.stt}_${x.field}`),
+      );
+      const next = [...prev, ...newOnly];
+      saveCorrectionPlan(next);
+      return next;
+    });
+    setNotice(`Đã tự động đề xuất ${autoItems.length} mục vào kế hoạch chỉnh sửa!`);
+    setShowCorrectionPlanModal(true);
+  };
+
+  const handleExportCorrectionPlanJson = () => {
+    if (correctionPlan.length === 0) return;
+    exportCorrectionPlanJson(correctionPlan);
+    setNotice(`Đã xuất file JSON kế hoạch chỉnh sửa (${correctionPlan.length} mục) cho Extension!`);
+  };
+
+  const handleExportCorrectionPlanExcel = async () => {
+    if (correctionPlan.length === 0) return;
+    await exportCorrectionPlanExcel(correctionPlan);
+    setNotice(`Đã xuất file Excel kế hoạch chỉnh sửa (${correctionPlan.length} mục)!`);
+  };
 
   useEffect(() => {
     applyThemeAndFont(theme, font);
@@ -995,6 +1080,10 @@ export function HomePage() {
             warningColors={warningColors}
             onOpenColorModal={() => setShowColorModal(true)}
             onExportDuplicateMachine={handleExportDuplicateMachine}
+            onOpenDirectEdit={(target) => setDirectEditTarget(target)}
+            correctionPlan={correctionPlan}
+            onOpenCorrectionPlanModal={() => setShowCorrectionPlanModal(true)}
+            onAutoGeneratePlan={handleAutoGeneratePlan}
           />
         )}
 
@@ -1183,6 +1272,32 @@ export function HomePage() {
         />
       )}
 
+      {/* Modal Sửa trực tiếp dòng cảnh báo */}
+      {directEditTarget && (
+        <DirectEditModal
+          isOpen={Boolean(directEditTarget)}
+          onClose={() => setDirectEditTarget(null)}
+          record={directEditTarget.record}
+          warning={directEditTarget.warning}
+          source={directEditTarget.source}
+          onSaveCorrection={handleSaveCorrectionItem}
+        />
+      )}
+
+      {/* Modal Kế hoạch chỉnh sửa tự động XML130 */}
+      {showCorrectionPlanModal && (
+        <CorrectionPlanModal
+          isOpen={showCorrectionPlanModal}
+          onClose={() => setShowCorrectionPlanModal(false)}
+          items={correctionPlan}
+          onRemoveItem={handleRemoveCorrectionItem}
+          onClearAll={handleClearAllCorrections}
+          onAutoGenerate={handleAutoGeneratePlan}
+          onExportJson={handleExportCorrectionPlanJson}
+          onExportExcel={handleExportCorrectionPlanExcel}
+        />
+      )}
+
       <footer className="border-t border-slate-200 bg-white px-4 py-4 text-center text-xs text-slate-500">
         v{APP_META.version} · {APP_META.author} ·{" "}
         <button className="text-teal-700 underline" onClick={() => setView("support")}>
@@ -1296,6 +1411,10 @@ function CheckerView({
   warningColors,
   onOpenColorModal,
   onExportDuplicateMachine,
+  onOpenDirectEdit,
+  correctionPlan,
+  onOpenCorrectionPlanModal,
+  onAutoGeneratePlan,
 }: {
   files: File[];
   analysis: BatchAnalysis | null;
@@ -1340,6 +1459,14 @@ function CheckerView({
   warningColors: Record<WarningCategory, string>;
   onOpenColorModal: () => void;
   onExportDuplicateMachine: () => void;
+  onOpenDirectEdit: (target: {
+    record?: Xml3Record;
+    warning?: ValidationWarning;
+    source: string;
+  }) => void;
+  correctionPlan: CorrectionItem[];
+  onOpenCorrectionPlanModal: () => void;
+  onAutoGeneratePlan: () => void;
 }) {
   const categoryCounts = useMemo(() => {
     const list = onlyWarnings ? filteredWarnings : filteredRecords;
@@ -1394,6 +1521,10 @@ function CheckerView({
   const activeFilterCount = useMemo(() => {
     return Object.values(columnFilters).filter((v) => v && v.trim() !== "").length;
   }, [columnFilters]);
+
+  const plannedSet = useMemo(() => {
+    return new Set(correctionPlan.map((x) => `${x.maLk}_${x.tab}_${x.stt}`));
+  }, [correctionPlan]);
 
   const handleSort = (key: string) => {
     setSortConfig((prev) => {
@@ -1940,6 +2071,25 @@ function CheckerView({
                 )}
                 <button
                   type="button"
+                  onClick={onOpenCorrectionPlanModal}
+                  className="rounded-lg border border-teal-600 bg-teal-600 text-white px-2.5 py-1.5 text-xs font-bold hover:bg-teal-700 shadow-sm flex items-center gap-1.5"
+                  title="Xem và quản lý toàn bộ các mục đã lên kế hoạch chỉnh sửa XML130"
+                >
+                  <span>📋 Kế hoạch sửa</span>
+                  <span className="rounded-full bg-white px-1.5 py-0.2 text-[10px] font-black text-teal-800">
+                    {correctionPlan.length}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onAutoGeneratePlan}
+                  className="rounded-lg border border-amber-500 bg-amber-50 text-amber-900 px-2.5 py-1.5 text-xs font-bold hover:bg-amber-100 shadow-sm flex items-center gap-1"
+                  title="Tự động phát hiện lỗi và đề xuất kế hoạch chỉnh sửa tối ưu hàng loạt"
+                >
+                  <span>⚡ Tự tạo kế hoạch</span>
+                </button>
+                <button
+                  type="button"
                   onClick={onOpenColumnModal}
                   className="rounded-lg border border-teal-300 bg-teal-50 px-2.5 py-1.5 text-xs font-bold text-teal-800 hover:bg-teal-100 shadow-sm flex items-center gap-1"
                   title="Tùy chỉnh ẩn/hiện các cột của bảng này"
@@ -2245,6 +2395,8 @@ function CheckerView({
                           onOpenDetail={onOpenDetail}
                           onOpenDossier={onOpenDossier}
                           warningColors={warningColors}
+                          onOpenDirectEdit={onOpenDirectEdit}
+                          isPlanned={plannedSet.has(`${record.MA_LK}_XML3_${record.STT}`)}
                         />
                       ))}
                     </tbody>
@@ -2268,6 +2420,8 @@ function CheckerView({
                 onOpenDetail={onOpenDetail}
                 onOpenDossier={onOpenDossier}
                 warningColors={warningColors}
+                onOpenDirectEdit={onOpenDirectEdit}
+                plannedSet={plannedSet}
               />
             )}
           </section>
@@ -2391,6 +2545,8 @@ function WarningRow({
   onOpenDetail,
   onOpenDossier,
   warningColors,
+  onOpenDirectEdit,
+  isPlanned = false,
 }: {
   record: Xml3Record;
   tabCols: TabColumnState;
@@ -2402,6 +2558,12 @@ function WarningRow({
   onOpenDetail?: (data: HoverCardData) => void;
   onOpenDossier?: (maLk: string) => void;
   warningColors?: Record<WarningCategory, string>;
+  onOpenDirectEdit?: (target: {
+    record?: Xml3Record;
+    warning?: ValidationWarning;
+    source: string;
+  }) => void;
+  isPlanned?: boolean;
 }) {
   const cat = getXml3RecordCategory(record);
   const catMeta = WARNING_CATEGORY_CONFIG[cat];
@@ -2468,6 +2630,24 @@ function WarningRow({
               title="Xem thông tin hành chính, mốc thời gian & chi tiết cảnh báo"
             >
               <span>👁️</span> Xem
+            </button>
+          )}
+          {onOpenDirectEdit && (
+            <button
+              type="button"
+              onClick={() => onOpenDirectEdit({ record, source: "XML3" })}
+              className={`mt-1 inline-flex items-center justify-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-bold transition shadow-xs w-full ${
+                isPlanned
+                  ? "border-emerald-600 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                  : "border-teal-600 bg-teal-50 text-teal-800 hover:bg-teal-100"
+              }`}
+              title={
+                isPlanned
+                  ? "Dòng này đã có trong kế hoạch sửa (bấm để xem lại hoặc sửa thêm)"
+                  : "Mở hộp thoại sửa trực tiếp dòng XML3 này"
+              }
+            >
+              <span>✏️</span> {isPlanned ? "Đã sửa ✏️" : "Sửa"}
             </button>
           )}
         </td>
@@ -2586,6 +2766,20 @@ function WarningRow({
               >
                 Đặt ngưỡng
               </button>
+              {onOpenDirectEdit && (
+                <button
+                  type="button"
+                  className={`rounded border px-1.5 py-0.5 text-[9px] font-bold ${
+                    isPlanned
+                      ? "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                      : "border-teal-300 bg-teal-50 text-teal-800 hover:bg-teal-100"
+                  }`}
+                  onClick={() => onOpenDirectEdit({ record, source: "XML3" })}
+                  title="Sửa trực tiếp các trường NGAY_KQ, NGAY_TH_YL, MA_MAY..."
+                >
+                  ✏️ {isPlanned ? "Đã sửa ✏️" : "Sửa dòng"}
+                </button>
+              )}
             </div>
           )}
         </td>
@@ -2697,6 +2891,8 @@ function ValidationTable({
   onOpenDetail,
   onOpenDossier,
   warningColors,
+  onOpenDirectEdit,
+  plannedSet,
 }: {
   source: AlertTab;
   warnings: ValidationWarning[];
@@ -2707,6 +2903,12 @@ function ValidationTable({
   onOpenDetail?: (data: HoverCardData) => void;
   onOpenDossier?: (maLk: string) => void;
   warningColors?: Record<WarningCategory, string>;
+  onOpenDirectEdit?: (target: {
+    record?: Xml3Record;
+    warning?: ValidationWarning;
+    source: string;
+  }) => void;
+  plannedSet?: Set<string>;
 }) {
   const isVisible = (key: string) => tabCols.visible[key] !== false;
   const colWidth = (key: string, def: number) => ({
@@ -2972,6 +3174,9 @@ function ValidationTable({
                 const warningCat = getValidationWarningCategory(warning);
                 const warningCatMeta = WARNING_CATEGORY_CONFIG[warningCat];
                 const customColor = warningColors?.[warningCat] || warningCatMeta.defaultColor;
+                const isPlanned = plannedSet?.has(
+                  `${warning.MA_LK}_${source}_${warning.detailIndex ?? 1}`,
+                );
                 return (
                   <tr
                     key={`${source}-${warning.MA_LK}-${warning.detailIndex}-${index}`}
@@ -2999,6 +3204,24 @@ function ValidationTable({
                               title="Xem chi tiết bệnh nhân"
                             >
                               <span>👁️</span> Xem
+                            </button>
+                          )}
+                          {onOpenDirectEdit && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenDirectEdit({ warning, source })}
+                              className={`inline-flex items-center justify-center gap-1 rounded-md border px-2 py-1 text-[11px] font-bold transition shadow-xs whitespace-nowrap ${
+                                isPlanned
+                                  ? "border-emerald-600 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                                  : "border-teal-600 bg-teal-50 text-teal-800 hover:bg-teal-100"
+                              }`}
+                              title={
+                                isPlanned
+                                  ? "Mục này đã có trong kế hoạch sửa (bấm để xem lại hoặc sửa)"
+                                  : "Mở hộp thoại sửa trực tiếp thông tin lỗi này"
+                              }
+                            >
+                              <span>✏️</span> {isPlanned ? "Đã sửa ✏️" : "Sửa"}
                             </button>
                           )}
                           {source === "XML2" && warning.MA_DICH_VU && (
