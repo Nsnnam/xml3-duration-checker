@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import type { Xml3Record, ValidationWarning } from "./xml3-duration.ts";
 import { parseXmlDateTime } from "./xml3-duration.ts";
 import { formatXmlDateTime } from "./timezone.ts";
@@ -719,10 +719,30 @@ export function CorrectionPlanModal({
   onExportExcel: () => void;
 }) {
   const [filterQuery, setFilterQuery] = useState("");
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const bottomScrollRef = useRef<HTMLDivElement>(null);
 
   const patientCount = useMemo(() => {
     return new Set(items.map((x) => x.maBa || x.maLk)).size;
   }, [items]);
+
+  const handleTopScroll = () => {
+    if (topScrollRef.current && bottomScrollRef.current) {
+      bottomScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+    }
+  };
+
+  const handleBottomScroll = () => {
+    if (topScrollRef.current && bottomScrollRef.current) {
+      topScrollRef.current.scrollLeft = bottomScrollRef.current.scrollLeft;
+    }
+  };
+
+  const scrollByAmount = (amount: number) => {
+    if (bottomScrollRef.current) {
+      bottomScrollRef.current.scrollBy({ left: amount, behavior: "smooth" });
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -740,18 +760,22 @@ export function CorrectionPlanModal({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-      <div className="w-full max-w-6xl max-h-[90vh] flex flex-col rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 md:p-6 animate-in fade-in duration-150">
+      <div className="w-full max-w-7xl max-h-[92vh] flex flex-col rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-teal-50 to-white px-6 py-4">
           <div className="flex items-center gap-2">
             <span className="text-xl">📋</span>
             <div>
-              <h3 className="font-bold text-slate-900 text-base">
-                Kế hoạch Chỉnh sửa Tự động XML130 ·{" "}
-                <span className="text-teal-700">{items.length} mục</span> ({patientCount} bệnh án)
-              </h3>
-              <p className="text-xs text-slate-500">
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-slate-900 text-base">
+                  Kế hoạch Chỉnh sửa Tự động XML130
+                </h3>
+                <span className="rounded-full bg-teal-100 border border-teal-300 px-2.5 py-0.5 text-xs font-black text-teal-800">
+                  {items.length} mục · {patientCount} bệnh án
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
                 Xuất file Excel hoặc JSON để nạp vào VNPT-HIS Extension thực hiện 6 bước tự động
               </p>
             </div>
@@ -766,13 +790,13 @@ export function CorrectionPlanModal({
 
         {/* Action bar */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 px-6 py-3 text-xs">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <input
               type="text"
               value={filterQuery}
               onChange={(e) => setFilterQuery(e.target.value)}
               placeholder="Lọc theo Mã BA, họ tên, tab..."
-              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-teal-500 focus:outline-none w-64"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-teal-500 focus:outline-none w-56"
             />
             {items.length > 0 && (
               <button
@@ -783,7 +807,30 @@ export function CorrectionPlanModal({
                 🗑️ Xóa danh sách
               </button>
             )}
+
+            {/* Nút cuộn ngang nhanh để người dùng kéo kiểm tra dễ dàng */}
+            {items.length > 0 && (
+              <div className="flex items-center gap-1 border-l border-slate-200 pl-2">
+                <button
+                  type="button"
+                  onClick={() => scrollByAmount(-350)}
+                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 font-bold text-slate-700 hover:bg-slate-100 flex items-center gap-1 shadow-xs"
+                  title="Cuộn bảng sang trái"
+                >
+                  ◀ Cuộn trái
+                </button>
+                <button
+                  type="button"
+                  onClick={() => scrollByAmount(350)}
+                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 font-bold text-slate-700 hover:bg-slate-100 flex items-center gap-1 shadow-xs"
+                  title="Cuộn bảng sang phải"
+                >
+                  Cuộn phải ▶
+                </button>
+              </div>
+            )}
           </div>
+
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -815,7 +862,7 @@ export function CorrectionPlanModal({
         </div>
 
         {/* Content Table */}
-        <div className="flex-1 overflow-auto p-4">
+        <div className="flex-1 overflow-hidden p-4 flex flex-col">
           {items.length === 0 ? (
             <div className="py-16 text-center text-slate-400 text-sm space-y-3">
               <div className="text-4xl">📝</div>
@@ -827,99 +874,124 @@ export function CorrectionPlanModal({
               </div>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-slate-200">
-              <table className="w-full min-w-[1100px] text-left text-xs border-collapse">
-                <thead className="bg-slate-100 text-[11px] uppercase tracking-wider text-slate-600 select-none">
-                  <tr>
-                    <th className="px-3 py-2 border-r border-slate-200 w-12 min-w-[48px] text-center">
-                      STT
-                    </th>
-                    <th className="px-3 py-2 border-r border-slate-200 w-28 min-w-[110px]">
-                      Mã Bệnh Án
-                    </th>
-                    <th className="px-3 py-2 border-r border-slate-200 w-40 min-w-[150px]">
-                      Bệnh nhân
-                    </th>
-                    <th className="px-3 py-2 border-r border-slate-200 w-28 min-w-[110px]">
-                      Thời gian (HIS)
-                    </th>
-                    <th className="px-3 py-2 border-r border-slate-200 w-20 min-w-[80px]">Tab</th>
-                    <th className="px-3 py-2 border-r border-slate-200 w-48 min-w-[180px]">
-                      Dịch vụ / Trường
-                    </th>
-                    <th className="px-3 py-2 border-r border-slate-200 w-32 min-w-[130px]">
-                      Giá trị cũ
-                    </th>
-                    <th className="px-3 py-2 border-r border-slate-200 w-64 min-w-[240px] max-w-[360px]">
-                      Giá trị mới
-                    </th>
-                    <th className="px-3 py-2 border-r border-slate-200 min-w-[220px]">Lý do</th>
-                    <th className="px-2 py-2 text-center w-12 min-w-[48px]">Xóa</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredItems.map((item, idx) => (
-                    <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-3 py-2 text-center font-mono text-slate-500">{idx + 1}</td>
-                      <td className="px-3 py-2 font-mono font-bold text-teal-800">
-                        {item.maBa || "—"}
-                      </td>
-                      <td className="px-3 py-2 font-semibold text-slate-800">
-                        <div>{item.hoTen || "—"}</div>
-                        <div className="font-mono text-[10px] text-slate-400">LK: {item.maLk}</div>
-                      </td>
-                      <td className="px-3 py-2 text-[11px] text-slate-600 whitespace-nowrap">
-                        <div>{item.tuNgay}</div>
-                        <div className="text-[10px] text-slate-400">➔ {item.denNgay}</div>
-                      </td>
-                      <td className="px-3 py-2">
-                        <span className="rounded bg-teal-50 border border-teal-200 px-1.5 py-0.5 font-bold text-teal-900 text-[10px]">
-                          {item.tab}
-                        </span>
-                        <div className="text-[10px] text-slate-400 mt-0.5">STT: {item.stt}</div>
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="font-mono font-bold text-indigo-700">{item.field}</div>
-                        {item.tenDichVu && (
-                          <div
-                            className="text-[10px] text-slate-500 truncate max-w-xs"
-                            title={item.tenDichVu}
-                          >
-                            {item.tenDichVu}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 font-mono text-[11px] text-rose-700 line-through break-words">
-                        {item.oldValue || "(trống)"}
-                      </td>
-                      <td className="px-3 py-2 font-mono text-[11px] font-bold text-teal-800 break-words whitespace-normal bg-teal-50/40">
-                        {item.newValue}
-                      </td>
-                      <td className="px-3 py-2 text-slate-600 text-[11px] leading-tight break-words">
-                        {item.lyDo}
-                      </td>
-                      <td className="px-2 py-2 text-center">
-                        <button
-                          type="button"
-                          onClick={() => onRemoveItem(item.id)}
-                          className="rounded p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
-                          title="Xóa mục này"
-                        >
-                          ✕
-                        </button>
-                      </td>
+            <div className="flex-1 flex flex-col min-h-0">
+              {/* Thanh cuộn ngang phụ ở đỉnh bảng (Top Scrollbar) đồng bộ hai chiều */}
+              <div
+                ref={topScrollRef}
+                onScroll={handleTopScroll}
+                className="overflow-x-auto bg-slate-100 border-x border-t border-slate-200 h-3 rounded-t-xl"
+                style={{ overflowX: "scroll" }}
+              >
+                <div style={{ width: "1550px", height: "1px" }} />
+              </div>
+
+              {/* Bảng chính có cuộn ngang và cuộn dọc độc lập */}
+              <div
+                ref={bottomScrollRef}
+                onScroll={handleBottomScroll}
+                className="flex-1 overflow-x-auto overflow-y-auto rounded-b-xl border border-slate-200"
+                style={{ overflowX: "scroll" }}
+              >
+                <table className="w-full min-w-[1550px] text-left text-xs border-collapse">
+                  <thead className="bg-slate-100 text-[11px] uppercase tracking-wider text-slate-600 select-none sticky top-0 z-10 shadow-xs">
+                    <tr>
+                      <th className="px-3 py-2 border-r border-slate-200 w-12 min-w-[48px] text-center">
+                        STT
+                      </th>
+                      <th className="px-3 py-2 border-r border-slate-200 w-28 min-w-[110px]">
+                        Mã Bệnh Án
+                      </th>
+                      <th className="px-3 py-2 border-r border-slate-200 w-44 min-w-[160px]">
+                        Bệnh nhân
+                      </th>
+                      <th className="px-3 py-2 border-r border-slate-200 w-32 min-w-[120px]">
+                        Thời gian (HIS)
+                      </th>
+                      <th className="px-3 py-2 border-r border-slate-200 w-20 min-w-[80px]">Tab</th>
+                      <th className="px-3 py-2 border-r border-slate-200 w-52 min-w-[190px]">
+                        Dịch vụ / Trường
+                      </th>
+                      <th className="px-3 py-2 border-r border-slate-200 w-36 min-w-[130px]">
+                        Giá trị cũ
+                      </th>
+                      <th className="px-3 py-2 border-r border-slate-200 w-80 min-w-[280px]">
+                        Giá trị mới
+                      </th>
+                      <th className="px-3 py-2 border-r border-slate-200 min-w-[240px]">Lý do</th>
+                      <th className="px-2 py-2 text-center w-14 min-w-[56px]">Xóa</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredItems.map((item, idx) => (
+                      <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-3 py-2 text-center font-mono text-slate-500">
+                          {idx + 1}
+                        </td>
+                        <td className="px-3 py-2 font-mono font-bold text-teal-800">
+                          {item.maBa || "—"}
+                        </td>
+                        <td className="px-3 py-2 font-semibold text-slate-800">
+                          <div>{item.hoTen || "—"}</div>
+                          <div className="font-mono text-[10px] text-slate-400">
+                            LK: {item.maLk}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-[11px] text-slate-600 whitespace-nowrap">
+                          <div>{item.tuNgay}</div>
+                          <div className="text-[10px] text-slate-400">➔ {item.denNgay}</div>
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className="rounded bg-teal-50 border border-teal-200 px-1.5 py-0.5 font-bold text-teal-900 text-[10px]">
+                            {item.tab}
+                          </span>
+                          <div className="text-[10px] text-slate-400 mt-0.5">STT: {item.stt}</div>
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="font-mono font-bold text-indigo-700">{item.field}</div>
+                          {item.tenDichVu && (
+                            <div
+                              className="text-[10px] text-slate-500 truncate max-w-xs"
+                              title={item.tenDichVu}
+                            >
+                              {item.tenDichVu}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 font-mono text-[11px] text-rose-700 line-through break-words">
+                          {item.oldValue || "(trống)"}
+                        </td>
+                        <td className="px-3 py-2 font-mono text-[11px] font-bold text-teal-800 break-words whitespace-normal bg-teal-50/40">
+                          {item.newValue}
+                        </td>
+                        <td className="px-3 py-2 text-slate-600 text-[11px] leading-tight break-words">
+                          {item.lyDo}
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => onRemoveItem(item.id)}
+                            className="rounded p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                            title="Xóa mục này"
+                          >
+                            ✕
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
 
         {/* Footer */}
         <div className="border-t border-slate-100 bg-slate-50 px-6 py-3 flex items-center justify-between text-xs text-slate-500">
-          <div>
-            Định dạng tương thích 100% với <b>VNPT-HIS XML130 Auto Editor Extension</b>.
+          <div className="flex items-center gap-2">
+            <span>
+              💡 Mẹo: Dùng 2 nút <b>◀ Cuộn trái / Cuộn phải ▶</b> hoặc thanh cuộn ở trên/dưới bảng
+              để đối chiếu toàn bộ các cột.
+            </span>
           </div>
           <button
             type="button"

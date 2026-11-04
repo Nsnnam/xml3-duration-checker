@@ -3,12 +3,21 @@ export const APP_META = {
   title: "NsN_XMLcheck",
   description:
     "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, MA_MAY chuẩn XX.3[xxx].Z & trùng thời gian máy, cảnh báo Z00.0/Z30.1 (KHHGĐ) & Hồ sơ 15 bảng BHYT",
-  version: "2.8.0",
+  version: "2.9.0",
   date: "2026-11-04",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.9.0",
+      date: "2026-11-04",
+      changes: [
+        "Sửa đồng thời hàng loạt (Batch Edit) theo từng tab lỗi: Bổ sung thanh công cụ thao tác hàng loạt kèm checkbox chọn từng dịch vụ hoặc toàn bộ bảng. Hỗ trợ giảm nhanh thời lượng theo các mốc 10p, 15p, 20p, 30p, 45p, 60p hoặc tùy chọn phút; sao chép hàng loạt giá trị GIA_TRI sang KET_LUAN cho XML4; đồng bộ NGAY_YL = NGAY_TH_YL cho công khám/dịch vụ.",
+        "Khắc phục triệt để lỗi cuộn ngang bảng Kế hoạch sửa: Tích hợp thanh cuộn ngang phụ ở đỉnh bảng (Top Scrollbar) đồng bộ 2 chiều với bảng dữ liệu chính, thêm 2 nút điều hướng cuộn nhanh (◀ Cuộn trái / Cuộn phải ▶), mở rộng chiều rộng bảng lên 1550px đảm bảo đối chiếu trọn vẹn tất cả các cột.",
+        "Hiển thị phiên bản v2.9.0 trực quan trên Header Badge và giao diện ứng dụng.",
+      ],
+    },
     {
       version: "2.8.0",
       date: "2026-11-04",

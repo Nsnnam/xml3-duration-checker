@@ -71,6 +71,8 @@ import {
   generateAutoCorrectionPlan,
   exportCorrectionPlanJson,
   exportCorrectionPlanExcel,
+  addMinutesToXmlDateTime,
+  toHisDateString,
 } from "../lib/correction-plan.ts";
 import { DirectEditModal, CorrectionPlanModal } from "../lib/direct-edit-modal.tsx";
 import coffeeQr from "../assets/coffee-qr.jpg";
@@ -325,6 +327,25 @@ export function HomePage() {
       return next;
     });
     setNotice(`Đã thêm vào kế hoạch sửa: ${item.tab}.${item.field} của BN ${item.hoTen}`);
+  };
+
+  const handleSaveCorrectionItems = (items: CorrectionItem[], successMessage?: string) => {
+    if (items.length === 0) return;
+    setCorrectionPlan((prev) => {
+      const map = new Map<string, CorrectionItem>();
+      for (const x of prev) {
+        map.set(`${x.maLk}_${x.tab}_${x.stt}_${x.field}`, x);
+      }
+      for (const x of items) {
+        map.set(`${x.maLk}_${x.tab}_${x.stt}_${x.field}`, x);
+      }
+      const next = Array.from(map.values());
+      saveCorrectionPlan(next);
+      return next;
+    });
+    if (successMessage) {
+      setNotice(successMessage);
+    }
   };
 
   const handleRemoveCorrectionItem = (id: string) => {
@@ -976,8 +997,8 @@ export function HomePage() {
             <div className="flex items-center gap-2">
               <span className="text-xl">🩺</span>
               <h1 className="text-lg font-black tracking-tight">{APP_META.title}</h1>
-              <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold">
-                {APP_META.version}
+              <span className="rounded-full bg-emerald-400 text-slate-900 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-black shadow-xs tracking-wide">
+                v{APP_META.version}
               </span>
             </div>
             <p className="mt-0.5 text-xs text-teal-100">{APP_META.description}</p>
@@ -1084,6 +1105,7 @@ export function HomePage() {
             correctionPlan={correctionPlan}
             onOpenCorrectionPlanModal={() => setShowCorrectionPlanModal(true)}
             onAutoGeneratePlan={handleAutoGeneratePlan}
+            onSaveCorrectionItems={handleSaveCorrectionItems}
           />
         )}
 
@@ -1415,6 +1437,7 @@ function CheckerView({
   correctionPlan,
   onOpenCorrectionPlanModal,
   onAutoGeneratePlan,
+  onSaveCorrectionItems,
 }: {
   files: File[];
   analysis: BatchAnalysis | null;
@@ -1467,6 +1490,7 @@ function CheckerView({
   correctionPlan: CorrectionItem[];
   onOpenCorrectionPlanModal: () => void;
   onAutoGeneratePlan: () => void;
+  onSaveCorrectionItems: (items: CorrectionItem[], msg?: string) => void;
 }) {
   const categoryCounts = useMemo(() => {
     const list = onlyWarnings ? filteredWarnings : filteredRecords;
@@ -1525,6 +1549,121 @@ function CheckerView({
   const plannedSet = useMemo(() => {
     return new Set(correctionPlan.map((x) => `${x.maLk}_${x.tab}_${x.stt}`));
   }, [correctionPlan]);
+
+  const [selectedXml3Keys, setSelectedXml3Keys] = useState<Set<string>>(new Set());
+  const [batchDurationMins, setBatchDurationMins] = useState<number>(30);
+
+  const handleToggleSelectAllXml3 = () => {
+    if (selectedXml3Keys.size >= displayRecords.length && displayRecords.length > 0) {
+      setSelectedXml3Keys(new Set());
+    } else {
+      const next = new Set<string>();
+      for (const r of displayRecords) {
+        next.add(`${r.fileName}-${r.MA_LK}-${r.STT}`);
+      }
+      setSelectedXml3Keys(next);
+    }
+  };
+
+  const handleToggleSelectXml3Row = (key: string) => {
+    setSelectedXml3Keys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const handleBatchXml3Duration = (mins: number) => {
+    if (selectedXml3Keys.size === 0) return;
+    const targetRecords = displayRecords.filter((r) =>
+      selectedXml3Keys.has(`${r.fileName}-${r.MA_LK}-${r.STT}`),
+    );
+    const newItems: CorrectionItem[] = [];
+
+    for (const r of targetRecords) {
+      if (!r.NGAY_TH_YL) continue;
+      const newKq = addMinutesToXmlDateTime(r.NGAY_TH_YL, mins);
+      const dossier = analysis?.dossiers?.find((d) => d.maLk === r.MA_LK);
+      const ngayVao = dossier?.patient?.NGAY_VAO || r.NGAY_YL || "";
+      const ngayRa = dossier?.patient?.NGAY_RA || r.NGAY_KQ || "";
+      const tuNgay = toHisDateString(ngayVao) || toHisDateString(r.NGAY_YL);
+      const denNgay = toHisDateString(ngayRa) || toHisDateString(r.NGAY_KQ);
+
+      newItems.push({
+        id: `plan_xml3_${r.MA_LK}_${r.STT}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        maLk: r.MA_LK,
+        maBa: r.MA_BN || dossier?.patient?.MA_BN || "",
+        hoTen: r.HO_TEN || dossier?.patient?.HO_TEN || "",
+        ngayVao,
+        ngayRa,
+        tuNgay,
+        denNgay,
+        tab: "XML3",
+        stt: r.STT,
+        maDichVu: r.MA_DICH_VU,
+        tenDichVu: r.TEN_DICH_VU,
+        field: "NGAY_KQ",
+        oldValue: r.NGAY_KQ,
+        newValue: newKq,
+        lyDo: `Rút ngắn thời lượng kỹ thuật xuống ${mins} phút (NGAY_TH_YL + ${mins}p)`,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    if (newItems.length > 0) {
+      onSaveCorrectionItems(
+        newItems,
+        `✓ Đã thêm ${newItems.length} dịch vụ vào Kế hoạch sửa với thời lượng ${mins} phút!`,
+      );
+      setSelectedXml3Keys(new Set());
+    }
+  };
+
+  const handleBatchSyncExamTime = () => {
+    if (selectedXml3Keys.size === 0) return;
+    const targetRecords = displayRecords.filter((r) =>
+      selectedXml3Keys.has(`${r.fileName}-${r.MA_LK}-${r.STT}`),
+    );
+    const newItems: CorrectionItem[] = [];
+
+    for (const r of targetRecords) {
+      if (!r.NGAY_TH_YL) continue;
+      const dossier = analysis?.dossiers?.find((d) => d.maLk === r.MA_LK);
+      const ngayVao = dossier?.patient?.NGAY_VAO || r.NGAY_YL || "";
+      const ngayRa = dossier?.patient?.NGAY_RA || r.NGAY_KQ || "";
+      const tuNgay = toHisDateString(ngayVao) || toHisDateString(r.NGAY_YL);
+      const denNgay = toHisDateString(ngayRa) || toHisDateString(r.NGAY_KQ);
+
+      newItems.push({
+        id: `plan_xml3_exam_${r.MA_LK}_${r.STT}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        maLk: r.MA_LK,
+        maBa: r.MA_BN || dossier?.patient?.MA_BN || "",
+        hoTen: r.HO_TEN || dossier?.patient?.HO_TEN || "",
+        ngayVao,
+        ngayRa,
+        tuNgay,
+        denNgay,
+        tab: "XML3",
+        stt: r.STT,
+        maDichVu: r.MA_DICH_VU,
+        tenDichVu: r.TEN_DICH_VU,
+        field: "NGAY_YL",
+        oldValue: r.NGAY_YL,
+        newValue: r.NGAY_TH_YL,
+        lyDo: "Đồng bộ thời gian y lệnh bằng thời gian thực hiện y lệnh (công khám)",
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    if (newItems.length > 0) {
+      onSaveCorrectionItems(
+        newItems,
+        `✓ Đã thêm ${newItems.length} mục đồng bộ thời gian công khám vào Kế hoạch sửa!`,
+      );
+      setSelectedXml3Keys(new Set());
+    }
+  };
 
   const handleSort = (key: string) => {
     setSortConfig((prev) => {
@@ -2293,114 +2432,236 @@ function CheckerView({
                   )}
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-slate-100/95 text-[11px] uppercase tracking-wide text-slate-600 sticky top-0 z-10 select-none shadow-xs">
-                      <tr>
-                        {TAB_COLUMNS.XML3.filter(
-                          (col) => currentTabCols.visible[col.key] !== false,
-                        ).map((col) => (
-                          <ResizableTh
-                            key={col.key}
-                            width={currentTabCols.widths[col.key] || col.defaultWidth}
-                            onResize={(w) => onUpdateColumnWidth(col.key, w)}
-                            isCompact={col.isCompact}
-                            isWide={col.isWide}
-                            sortDir={sortConfig?.key === col.key ? sortConfig.dir : null}
-                            onSort={() => handleSort(col.key)}
-                            hasFilter={Boolean(columnFilters[col.key]?.trim())}
-                          >
-                            {col.label}
-                          </ResizableTh>
-                        ))}
-                      </tr>
-                      {showColumnFilter && (
-                        <tr className="bg-slate-50 border-t border-slate-200 text-slate-700 font-normal normal-case">
+                <div className="space-y-3">
+                  {/* Thanh công cụ Thao tác hàng loạt (Bulk Action Toolbar) cho XML3 */}
+                  {selectedXml3Keys.size > 0 && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-teal-500 bg-teal-50/95 p-3 shadow-md animate-in fade-in duration-150">
+                      <div className="flex items-center gap-2.5">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-teal-700 text-white text-xs font-black shadow-xs">
+                          ✓
+                        </span>
+                        <div>
+                          <div className="text-xs font-black text-teal-950">
+                            Đã chọn{" "}
+                            <span className="text-teal-700 underline font-black">
+                              {selectedXml3Keys.size}
+                            </span>{" "}
+                            dịch vụ XML3
+                          </div>
+                          <div className="text-[11px] text-teal-700">
+                            Áp dụng hiệu chỉnh đồng thời và lưu vào Kế hoạch sửa BHYT
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* Rút ngắn thời lượng theo phút */}
+                        <div className="flex items-center gap-1.5 rounded-xl bg-white border border-teal-200 px-2.5 py-1.5 shadow-2xs">
+                          <span className="text-[11px] font-bold text-slate-700">
+                            ⏱️ Giảm thời lượng:
+                          </span>
+                          {[10, 15, 20, 30, 45, 60].map((mins) => (
+                            <button
+                              key={mins}
+                              type="button"
+                              onClick={() => handleBatchXml3Duration(mins)}
+                              className={`rounded-lg px-2 py-1 text-[11px] font-bold transition shadow-xs ${
+                                batchDurationMins === mins
+                                  ? "bg-teal-700 text-white"
+                                  : "bg-teal-50 text-teal-800 hover:bg-teal-100 border border-teal-200"
+                              }`}
+                              title={`Rút ngắn thời lượng xuống ${mins} phút (NGAY_KQ = NGAY_TH_YL + ${mins}p)`}
+                            >
+                              {mins}p
+                            </button>
+                          ))}
+                          <div className="flex items-center gap-1 border-l border-slate-200 pl-1.5">
+                            <input
+                              type="number"
+                              min={1}
+                              max={70}
+                              value={batchDurationMins}
+                              onChange={(e) =>
+                                setBatchDurationMins(Math.max(1, parseInt(e.target.value) || 1))
+                              }
+                              className="w-12 rounded border border-slate-300 px-1 py-0.5 text-center text-[11px] font-bold text-teal-900"
+                              title="Nhập số phút tùy ý"
+                            />
+                            <span className="text-[10px] text-slate-500 font-semibold">phút</span>
+                            <button
+                              type="button"
+                              onClick={() => handleBatchXml3Duration(batchDurationMins)}
+                              className="rounded-lg bg-teal-700 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-teal-800 shadow-xs flex items-center gap-1"
+                            >
+                              <span>⚡</span> Áp dụng
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Nút đồng bộ công khám */}
+                        <button
+                          type="button"
+                          onClick={handleBatchSyncExamTime}
+                          className="rounded-xl border border-sky-300 bg-sky-50 px-3 py-1.5 text-[11px] font-bold text-sky-900 hover:bg-sky-100 shadow-xs flex items-center gap-1"
+                          title="Đặt NGAY_YL = NGAY_TH_YL cho các dịch vụ công khám (nhóm 13)"
+                        >
+                          <span>🩺</span> Đồng bộ YL = TH_YL (Công khám)
+                        </button>
+
+                        {/* Nút mở Kế hoạch sửa */}
+                        <button
+                          type="button"
+                          onClick={onOpenCorrectionPlanModal}
+                          className="rounded-xl border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-[11px] font-bold text-indigo-900 hover:bg-indigo-100 shadow-xs flex items-center gap-1"
+                          title="Xem danh sách kế hoạch đã lưu"
+                        >
+                          <span>📋</span> Kế hoạch ({correctionPlan.length})
+                        </button>
+
+                        {/* Nút bỏ chọn */}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedXml3Keys(new Set())}
+                          className="rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-100 shadow-xs"
+                        >
+                          ✕ Bỏ chọn
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-slate-100/95 text-[11px] uppercase tracking-wide text-slate-600 sticky top-0 z-10 select-none shadow-xs">
+                        <tr>
+                          {/* Cột Checkbox chọn tất cả */}
+                          <th className="w-10 min-w-[40px] px-2 py-2 text-center border-r border-slate-200 bg-slate-100">
+                            <input
+                              type="checkbox"
+                              checked={
+                                displayRecords.length > 0 &&
+                                selectedXml3Keys.size === displayRecords.length
+                              }
+                              onChange={handleToggleSelectAllXml3}
+                              className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                              title="Chọn tất cả các dòng đang hiển thị"
+                            />
+                          </th>
                           {TAB_COLUMNS.XML3.filter(
                             (col) => currentTabCols.visible[col.key] !== false,
-                          ).map((col) => {
-                            const filterVal = columnFilters[col.key] || "";
-                            const colWidthStyle = {
-                              width: `${currentTabCols.widths[col.key] || col.defaultWidth}px`,
-                              minWidth: `${currentTabCols.widths[col.key] || col.defaultWidth}px`,
-                              maxWidth: `${currentTabCols.widths[col.key] || col.defaultWidth}px`,
-                            };
-                            return (
-                              <th
-                                key={`filter-${col.key}`}
-                                style={colWidthStyle}
-                                className="p-1 border-r border-slate-200 last:border-r-0 bg-slate-50/95"
-                              >
-                                {col.key === "status" ? (
-                                  <select
-                                    value={filterVal}
-                                    onChange={(e) => handleFilterChange(col.key, e.target.value)}
-                                    className="w-full rounded border border-slate-300 bg-white px-1 py-1 text-[11px] font-medium text-slate-700 focus:border-teal-500 focus:outline-none"
-                                  >
-                                    <option value="">Tất cả</option>
-                                    <option value="ĐẠT">ĐẠT</option>
-                                    <option value="VƯỢT MAX">VƯỢT MAX</option>
-                                    <option value="TRÙNG MÁY">TRÙNG MÁY</option>
-                                    <option value="MÃ MÁY">MÃ MÁY</option>
-                                    <option value="TT_THAU">TT_THAU</option>
-                                    <option value="SAI THỨ TỰ">SAI THỨ TỰ</option>
-                                    <option value="TRÙNG MỐC">TRÙNG MỐC</option>
-                                    <option value="GIƯỜNG">GIƯỜNG</option>
-                                    <option value="Z00.0">Z00.0</option>
-                                    <option value="Z30.1">Z30.1</option>
-                                    <option value="THIẾU">THIẾU / LỖI</option>
-                                  </select>
-                                ) : (
-                                  <div className="relative flex items-center">
-                                    <input
-                                      type="text"
+                          ).map((col) => (
+                            <ResizableTh
+                              key={col.key}
+                              width={currentTabCols.widths[col.key] || col.defaultWidth}
+                              onResize={(w) => onUpdateColumnWidth(col.key, w)}
+                              isCompact={col.isCompact}
+                              isWide={col.isWide}
+                              sortDir={sortConfig?.key === col.key ? sortConfig.dir : null}
+                              onSort={() => handleSort(col.key)}
+                              hasFilter={Boolean(columnFilters[col.key]?.trim())}
+                            >
+                              {col.label}
+                            </ResizableTh>
+                          ))}
+                        </tr>
+                        {showColumnFilter && (
+                          <tr className="bg-slate-50 border-t border-slate-200 text-slate-700 font-normal normal-case">
+                            <th className="w-10 min-w-[40px] p-1 border-r border-slate-200 bg-slate-50 text-center text-slate-400 text-[10px]">
+                              —
+                            </th>
+                            {TAB_COLUMNS.XML3.filter(
+                              (col) => currentTabCols.visible[col.key] !== false,
+                            ).map((col) => {
+                              const filterVal = columnFilters[col.key] || "";
+                              const colWidthStyle = {
+                                width: `${currentTabCols.widths[col.key] || col.defaultWidth}px`,
+                                minWidth: `${currentTabCols.widths[col.key] || col.defaultWidth}px`,
+                                maxWidth: `${currentTabCols.widths[col.key] || col.defaultWidth}px`,
+                              };
+                              return (
+                                <th
+                                  key={`filter-${col.key}`}
+                                  style={colWidthStyle}
+                                  className="p-1 border-r border-slate-200 last:border-r-0 bg-slate-50/95"
+                                >
+                                  {col.key === "status" ? (
+                                    <select
                                       value={filterVal}
                                       onChange={(e) => handleFilterChange(col.key, e.target.value)}
-                                      placeholder={
-                                        col.key === "duration"
-                                          ? "vd >70"
-                                          : col.key === "overLimit"
-                                            ? "vd >0"
-                                            : col.key === "ttThau" || col.key === "maMay"
-                                              ? "Tìm/trống"
-                                              : "Lọc..."
-                                      }
-                                      className="w-full rounded border border-slate-300 bg-white px-1.5 py-1 text-[11px] font-normal text-slate-800 placeholder:text-slate-400 focus:border-teal-500 focus:outline-none"
-                                    />
-                                    {filterVal && (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleFilterChange(col.key, "")}
-                                        className="absolute right-1 text-slate-400 hover:text-rose-600 text-[10px] font-bold"
-                                        title="Xóa ô lọc này"
-                                      >
-                                        ✕
-                                      </button>
-                                    )}
-                                  </div>
-                                )}
-                              </th>
-                            );
-                          })}
-                        </tr>
-                      )}
-                    </thead>
-                    <tbody>
-                      {displayRecords.map((record, index) => (
-                        <WarningRow
-                          key={`${record.fileName}-${record.MA_LK}-${record.STT}-${index}`}
-                          record={record}
-                          tabCols={currentTabCols}
-                          onAddServiceRule={onAddServiceRule}
-                          onOpenDetail={onOpenDetail}
-                          onOpenDossier={onOpenDossier}
-                          warningColors={warningColors}
-                          onOpenDirectEdit={onOpenDirectEdit}
-                          isPlanned={plannedSet.has(`${record.MA_LK}_XML3_${record.STT}`)}
-                        />
-                      ))}
-                    </tbody>
-                  </table>
+                                      className="w-full rounded border border-slate-300 bg-white px-1 py-1 text-[11px] font-medium text-slate-700 focus:border-teal-500 focus:outline-none"
+                                    >
+                                      <option value="">Tất cả</option>
+                                      <option value="ĐẠT">ĐẠT</option>
+                                      <option value="VƯỢT MAX">VƯỢT MAX</option>
+                                      <option value="TRÙNG MÁY">TRÙNG MÁY</option>
+                                      <option value="MÃ MÁY">MÃ MÁY</option>
+                                      <option value="TT_THAU">TT_THAU</option>
+                                      <option value="SAI THỨ TỰ">SAI THỨ TỰ</option>
+                                      <option value="TRÙNG MỐC">TRÙNG MỐC</option>
+                                      <option value="GIƯỜNG">GIƯỜNG</option>
+                                      <option value="Z00.0">Z00.0</option>
+                                      <option value="Z30.1">Z30.1</option>
+                                      <option value="THIẾU">THIẾU / LỖI</option>
+                                    </select>
+                                  ) : (
+                                    <div className="relative flex items-center">
+                                      <input
+                                        type="text"
+                                        value={filterVal}
+                                        onChange={(e) =>
+                                          handleFilterChange(col.key, e.target.value)
+                                        }
+                                        placeholder={
+                                          col.key === "duration"
+                                            ? "vd >70"
+                                            : col.key === "overLimit"
+                                              ? "vd >0"
+                                              : col.key === "ttThau" || col.key === "maMay"
+                                                ? "Tìm/trống"
+                                                : "Lọc..."
+                                        }
+                                        className="w-full rounded border border-slate-300 bg-white px-1.5 py-1 text-[11px] font-normal text-slate-800 placeholder:text-slate-400 focus:border-teal-500 focus:outline-none"
+                                      />
+                                      {filterVal && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleFilterChange(col.key, "")}
+                                          className="absolute right-1 text-slate-400 hover:text-rose-600 text-[10px] font-bold"
+                                          title="Xóa ô lọc này"
+                                        >
+                                          ✕
+                                        </button>
+                                      )}
+                                    </div>
+                                  )}
+                                </th>
+                              );
+                            })}
+                          </tr>
+                        )}
+                      </thead>
+                      <tbody>
+                        {displayRecords.map((record, index) => {
+                          const recordKey = `${record.fileName}-${record.MA_LK}-${record.STT}`;
+                          return (
+                            <WarningRow
+                              key={`${recordKey}-${index}`}
+                              record={record}
+                              tabCols={currentTabCols}
+                              onAddServiceRule={onAddServiceRule}
+                              onOpenDetail={onOpenDetail}
+                              onOpenDossier={onOpenDossier}
+                              warningColors={warningColors}
+                              onOpenDirectEdit={onOpenDirectEdit}
+                              isPlanned={plannedSet.has(`${record.MA_LK}_XML3_${record.STT}`)}
+                              isSelected={selectedXml3Keys.has(recordKey)}
+                              onToggleSelect={() => handleToggleSelectXml3Row(recordKey)}
+                            />
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )
             ) : (
@@ -2422,6 +2683,10 @@ function CheckerView({
                 warningColors={warningColors}
                 onOpenDirectEdit={onOpenDirectEdit}
                 plannedSet={plannedSet}
+                onSaveCorrectionItems={onSaveCorrectionItems}
+                analysis={analysis}
+                onOpenCorrectionPlanModal={onOpenCorrectionPlanModal}
+                correctionPlanCount={correctionPlan.length}
               />
             )}
           </section>
@@ -2547,6 +2812,8 @@ function WarningRow({
   warningColors,
   onOpenDirectEdit,
   isPlanned = false,
+  isSelected = false,
+  onToggleSelect,
 }: {
   record: Xml3Record;
   tabCols: TabColumnState;
@@ -2564,6 +2831,8 @@ function WarningRow({
     source: string;
   }) => void;
   isPlanned?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
 }) {
   const cat = getXml3RecordCategory(record);
   const catMeta = WARNING_CATEGORY_CONFIG[cat];
@@ -2594,9 +2863,22 @@ function WarningRow({
   return (
     <tr
       className={`border-t border-slate-200/70 align-top transition-colors ${
-        isWarning ? "bg-rose-50/60 hover:bg-rose-100/60" : "hover:bg-slate-50/80"
+        isSelected
+          ? "bg-teal-50 hover:bg-teal-100/80"
+          : isWarning
+            ? "bg-rose-50/60 hover:bg-rose-100/60"
+            : "hover:bg-slate-50/80"
       }`}
     >
+      {/* Ô checkbox chọn dòng */}
+      <td className="w-10 min-w-[40px] px-2 py-2.5 text-center">
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={onToggleSelect}
+          className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+        />
+      </td>
       {isVisible("status") && (
         <td style={colWidth("status", 85)} className="px-3 py-2.5 text-center">
           <span
@@ -2893,6 +3175,10 @@ function ValidationTable({
   warningColors,
   onOpenDirectEdit,
   plannedSet,
+  onSaveCorrectionItems,
+  analysis,
+  onOpenCorrectionPlanModal,
+  correctionPlanCount = 0,
 }: {
   source: AlertTab;
   warnings: ValidationWarning[];
@@ -2909,6 +3195,10 @@ function ValidationTable({
     source: string;
   }) => void;
   plannedSet?: Set<string>;
+  onSaveCorrectionItems?: (items: CorrectionItem[], msg?: string) => void;
+  analysis?: BatchAnalysis;
+  onOpenCorrectionPlanModal?: () => void;
+  correctionPlanCount?: number;
 }) {
   const isVisible = (key: string) => tabCols.visible[key] !== false;
   const colWidth = (key: string, def: number) => ({
@@ -2922,6 +3212,7 @@ function ValidationTable({
   const [showColumnFilter, setShowColumnFilter] = useState(false);
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
   const [sortConfig, setSortConfig] = useState<{ key: string; dir: "asc" | "desc" } | null>(null);
+  const [selectedWarningIds, setSelectedWarningIds] = useState<Set<string>>(new Set());
 
   const activeFilterCount = useMemo(() => {
     return Object.values(columnFilters).filter((v) => v && v.trim() !== "").length;
@@ -2945,6 +3236,75 @@ function ValidationTable({
 
   const handleClearColumnFilters = () => {
     setColumnFilters({});
+  };
+
+  const handleToggleSelectAll = () => {
+    if (selectedWarningIds.size >= displayWarnings.length && displayWarnings.length > 0) {
+      setSelectedWarningIds(new Set());
+    } else {
+      const next = new Set<string>();
+      displayWarnings.forEach((w, idx) => {
+        next.add(`${w.MA_LK}_${w.detailIndex || idx + 1}`);
+      });
+      setSelectedWarningIds(next);
+    }
+  };
+
+  const handleToggleSelectWarning = (key: string) => {
+    setSelectedWarningIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const handleBatchXml4CopyGiaTri = () => {
+    if (selectedWarningIds.size === 0 || !onSaveCorrectionItems) return;
+    const targetWarnings = displayWarnings.filter((w, idx) =>
+      selectedWarningIds.has(`${w.MA_LK}_${w.detailIndex || idx + 1}`),
+    );
+    const newItems: CorrectionItem[] = [];
+
+    for (const w of targetWarnings) {
+      const dossier = analysis?.dossiers?.find((d) => d.maLk === w.MA_LK);
+      const ngayVao = dossier?.patient?.NGAY_VAO || "";
+      const ngayRa = dossier?.patient?.NGAY_RA || "";
+      const tuNgay = toHisDateString(ngayVao);
+      const denNgay = toHisDateString(ngayRa);
+      const valStr = (w.giaTri || "").trim();
+      const conclusion = valStr || "Trong giới hạn bình thường";
+
+      newItems.push({
+        id: `plan_xml4_${w.MA_LK}_${w.detailIndex || "1"}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        maLk: w.MA_LK,
+        maBa: w.MA_BN || dossier?.patient?.MA_BN || "",
+        hoTen: w.HO_TEN || dossier?.patient?.HO_TEN || "",
+        ngayVao,
+        ngayRa,
+        tuNgay,
+        denNgay,
+        tab: "XML4",
+        stt: String(w.detailIndex || "1"),
+        maDichVu: w.MA_DICH_VU || "",
+        tenDichVu: w.TEN_DICH_VU || "",
+        field: "KET_LUAN",
+        oldValue: "",
+        newValue: conclusion,
+        lyDo: valStr
+          ? "Sao chép giá trị xét nghiệm GIA_TRI sang KET_LUAN"
+          : "Bổ sung kết luận chẩn đoán CLS",
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    if (newItems.length > 0) {
+      onSaveCorrectionItems(
+        newItems,
+        `✓ Đã sao chép và thêm ${newItems.length} kết luận XML4 vào Kế hoạch sửa!`,
+      );
+      setSelectedWarningIds(new Set());
+    }
   };
 
   const displayWarnings = useMemo(() => {
@@ -3102,93 +3462,235 @@ function ValidationTable({
           )}
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-slate-100 text-[11px] uppercase tracking-wide text-slate-600 select-none sticky top-0 z-10 shadow-xs">
-              <tr>
-                {columns
-                  .filter((col) => isVisible(col.key))
-                  .map((col) => (
-                    <ResizableTh
-                      key={col.key}
-                      width={tabCols.widths[col.key] || col.defaultWidth}
-                      onResize={(w) => onUpdateColumnWidth(col.key, w)}
-                      sortDir={sortConfig?.key === col.key ? sortConfig.dir : null}
-                      onSort={col.key !== "action" ? () => handleSort(col.key) : undefined}
-                      hasFilter={Boolean(columnFilters[col.key]?.trim())}
-                    >
-                      {col.label}
-                    </ResizableTh>
-                  ))}
-              </tr>
-              {showColumnFilter && (
-                <tr className="bg-slate-50 border-t border-slate-200 text-slate-700 font-normal normal-case">
+        <div className="p-3 space-y-3">
+          {/* Thanh thao tác hàng loạt cho XML4 */}
+          {source === "XML4" && selectedWarningIds.size > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-indigo-500 bg-indigo-50/95 p-3 shadow-md animate-in fade-in duration-150">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-700 text-white text-xs font-black shadow-xs">
+                  ✓
+                </span>
+                <div>
+                  <div className="text-xs font-black text-indigo-950">
+                    Đã chọn{" "}
+                    <span className="text-indigo-700 underline font-black">
+                      {selectedWarningIds.size}
+                    </span>{" "}
+                    cảnh báo XML4
+                  </div>
+                  <div className="text-[11px] text-indigo-700">
+                    Sao chép hàng loạt giá trị trường GIA_TRI vào KET_LUAN theo bệnh án tương ứng
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleBatchXml4CopyGiaTri}
+                  className="rounded-xl bg-indigo-700 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-800 shadow-md flex items-center gap-1.5 transition"
+                  title="Tự động sao chép giá trị từ cột GIA_TRI của từng bệnh án vào ô KET_LUAN tương ứng"
+                >
+                  <span>📋</span> Sao chép GIA_TRI sang KET_LUAN hàng loạt (
+                  {selectedWarningIds.size})
+                </button>
+
+                {onOpenCorrectionPlanModal && (
+                  <button
+                    type="button"
+                    onClick={onOpenCorrectionPlanModal}
+                    className="rounded-xl border border-indigo-300 bg-white px-3 py-1.5 text-[11px] font-bold text-indigo-900 hover:bg-indigo-50 shadow-xs flex items-center gap-1"
+                  >
+                    <span>📋</span> Kế hoạch ({correctionPlanCount})
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedWarningIds(new Set())}
+                  className="rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-100 shadow-xs"
+                >
+                  ✕ Bỏ chọn
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="bg-slate-100 text-[11px] uppercase tracking-wide text-slate-600 select-none sticky top-0 z-10 shadow-xs">
+                <tr>
+                  {/* Cột Checkbox chọn tất cả */}
+                  <th className="w-10 min-w-[40px] px-2 py-2 text-center border-r border-slate-200 bg-slate-100">
+                    <input
+                      type="checkbox"
+                      checked={
+                        displayWarnings.length > 0 &&
+                        selectedWarningIds.size === displayWarnings.length
+                      }
+                      onChange={handleToggleSelectAll}
+                      className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                      title="Chọn tất cả các cảnh báo đang hiển thị"
+                    />
+                  </th>
                   {columns
                     .filter((col) => isVisible(col.key))
-                    .map((col) => {
-                      if (col.key === "action") {
+                    .map((col) => (
+                      <ResizableTh
+                        key={col.key}
+                        width={tabCols.widths[col.key] || col.defaultWidth}
+                        onResize={(w) => onUpdateColumnWidth(col.key, w)}
+                        sortDir={sortConfig?.key === col.key ? sortConfig.dir : null}
+                        onSort={col.key !== "action" ? () => handleSort(col.key) : undefined}
+                        hasFilter={Boolean(columnFilters[col.key]?.trim())}
+                      >
+                        {col.label}
+                      </ResizableTh>
+                    ))}
+                </tr>
+                {showColumnFilter && (
+                  <tr className="bg-slate-50 border-t border-slate-200 text-slate-700 font-normal normal-case">
+                    <th className="w-10 min-w-[40px] p-1 border-r border-slate-200 bg-slate-50 text-center text-slate-400 text-[10px]">
+                      —
+                    </th>
+                    {columns
+                      .filter((col) => isVisible(col.key))
+                      .map((col) => {
+                        if (col.key === "action") {
+                          return (
+                            <th
+                              key={`filter-${col.key}`}
+                              style={colWidth(col.key, source === "XML2" ? 115 : 95)}
+                              className="p-1 border-r border-slate-200 bg-slate-50 text-center text-slate-400 text-[10px]"
+                            >
+                              —
+                            </th>
+                          );
+                        }
+                        const filterVal = columnFilters[col.key] || "";
                         return (
                           <th
                             key={`filter-${col.key}`}
-                            style={colWidth(col.key, source === "XML2" ? 115 : 95)}
-                            className="p-1 border-r border-slate-200 bg-slate-50 text-center text-slate-400 text-[10px]"
+                            style={colWidth(col.key, col.defaultWidth)}
+                            className="p-1 border-r border-slate-200 last:border-r-0 bg-slate-50/95"
                           >
-                            —
+                            <div className="relative flex items-center">
+                              <input
+                                type="text"
+                                value={filterVal}
+                                onChange={(e) => handleFilterChange(col.key, e.target.value)}
+                                placeholder="Lọc..."
+                                className="w-full rounded border border-slate-300 bg-white px-1.5 py-1 text-[11px] font-normal text-slate-800 placeholder:text-slate-400 focus:border-teal-500 focus:outline-none"
+                              />
+                              {filterVal && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleFilterChange(col.key, "")}
+                                  className="absolute right-1 text-slate-400 hover:text-rose-600 text-[10px] font-bold"
+                                  title="Xóa ô lọc này"
+                                >
+                                  ✕
+                                </button>
+                              )}
+                            </div>
                           </th>
                         );
-                      }
-                      const filterVal = columnFilters[col.key] || "";
-                      return (
-                        <th
-                          key={`filter-${col.key}`}
-                          style={colWidth(col.key, col.defaultWidth)}
-                          className="p-1 border-r border-slate-200 last:border-r-0 bg-slate-50/95"
+                      })}
+                  </tr>
+                )}
+              </thead>
+              <tbody>
+                {displayWarnings.map((warning, index) => {
+                  const warningCat = getValidationWarningCategory(warning);
+                  const warningCatMeta = WARNING_CATEGORY_CONFIG[warningCat];
+                  const customColor = warningColors?.[warningCat] || warningCatMeta.defaultColor;
+                  const isPlanned = plannedSet?.has(
+                    `${warning.MA_LK}_${source}_${warning.detailIndex ?? 1}`,
+                  );
+                  const warnKey = `${warning.MA_LK}_${warning.detailIndex || index + 1}`;
+                  const isSelected = selectedWarningIds.has(warnKey);
+                  return (
+                    <tr
+                      key={`${source}-${warning.MA_LK}-${warning.detailIndex}-${index}`}
+                      className={`border-t border-slate-100 align-top transition-colors ${
+                        isSelected
+                          ? "bg-indigo-50 hover:bg-indigo-100/80"
+                          : "bg-rose-50/60 hover:bg-rose-100/60"
+                      }`}
+                    >
+                      {/* Checkbox chọn cảnh báo */}
+                      <td className="w-10 min-w-[40px] px-2 py-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleSelectWarning(warnKey)}
+                          className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                        />
+                      </td>
+                      {isVisible("action") && (
+                        <td
+                          style={colWidth("action", source === "XML2" ? 115 : 95)}
+                          className="px-3 py-3"
                         >
-                          <div className="relative flex items-center">
-                            <input
-                              type="text"
-                              value={filterVal}
-                              onChange={(e) => handleFilterChange(col.key, e.target.value)}
-                              placeholder="Lọc..."
-                              className="w-full rounded border border-slate-300 bg-white px-1.5 py-1 text-[11px] font-normal text-slate-800 placeholder:text-slate-400 focus:border-teal-500 focus:outline-none"
-                            />
-                            {filterVal && (
+                          <div className="flex flex-col items-start gap-1.5">
+                            {onOpenDetail && (
                               <button
                                 type="button"
-                                onClick={() => handleFilterChange(col.key, "")}
-                                className="absolute right-1 text-slate-400 hover:text-rose-600 text-[10px] font-bold"
-                                title="Xóa ô lọc này"
+                                onClick={() =>
+                                  onOpenDetail({
+                                    maLk: warning.MA_LK,
+                                    patient: warning.patient,
+                                    record: warning.record,
+                                    warningMessage: warning.message,
+                                    source,
+                                  })
+                                }
+                                className="inline-flex items-center justify-center gap-1 rounded-md border border-slate-300 dark:border-slate-600 bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 px-2 py-1 text-[11px] font-bold text-slate-700 dark:text-slate-200 transition shadow-xs whitespace-nowrap"
+                                title="Xem chi tiết bệnh nhân"
                               >
-                                ✕
+                                <span>👁️</span> Xem
+                              </button>
+                            )}
+                            {onOpenDirectEdit && (
+                              <button
+                                type="button"
+                                onClick={() => onOpenDirectEdit({ warning, source })}
+                                className={`inline-flex items-center justify-center gap-1 rounded-md border px-2 py-1 text-[11px] font-bold transition shadow-xs whitespace-nowrap ${
+                                  isPlanned
+                                    ? "border-emerald-600 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                                    : "border-teal-600 bg-teal-50 text-teal-800 hover:bg-teal-100"
+                                }`}
+                                title={
+                                  isPlanned
+                                    ? "Mục này đã có trong kế hoạch sửa (bấm để xem lại hoặc sửa)"
+                                    : "Mở hộp thoại sửa trực tiếp thông tin lỗi này"
+                                }
+                              >
+                                <span>✏️</span> {isPlanned ? "Đã sửa ✏️" : "Sửa"}
+                              </button>
+                            )}
+                            {source === "XML2" && warning.MA_DICH_VU && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  onAddExcludedDrug(warning.MA_DICH_VU, warning.TEN_DICH_VU)
+                                }
+                                className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-800 hover:bg-amber-100 shadow-sm whitespace-nowrap"
+                                title="Thêm thuốc này vào danh mục loại trừ XML2"
+                              >
+                                🛡️ Loại trừ thuốc
                               </button>
                             )}
                           </div>
-                        </th>
-                      );
-                    })}
-                </tr>
-              )}
-            </thead>
-            <tbody>
-              {displayWarnings.map((warning, index) => {
-                const warningCat = getValidationWarningCategory(warning);
-                const warningCatMeta = WARNING_CATEGORY_CONFIG[warningCat];
-                const customColor = warningColors?.[warningCat] || warningCatMeta.defaultColor;
-                const isPlanned = plannedSet?.has(
-                  `${warning.MA_LK}_${source}_${warning.detailIndex ?? 1}`,
-                );
-                return (
-                  <tr
-                    key={`${source}-${warning.MA_LK}-${warning.detailIndex}-${index}`}
-                    className="border-t border-slate-100 bg-rose-50/60 hover:bg-rose-100/60 align-top transition-colors"
-                  >
-                    {isVisible("action") && (
-                      <td
-                        style={colWidth("action", source === "XML2" ? 115 : 95)}
-                        className="px-3 py-3"
-                      >
-                        <div className="flex flex-col items-start gap-1.5">
-                          {onOpenDetail && (
+                        </td>
+                      )}
+                      {isVisible("detailIndex") && (
+                        <td
+                          style={colWidth("detailIndex", 95)}
+                          className="px-3 py-3 font-mono font-bold"
+                        >
+                          <div>{warning.detailIndex}</div>
+                          {!isVisible("action") && onOpenDetail && (
                             <button
                               type="button"
                               onClick={() =>
@@ -3200,164 +3702,108 @@ function ValidationTable({
                                   source,
                                 })
                               }
-                              className="inline-flex items-center justify-center gap-1 rounded-md border border-slate-300 dark:border-slate-600 bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 px-2 py-1 text-[11px] font-bold text-slate-700 dark:text-slate-200 transition shadow-xs whitespace-nowrap"
+                              className="mt-1.5 inline-flex items-center justify-center gap-1 rounded-md border border-slate-300 dark:border-slate-600 bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 px-1.5 py-0.5 text-[10px] font-bold text-slate-700 dark:text-slate-200 transition shadow-xs"
                               title="Xem chi tiết bệnh nhân"
                             >
                               <span>👁️</span> Xem
                             </button>
                           )}
-                          {onOpenDirectEdit && (
-                            <button
-                              type="button"
-                              onClick={() => onOpenDirectEdit({ warning, source })}
-                              className={`inline-flex items-center justify-center gap-1 rounded-md border px-2 py-1 text-[11px] font-bold transition shadow-xs whitespace-nowrap ${
-                                isPlanned
-                                  ? "border-emerald-600 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
-                                  : "border-teal-600 bg-teal-50 text-teal-800 hover:bg-teal-100"
-                              }`}
-                              title={
-                                isPlanned
-                                  ? "Mục này đã có trong kế hoạch sửa (bấm để xem lại hoặc sửa)"
-                                  : "Mở hộp thoại sửa trực tiếp thông tin lỗi này"
-                              }
+                        </td>
+                      )}
+                      {isVisible("maLk") && (
+                        <td
+                          style={colWidth("maLk", 130)}
+                          className="px-3 py-3 font-mono font-bold text-teal-800 break-all"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            {onOpenDossier && warning.MA_LK && (
+                              <button
+                                type="button"
+                                onClick={() => onOpenDossier(warning.MA_LK)}
+                                title="Mở hồ sơ & xem XML 15 bảng của bệnh nhân này"
+                                className="rounded p-0.5 text-slate-400 hover:text-teal-700 hover:bg-teal-50 transition"
+                              >
+                                📂
+                              </button>
+                            )}
+                            <span>{warning.MA_LK || "—"}</span>
+                          </div>
+                        </td>
+                      )}
+                      {isVisible("hoTen") && (
+                        <td
+                          style={colWidth("hoTen", 170)}
+                          className="px-3 py-3 font-semibold text-slate-800 break-words"
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <span>{warning.HO_TEN || "Chưa có họ tên"}</span>
+                            {!isVisible("action") && !isVisible("detailIndex") && onOpenDetail && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  onOpenDetail({
+                                    maLk: warning.MA_LK,
+                                    patient: warning.patient,
+                                    record: warning.record,
+                                    warningMessage: warning.message,
+                                    source,
+                                  })
+                                }
+                                className="inline-flex items-center gap-0.5 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-bold text-slate-700 dark:text-slate-200 shadow-xs"
+                                title="Xem chi tiết bệnh nhân"
+                              >
+                                👁️ Xem
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      )}
+                      {isVisible("maBn") && (
+                        <td
+                          style={colWidth("maBn", 120)}
+                          className="px-3 py-3 font-mono font-bold break-all"
+                        >
+                          {warning.MA_BN || "—"}
+                        </td>
+                      )}
+                      {isVisible(source === "XML2" ? "maThuoc" : "maDichVu") && (
+                        <td
+                          style={colWidth(source === "XML2" ? "maThuoc" : "maDichVu", 130)}
+                          className="px-3 py-3 font-mono"
+                        >
+                          {warning.MA_DICH_VU || "—"}
+                        </td>
+                      )}
+                      {isVisible(source === "XML2" ? "tenThuoc" : "tenDichVu") && (
+                        <td
+                          style={colWidth(source === "XML2" ? "tenThuoc" : "tenDichVu", 220)}
+                          className="px-3 py-3 font-medium text-slate-800 break-words"
+                        >
+                          {warning.TEN_DICH_VU || "—"}
+                        </td>
+                      )}
+                      {isVisible("message") && (
+                        <td
+                          style={colWidth("message", 400)}
+                          className="px-3 py-3 text-slate-700 font-semibold text-rose-800 break-words leading-relaxed"
+                        >
+                          <div className="mb-1 flex items-center gap-1.5">
+                            <span
+                              className="inline-block rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-tight text-white"
+                              style={{ backgroundColor: customColor }}
                             >
-                              <span>✏️</span> {isPlanned ? "Đã sửa ✏️" : "Sửa"}
-                            </button>
-                          )}
-                          {source === "XML2" && warning.MA_DICH_VU && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                onAddExcludedDrug(warning.MA_DICH_VU, warning.TEN_DICH_VU)
-                              }
-                              className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-800 hover:bg-amber-100 shadow-sm whitespace-nowrap"
-                              title="Thêm thuốc này vào danh mục loại trừ XML2"
-                            >
-                              🛡️ Loại trừ thuốc
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    )}
-                    {isVisible("detailIndex") && (
-                      <td
-                        style={colWidth("detailIndex", 95)}
-                        className="px-3 py-3 font-mono font-bold"
-                      >
-                        <div>{warning.detailIndex}</div>
-                        {!isVisible("action") && onOpenDetail && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              onOpenDetail({
-                                maLk: warning.MA_LK,
-                                patient: warning.patient,
-                                record: warning.record,
-                                warningMessage: warning.message,
-                                source,
-                              })
-                            }
-                            className="mt-1.5 inline-flex items-center justify-center gap-1 rounded-md border border-slate-300 dark:border-slate-600 bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 px-1.5 py-0.5 text-[10px] font-bold text-slate-700 dark:text-slate-200 transition shadow-xs"
-                            title="Xem chi tiết bệnh nhân"
-                          >
-                            <span>👁️</span> Xem
-                          </button>
-                        )}
-                      </td>
-                    )}
-                    {isVisible("maLk") && (
-                      <td
-                        style={colWidth("maLk", 130)}
-                        className="px-3 py-3 font-mono font-bold text-teal-800 break-all"
-                      >
-                        <div className="flex items-center gap-1.5">
-                          {onOpenDossier && warning.MA_LK && (
-                            <button
-                              type="button"
-                              onClick={() => onOpenDossier(warning.MA_LK)}
-                              title="Mở hồ sơ & xem XML 15 bảng của bệnh nhân này"
-                              className="rounded p-0.5 text-slate-400 hover:text-teal-700 hover:bg-teal-50 transition"
-                            >
-                              📂
-                            </button>
-                          )}
-                          <span>{warning.MA_LK || "—"}</span>
-                        </div>
-                      </td>
-                    )}
-                    {isVisible("hoTen") && (
-                      <td
-                        style={colWidth("hoTen", 170)}
-                        className="px-3 py-3 font-semibold text-slate-800 break-words"
-                      >
-                        <div className="flex items-center justify-between gap-1">
-                          <span>{warning.HO_TEN || "Chưa có họ tên"}</span>
-                          {!isVisible("action") && !isVisible("detailIndex") && onOpenDetail && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                onOpenDetail({
-                                  maLk: warning.MA_LK,
-                                  patient: warning.patient,
-                                  record: warning.record,
-                                  warningMessage: warning.message,
-                                  source,
-                                })
-                              }
-                              className="inline-flex items-center gap-0.5 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-bold text-slate-700 dark:text-slate-200 shadow-xs"
-                              title="Xem chi tiết bệnh nhân"
-                            >
-                              👁️ Xem
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    )}
-                    {isVisible("maBn") && (
-                      <td
-                        style={colWidth("maBn", 120)}
-                        className="px-3 py-3 font-mono font-bold break-all"
-                      >
-                        {warning.MA_BN || "—"}
-                      </td>
-                    )}
-                    {isVisible(source === "XML2" ? "maThuoc" : "maDichVu") && (
-                      <td
-                        style={colWidth(source === "XML2" ? "maThuoc" : "maDichVu", 130)}
-                        className="px-3 py-3 font-mono"
-                      >
-                        {warning.MA_DICH_VU || "—"}
-                      </td>
-                    )}
-                    {isVisible(source === "XML2" ? "tenThuoc" : "tenDichVu") && (
-                      <td
-                        style={colWidth(source === "XML2" ? "tenThuoc" : "tenDichVu", 220)}
-                        className="px-3 py-3 font-medium text-slate-800 break-words"
-                      >
-                        {warning.TEN_DICH_VU || "—"}
-                      </td>
-                    )}
-                    {isVisible("message") && (
-                      <td
-                        style={colWidth("message", 400)}
-                        className="px-3 py-3 text-slate-700 font-semibold text-rose-800 break-words leading-relaxed"
-                      >
-                        <div className="mb-1 flex items-center gap-1.5">
-                          <span
-                            className="inline-block rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-tight text-white"
-                            style={{ backgroundColor: customColor }}
-                          >
-                            {warningCatMeta.badgeText}
-                          </span>
-                        </div>
-                        <div>{warning.message}</div>
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                              {warningCatMeta.badgeText}
+                            </span>
+                          </div>
+                          <div>{warning.message}</div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
