@@ -74,7 +74,11 @@ import {
   addMinutesToXmlDateTime,
   toHisDateString,
 } from "../lib/correction-plan.ts";
-import { DirectEditModal, CorrectionPlanModal } from "../lib/direct-edit-modal.tsx";
+import {
+  DirectEditModal,
+  CorrectionPlanModal,
+  type CustomRowContext,
+} from "../lib/direct-edit-modal.tsx";
 import coffeeQr from "../assets/coffee-qr.jpg";
 
 type View = "checker" | "dossier" | "library" | "settings" | "guide" | "about" | "support";
@@ -152,6 +156,16 @@ const TAB_COLUMNS: Record<string, ColumnDef[]> = {
     { key: "maDichVu", label: "Mã dịch vụ", defaultWidth: 130 },
     { key: "tenDichVu", label: "Tên dịch vụ", defaultWidth: 220 },
     { key: "message", label: "Nội dung cảnh báo", defaultWidth: 400 },
+  ],
+  XML7: [
+    { key: "action", label: "Thao tác", defaultWidth: 95 },
+    { key: "detailIndex", label: "Chi tiết thứ", defaultWidth: 95 },
+    { key: "maLk", label: "MA_LK", defaultWidth: 130 },
+    { key: "hoTen", label: "Họ và tên", defaultWidth: 170 },
+    { key: "maBn", label: "MA_BN", defaultWidth: 120 },
+    { key: "maDichVu", label: "Mã trường / Chỉ tiêu", defaultWidth: 140 },
+    { key: "tenDichVu", label: "Tên thông tin / Giấy ra viện", defaultWidth: 220 },
+    { key: "message", label: "Nội dung cảnh báo & Gợi ý sửa", defaultWidth: 420 },
   ],
 };
 
@@ -308,6 +322,7 @@ export function HomePage() {
     record?: Xml3Record;
     warning?: ValidationWarning;
     source: string;
+    customRow?: CustomRowContext;
   } | null>(null);
   const [showCorrectionPlanModal, setShowCorrectionPlanModal] = useState(false);
 
@@ -600,6 +615,7 @@ export function HomePage() {
       XML2: analysis?.xml2Warnings ?? [],
       XML3: analysis?.xml3Warnings ?? [],
       XML4: analysis?.xml4Warnings ?? [],
+      XML7: analysis?.xml7Warnings ?? [],
     };
     if (analysis?.allValidationWarnings) {
       for (const w of analysis.allValidationWarnings) {
@@ -610,7 +626,8 @@ export function HomePage() {
           w.source !== "XML1" &&
           w.source !== "XML2" &&
           w.source !== "XML3" &&
-          w.source !== "XML4"
+          w.source !== "XML4" &&
+          w.source !== "XML7"
         ) {
           map[w.source].push(w);
         }
@@ -1303,6 +1320,7 @@ export function HomePage() {
           record={directEditTarget.record}
           warning={directEditTarget.warning}
           source={directEditTarget.source}
+          customRow={directEditTarget.customRow}
           onSaveCorrection={handleSaveCorrectionItem}
         />
       )}

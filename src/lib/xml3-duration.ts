@@ -167,6 +167,7 @@ export type Xml3Analysis = {
   xml2Warnings: ValidationWarning[];
   xml3Warnings: ValidationWarning[];
   xml4Warnings: ValidationWarning[];
+  xml7Warnings: ValidationWarning[];
   z000Warnings: ValidationWarning[];
   missingTimes: number;
   invalidTimes: number;
@@ -186,6 +187,7 @@ export type BatchAnalysis = {
   xml2Warnings: ValidationWarning[];
   xml3Warnings: ValidationWarning[];
   xml4Warnings: ValidationWarning[];
+  xml7Warnings: ValidationWarning[];
   z000Warnings: ValidationWarning[];
   allValidationWarnings: ValidationWarning[];
   files: string[];
@@ -1167,6 +1169,92 @@ function createXml4Warnings(
   return warnings;
 }
 
+export function readXml7Warnings(
+  doc: Document,
+  patients: ReadonlyMap<string, PatientInfo> = new Map(),
+): ValidationWarning[] {
+  const warnings: ValidationWarning[] = [];
+  const candidateTags = ["CHI_TIEU_DU_LIEU_GIAY_RA_VIEN", "GIAY_RA_VIEN", "CHI_TIET"];
+  let rows: Element[] = [];
+  for (const tag of candidateTags) {
+    const list = Array.from(doc.getElementsByTagName(tag));
+    if (list.length > 0) {
+      rows = list;
+      break;
+    }
+  }
+  if (rows.length === 0) {
+    rows = Array.from(doc.getElementsByTagName("*")).filter(
+      (node) =>
+        (directTextOf(node, "MA_LK") || textOfGeneral(node, "MA_LK")) &&
+        (directTextOf(node, "NGOAITRU_TUNGAY") ||
+          textOfGeneral(node, "NGOAITRU_TUNGAY") ||
+          directTextOf(node, "NGAY_RA") ||
+          textOfGeneral(node, "NGAY_RA")),
+    );
+  }
+
+  rows.forEach((node, index) => {
+    const stt = directTextOf(node, "STT") || textOfGeneral(node, "STT");
+    const detailIndex = Number(stt) || index + 1;
+    const maLk = directTextOf(node, "MA_LK") || textOfGeneral(node, "MA_LK");
+    const patient = patients.get(maLk);
+
+    // Lấy ngày ra viện: ưu tiên từ XML7, nếu không có lấy từ XML1 (patient.NGAY_RA)
+    const xml7NgayRa = directTextOf(node, "NGAY_RA") || textOfGeneral(node, "NGAY_RA");
+    const ngayRaRaw = (xml7NgayRa || patient?.NGAY_RA || "").trim();
+
+    // Lấy ngày bắt đầu ngoại trú
+    const ngoaiTruTuNgayRaw = (
+      directTextOf(node, "NGOAITRU_TUNGAY") ||
+      textOfGeneral(node, "NGOAITRU_TUNGAY") ||
+      ""
+    ).trim();
+
+    // Kiểm tra quy tắc: NGOAITRU_TUNGAY không được nhỏ hơn NGAY_RA
+    if (ngoaiTruTuNgayRaw && ngayRaRaw) {
+      const ngoaiTruDigits = ngoaiTruTuNgayRaw.replace(/\D/g, "");
+      const ngayRaDigits = ngayRaRaw.replace(/\D/g, "");
+
+      // So sánh theo ngày YYYYMMDD (8 chữ số đầu)
+      const ngoaiTruYmd = ngoaiTruDigits.slice(0, 8);
+      const ngayRaYmd = ngayRaDigits.slice(0, 8);
+
+      if (ngoaiTruYmd.length === 8 && ngayRaYmd.length === 8 && ngoaiTruYmd < ngayRaYmd) {
+        // Tính ngày gợi ý: +1 ngày sau ngày ra viện
+        const y = Number(ngayRaYmd.slice(0, 4));
+        const m = Number(ngayRaYmd.slice(4, 6)) - 1;
+        const d = Number(ngayRaYmd.slice(6, 8));
+        const nextDay = new Date(Date.UTC(y, m, d + 1));
+        const nextYmd = `${nextDay.getUTCFullYear()}${String(nextDay.getUTCMonth() + 1).padStart(2, "0")}${String(nextDay.getUTCDate()).padStart(2, "0")}`;
+
+        const displayNgoaiTru = `${ngoaiTruYmd.slice(6, 8)}/${ngoaiTruYmd.slice(4, 6)}/${ngoaiTruYmd.slice(0, 4)}`;
+        const displayNgayRa = `${ngayRaYmd.slice(6, 8)}/${ngayRaYmd.slice(4, 6)}/${ngayRaYmd.slice(0, 4)}`;
+        const displayGoiY = `${nextYmd.slice(6, 8)}/${nextYmd.slice(4, 6)}/${nextYmd.slice(0, 4)}`;
+
+        warnings.push({
+          source: "XML7",
+          detailIndex,
+          MA_LK: maLk,
+          HO_TEN: patient?.HO_TEN || "",
+          MA_BN:
+            patient?.MA_BN ||
+            directTextOf(node, "MA_YTE") ||
+            directTextOf(node, "SO_LUU_TRU") ||
+            "",
+          MA_DICH_VU: "NGOAITRU_TUNGAY",
+          TEN_DICH_VU: "Giấy ra viện - Thời gian ngoại trú",
+          message: `XML7. Chi tiết thứ ${detailIndex}: NGOAITRU_TUNGAY (${displayNgoaiTru}) không được nhỏ hơn ngày ra viện NGAY_RA (${displayNgayRa}). Gợi ý sửa: +1 ngày sau ra viện (➔ ${displayGoiY}).`,
+          patient: patient ?? { MA_LK: maLk, MA_BN: "", HO_TEN: "" },
+          giaTri: ngoaiTruTuNgayRaw,
+        });
+      }
+    }
+  });
+
+  return warnings;
+}
+
 function readXml3Records(
   doc: Document,
   fileName: string,
@@ -1766,10 +1854,10 @@ export const XML_TABLE_META: Record<
     icon: "♿",
   },
   XML7: {
-    title: "Bảng 7: Khám chữa bệnh y học cổ truyền",
-    shortName: "Y học cổ truyền",
-    desc: "Vọng, văn, vấn, thiết, biện chứng luận trị, pháp điều trị YHCT",
-    icon: "🌿",
+    title: "Bảng 7: Dữ liệu giấy ra viện",
+    shortName: "Giấy ra viện",
+    desc: "Ngày vào, ngày ra, chẩn đoán ra viện, phương pháp điều trị, thời gian nghỉ ngoại trú (NGOAITRU_TUNGAY)",
+    icon: "🏥",
   },
   XML8: {
     title: "Bảng 8: Tóm tắt bệnh án",
@@ -1943,6 +2031,7 @@ export async function analyzeXml3File(
   const xml1Warnings: ValidationWarning[] = [];
   const xml2Warnings: ValidationWarning[] = [];
   const xml4Records: Xml4Record[] = [];
+  const xml7Warnings: ValidationWarning[] = [];
   let tableFiles = 0;
   const log: string[] = [`[${file.name}] Bắt đầu đọc XML chứa 15 bảng`];
   const fileNodes = Array.from(outer.getElementsByTagName("FILEHOSO"));
@@ -1963,6 +2052,10 @@ export async function analyzeXml3File(
     if (type === "XML4") {
       const inner = decodeFileContent(content, `${file.name} XML4`);
       xml4Records.push(...readXml4Records(inner, file.name));
+    }
+    if (type === "XML7") {
+      const inner = decodeFileContent(content, `${file.name} XML7`);
+      xml7Warnings.push(...readXml7Warnings(inner, patients));
     }
   }
 
@@ -2004,7 +2097,7 @@ export async function analyzeXml3File(
   const hasOtherXml =
     fileNodes.some((fileNode) => {
       const type = fileNode.getElementsByTagName("LOAIHOSO")[0]?.textContent?.trim() ?? "";
-      return type === "XML1" || type === "XML2" || type === "XML4";
+      return type === "XML1" || type === "XML2" || type === "XML4" || type === "XML7";
     }) ||
     isStandaloneXml1 ||
     (!fileNodes.length && outer.getElementsByTagName("CHI_TIET_THUOC").length > 0);
@@ -2045,6 +2138,7 @@ export async function analyzeXml3File(
     xml2Warnings,
     xml3Warnings,
     xml4Warnings,
+    xml7Warnings,
     z000Warnings,
     missingTimes,
     invalidTimes,
@@ -2078,6 +2172,7 @@ export async function analyzeXml3Files(
   const xml2Warnings: ValidationWarning[] = [];
   const xml3Warnings: ValidationWarning[] = [];
   const xml4Records: Xml4Record[] = [];
+  const xml7Warnings: ValidationWarning[] = [];
   const dossierMap = new Map<string, PatientDossier>();
 
   // Pass 1: Thu thập bệnh nhân từ XML1 và CLS từ XML4
@@ -2217,6 +2312,7 @@ export async function analyzeXml3Files(
       xml1Warnings.push(...analysis.xml1Warnings);
       xml2Warnings.push(...analysis.xml2Warnings);
       xml3Warnings.push(...analysis.xml3Warnings);
+      xml7Warnings.push(...analysis.xml7Warnings);
       logs.push(...analysis.log);
     } catch (error) {
       errors.push(`[${file.name}] ${(error as Error).message}`);
@@ -2275,6 +2371,7 @@ export async function analyzeXml3Files(
   for (const w of xml2Warnings) registerWarning(w);
   for (const w of xml3Warnings) registerWarning(w);
   for (const w of xml4Warnings) registerWarning(w);
+  for (const w of xml7Warnings) registerWarning(w);
 
   // Quét toàn bộ 15 bảng XML trong các hồ sơ để tìm cảnh báo Z00.0
   const z000Warnings: ValidationWarning[] = [];
@@ -2349,6 +2446,7 @@ export async function analyzeXml3Files(
     xml2Warnings,
     xml3Warnings,
     xml4Warnings,
+    xml7Warnings,
     z000Warnings,
     allValidationWarnings,
     files: files.map((file) => file.name),

@@ -18,7 +18,7 @@ export type CorrectionItem = {
   ngayRa: string;
   tuNgay: string; // DD/MM/YYYY
   denNgay: string; // DD/MM/YYYY
-  tab: "XML1" | "XML2" | "XML3" | "XML4" | "XML5";
+  tab: string; // XML1 - XML15 (ví dụ: XML1, XML2, XML3, XML4, XML7...)
   stt: string;
   maDichVu: string;
   tenDichVu: string;

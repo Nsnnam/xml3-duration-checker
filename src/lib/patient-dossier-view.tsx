@@ -10,6 +10,7 @@ import {
   XML1_FIELD_LABELS,
 } from "./xml3-duration.ts";
 import { formatXmlDateTime, formatXmlDate } from "./timezone.ts";
+import type { CustomRowContext } from "./direct-edit-modal.tsx";
 
 const COMMON_FIELD_LABELS: Record<string, string> = {
   STT: "Số thứ tự",
@@ -58,6 +59,15 @@ const COMMON_FIELD_LABELS: Record<string, string> = {
   LIEU_DUNG: "Liều dùng",
   SO_DANG_KY: "Số đăng ký",
   SO_CCCD: "Số CCCD / Định danh",
+  NGOAITRU_TUNGAY: "Ngoại trú từ ngày",
+  NGOAITRU_DENNGAY: "Ngoại trú đến ngày",
+  SO_NGAY_NGHI: "Số ngày nghỉ ngoại trú",
+  NGAY_VAO: "Ngày giờ vào viện",
+  NGAY_RA: "Ngày giờ ra viện",
+  CHAN_DOAN_RV: "Chẩn đoán ra viện",
+  PP_DIEUTRI: "Phương pháp điều trị",
+  MA_BS: "Mã bác sĩ",
+  MA_TRUONGKHOA: "Mã trưởng khoa",
 };
 
 function getFieldLabel(key: string): string {
@@ -172,6 +182,53 @@ function getRowWarningInfo(
         };
       }
     }
+  } else if (tableKey === "XML7") {
+    // 1. Kiểm tra quy tắc XML7: NGOAITRU_TUNGAY không được nhỏ hơn NGAY_RA
+    const ngoaiTruRaw = (row.NGOAITRU_TUNGAY || "").trim();
+    const ngayRaRaw = (row.NGAY_RA || dossier.patient?.NGAY_RA || "").trim();
+    if (ngoaiTruRaw && ngayRaRaw) {
+      const ngoaiTruYmd = ngoaiTruRaw.replace(/\D/g, "").slice(0, 8);
+      const ngayRaYmd = ngayRaRaw.replace(/\D/g, "").slice(0, 8);
+      if (ngoaiTruYmd.length === 8 && ngayRaYmd.length === 8 && ngoaiTruYmd < ngayRaYmd) {
+        const y = Number(ngayRaYmd.slice(0, 4));
+        const m = Number(ngayRaYmd.slice(4, 6)) - 1;
+        const d = Number(ngayRaYmd.slice(6, 8));
+        const nextDay = new Date(Date.UTC(y, m, d + 1));
+        const nextYmd = `${nextDay.getUTCFullYear()}${String(nextDay.getUTCMonth() + 1).padStart(2, "0")}${String(nextDay.getUTCDate()).padStart(2, "0")}`;
+        const displayNgoaiTru = `${ngoaiTruYmd.slice(6, 8)}/${ngoaiTruYmd.slice(4, 6)}/${ngoaiTruYmd.slice(0, 4)}`;
+        const displayNgayRa = `${ngayRaYmd.slice(6, 8)}/${ngayRaYmd.slice(4, 6)}/${ngayRaYmd.slice(0, 4)}`;
+        const displayGoiY = `${nextYmd.slice(6, 8)}/${nextYmd.slice(4, 6)}/${nextYmd.slice(0, 4)}`;
+
+        const msg = `NGOAITRU_TUNGAY (${displayNgoaiTru}) không được nhỏ hơn ngày ra viện NGAY_RA (${displayNgayRa}). Gợi ý sửa: +1 ngày (➔ ${displayGoiY})`;
+        if (!messages.includes(msg)) messages.push(msg);
+
+        if (!matchedWarning) {
+          matchedWarning = {
+            source: "XML7",
+            detailIndex: Number(stt || rowIndex + 1),
+            MA_LK: dossier.maLk,
+            HO_TEN: dossier.patient?.HO_TEN || "",
+            MA_BN: dossier.patient?.MA_BN || "",
+            MA_DICH_VU: "NGOAITRU_TUNGAY",
+            TEN_DICH_VU: "Giấy ra viện - Thời gian ngoại trú",
+            message: msg,
+            giaTri: ngoaiTruRaw,
+            patient: dossier.patient,
+          };
+        }
+      }
+    }
+    // 2. Khớp với warnings của XML7 từ dossier
+    for (const w of dossier.warnings) {
+      if (w.source === "XML7") {
+        const matchByStt = stt && String(w.detailIndex) === stt;
+        const matchByIndex = String(w.detailIndex) === String(rowIndex + 1);
+        if (matchByStt || matchByIndex) {
+          if (!messages.includes(w.message)) messages.push(w.message);
+          if (!matchedWarning) matchedWarning = w;
+        }
+      }
+    }
   } else {
     // Các bảng khác
     for (const w of dossier.warnings) {
@@ -204,6 +261,8 @@ function RowDetailModal({
   headers,
   row,
   warningInfo,
+  allowEditAllRows,
+  dossier,
   onOpenDirectEdit,
   onPrev,
   onNext,
@@ -216,10 +275,13 @@ function RowDetailModal({
   headers: string[];
   row: Record<string, string>;
   warningInfo?: RowWarningInfo;
+  allowEditAllRows?: boolean;
+  dossier?: PatientDossier | null;
   onOpenDirectEdit?: (target: {
     record?: Xml3Record;
     warning?: ValidationWarning;
     source: string;
+    customRow?: CustomRowContext;
   }) => void;
   onPrev?: () => void;
   onNext?: () => void;
@@ -306,6 +368,17 @@ function RowDetailModal({
                     record: warningInfo.xml3Record,
                     warning: warningInfo.warningObj,
                     source: tableKey,
+                    customRow: {
+                      tab: tableKey,
+                      row,
+                      headers,
+                      stt: row.STT || String(rowIndex),
+                      maLk: row.MA_LK || dossier?.maLk || "",
+                      maBa: row.MA_BN || dossier?.patient?.MA_BN || "",
+                      hoTen: row.HO_TEN || dossier?.patient?.HO_TEN || "",
+                      ngayVao: dossier?.patient?.NGAY_VAO,
+                      ngayRa: row.NGAY_RA || dossier?.patient?.NGAY_RA,
+                    },
                   });
                 }}
                 className="shrink-0 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-bold px-3 py-1.5 shadow-sm transition flex items-center gap-1.5"
@@ -342,6 +415,32 @@ function RowDetailModal({
             >
               Dòng sau ▶
             </button>
+            {allowEditAllRows && onOpenDirectEdit && (!warningInfo || !warningInfo.hasWarning) && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenDirectEdit({
+                    source: tableKey,
+                    customRow: {
+                      tab: tableKey,
+                      row,
+                      headers,
+                      stt: row.STT || String(rowIndex),
+                      maLk: row.MA_LK || dossier?.maLk || "",
+                      maBa: row.MA_BN || dossier?.patient?.MA_BN || "",
+                      hoTen: row.HO_TEN || dossier?.patient?.HO_TEN || "",
+                      ngayVao: dossier?.patient?.NGAY_VAO,
+                      ngayRa: row.NGAY_RA || dossier?.patient?.NGAY_RA,
+                    },
+                  });
+                }}
+                className="rounded-lg bg-teal-700 text-white px-3 py-1 text-xs font-bold hover:bg-teal-800 shadow-xs flex items-center gap-1"
+                title="Mở hộp thoại chỉnh sửa bất kỳ trường nào của dòng này"
+              >
+                <span>✏️</span> Sửa dòng này
+              </button>
+            )}
             <button
               type="button"
               onClick={handleCopyAll}
@@ -416,6 +515,7 @@ export function PatientDossierView({
     record?: Xml3Record;
     warning?: ValidationWarning;
     source: string;
+    customRow?: CustomRowContext;
   }) => void;
 }) {
   const [patientSearch, setPatientSearch] = useState("");
@@ -424,6 +524,7 @@ export function PatientDossierView({
   const [viewMode, setViewMode] = useState<"table" | "raw">("table");
   const [tableSearch, setTableSearch] = useState("");
   const [onlyWarningRows, setOnlyWarningRows] = useState(false);
+  const [allowEditAllRows, setAllowEditAllRows] = useState(false);
   const [showWarningPanel, setShowWarningPanel] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState(false);
   const [showFullPatientInfo, setShowFullPatientInfo] = useState(false);
@@ -1337,6 +1438,26 @@ export function PatientDossierView({
                             <span>⚠️ Chỉ hiện dòng cảnh báo ({currentTableWarningRowCount})</span>
                           </label>
 
+                          {/* Checkbox: Cho phép sửa mọi dòng (XML 1 - 15) */}
+                          {onOpenDirectEdit && (
+                            <label
+                              className={`flex items-center gap-1.5 cursor-pointer rounded-xl border px-2.5 py-1.5 text-xs font-bold transition select-none ${
+                                allowEditAllRows
+                                  ? "bg-teal-700 text-white border-teal-800 shadow-xs ring-2 ring-teal-300"
+                                  : "bg-teal-50/70 dark:bg-slate-800 text-teal-800 dark:text-teal-300 border-teal-300 dark:border-slate-700 hover:bg-teal-100/70"
+                              }`}
+                              title="Bật tính năng cho phép sửa trực tiếp bất kỳ dòng nào trên tất cả 15 bảng XML kể cả dòng không có cảnh báo lỗi"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={allowEditAllRows}
+                                onChange={(e) => setAllowEditAllRows(e.target.checked)}
+                                className="rounded border-teal-400 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                              />
+                              <span>✏️ Cho phép sửa mọi dòng (XML 1 - 15)</span>
+                            </label>
+                          )}
+
                           <span className="text-xs text-slate-400 whitespace-nowrap">
                             Hiển thị <b>{filteredTableRows.length}</b>/
                             {currentTableData.rows.length} dòng ·{" "}
@@ -1462,10 +1583,60 @@ export function PatientDossierView({
                                                 record: warningInfo.xml3Record,
                                                 warning: warningInfo.warningObj,
                                                 source: activeTableKey,
+                                                customRow: {
+                                                  tab: activeTableKey,
+                                                  row,
+                                                  headers: currentTableData.headers,
+                                                  stt: row.STT || String(originalIndex + 1),
+                                                  maLk: activeDossier?.maLk || row.MA_LK || "",
+                                                  maBa:
+                                                    activeDossier?.patient?.MA_BN ||
+                                                    row.MA_BN ||
+                                                    "",
+                                                  hoTen:
+                                                    activeDossier?.patient?.HO_TEN ||
+                                                    row.HO_TEN ||
+                                                    "",
+                                                  ngayVao: activeDossier?.patient?.NGAY_VAO,
+                                                  ngayRa:
+                                                    row.NGAY_RA || activeDossier?.patient?.NGAY_RA,
+                                                },
                                               });
                                             }}
                                             className="rounded-lg bg-teal-700 hover:bg-teal-800 text-white px-2 py-0.5 text-[10px] font-bold shadow-xs transition"
                                             title="Sửa trực tiếp dòng cảnh báo này"
+                                          >
+                                            ✏️ Sửa
+                                          </button>
+                                        ) : allowEditAllRows ? (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              onOpenDirectEdit({
+                                                source: activeTableKey,
+                                                customRow: {
+                                                  tab: activeTableKey,
+                                                  row,
+                                                  headers: currentTableData.headers,
+                                                  stt: row.STT || String(originalIndex + 1),
+                                                  maLk: activeDossier?.maLk || row.MA_LK || "",
+                                                  maBa:
+                                                    activeDossier?.patient?.MA_BN ||
+                                                    row.MA_BN ||
+                                                    "",
+                                                  hoTen:
+                                                    activeDossier?.patient?.HO_TEN ||
+                                                    row.HO_TEN ||
+                                                    "",
+                                                  ngayVao: activeDossier?.patient?.NGAY_VAO,
+                                                  ngayRa:
+                                                    row.NGAY_RA || activeDossier?.patient?.NGAY_RA,
+                                                },
+                                              });
+                                            }}
+                                            className="rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-800 dark:bg-slate-800 dark:text-teal-300 dark:hover:bg-slate-700 border border-teal-300 dark:border-slate-600 px-2 py-0.5 text-[10px] font-bold transition shadow-2xs"
+                                            title="Sửa dòng này (chế độ sửa mọi dòng)"
                                           >
                                             ✏️ Sửa
                                           </button>
@@ -1542,6 +1713,8 @@ export function PatientDossierView({
             detailRowIndex,
             activeDossier,
           )}
+          allowEditAllRows={allowEditAllRows}
+          dossier={activeDossier}
           onOpenDirectEdit={onOpenDirectEdit}
           onPrev={detailRowIndex > 0 ? () => setDetailRowIndex(detailRowIndex - 1) : undefined}
           onNext={

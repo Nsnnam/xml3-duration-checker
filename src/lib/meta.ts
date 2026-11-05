@@ -3,12 +3,23 @@ export const APP_META = {
   title: "NsN_XMLcheck",
   description:
     "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, MA_MAY chuẩn XX.3[xxx].Z & trùng thời gian máy, cảnh báo Z00.0/Z30.1 (KHHGĐ) & Hồ sơ 15 bảng BHYT",
-  version: "2.10.1",
+  version: "2.11.0",
   date: "2026-11-05",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.11.0",
+      date: "2026-11-05",
+      changes: [
+        "Thêm quy tắc kiểm tra XML7 (Dữ liệu giấy ra viện): Bắt buộc thời gian nghỉ ngoại trú NGOAITRU_TUNGAY không được nhỏ hơn ngày ra viện NGAY_RA. Tự động so sánh mốc ngày YYYYMMDD và phát hiện các ca vi phạm.",
+        "Gợi ý sửa thông minh XML7: Tự động tính toán mốc ngày hợp lệ = ngày ra viện NGAY_RA + 1 ngày (ví dụ ra viện ngày 04/11 thì ngoại trú bắt đầu từ 05/11), cung cấp nút '⚡ Đặt +1 ngày sau ra viện' trong modal Sửa trực tiếp.",
+        "Mở rộng Sửa trực tiếp mọi dòng (XML 1 - 15) trong Hồ sơ Bệnh nhân: Thêm nút tích '✏️ Cho phép sửa mọi dòng (XML 1 - 15)' trên toolbar bảng XML. Khi bật, người dùng có thể bấm nút Sửa trên bất kỳ dòng nào (kể cả dòng đạt chuẩn không có cảnh báo) và chọn bất kỳ trường thông tin nào trong 15 bảng XML để đưa vào Kế hoạch sửa.",
+        "Tích hợp nút Sửa trong modal Chi tiết dòng (click đúp) hỗ trợ đầy đủ chế độ sửa mọi dòng.",
+        "Cập nhật định nghĩa cột bảng XML7 trên trang Cảnh báo, đồng bộ dữ liệu xuất JSON/Excel cho VNPT-HIS Extension.",
+      ],
+    },
     {
       version: "2.10.1",
       date: "2026-11-05",

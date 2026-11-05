@@ -10,6 +10,7 @@ import {
   isWarning,
   readXml1Warnings,
   readXml2Warnings,
+  readXml7Warnings,
   ALL_XML_TABLE_KEYS,
   XML_TABLE_META,
   isDiseaseCodeField,
@@ -1473,6 +1474,86 @@ assert.equal(
   "ĐẠT",
 );
 
+// Test quy tắc XML7: NGOAITRU_TUNGAY không được nhỏ hơn NGAY_RA
+function createMockXml7Element(maLk, ngoaiTruTuNgay, ngayRa = "", stt = "1") {
+  const map = new Map([
+    ["STT", stt],
+    ["MA_LK", maLk],
+    ["NGOAITRU_TUNGAY", ngoaiTruTuNgay],
+    ["NGAY_RA", ngayRa],
+  ]);
+  return {
+    tagName: "CHI_TIEU_DU_LIEU_GIAY_RA_VIEN",
+    children: Array.from(map.entries()).map(([tag, text]) => ({
+      tagName: tag,
+      textContent: text,
+    })),
+    getElementsByTagName(tag) {
+      const val = map.get(tag);
+      return val !== undefined ? [{ textContent: val }] : [];
+    },
+  };
+}
+
+const mockXml7Patients = new Map([
+  [
+    "LK-701",
+    {
+      MA_LK: "LK-701",
+      MA_BN: "BN-701",
+      HO_TEN: "Nguyễn Văn Ra Viện",
+      NGAY_VAO: "202611010800",
+      NGAY_RA: "202611041600",
+    },
+  ],
+  [
+    "LK-702",
+    {
+      MA_LK: "LK-702",
+      MA_BN: "BN-702",
+      HO_TEN: "Trần Thị Ngoại Trú Đạt",
+      NGAY_VAO: "202611010800",
+      NGAY_RA: "202611041600",
+    },
+  ],
+  [
+    "LK-703",
+    {
+      MA_LK: "LK-703",
+      MA_BN: "BN-703",
+      HO_TEN: "Lê Văn Hưởng Ngoại Trú Sớm",
+      NGAY_VAO: "202611010800",
+      NGAY_RA: "202611041600",
+    },
+  ],
+]);
+
+const mockXml7Doc = {
+  getElementsByTagName(tag) {
+    if (tag === "CHI_TIEU_DU_LIEU_GIAY_RA_VIEN") {
+      return [
+        createMockXml7Element("LK-701", "20261102", "202611041600", "1"), // 02/11 < 04/11 -> Lỗi
+        createMockXml7Element("LK-702", "20261105", "202611041600", "2"), // 05/11 >= 04/11 -> Đạt (+1 ngày)
+        createMockXml7Element("LK-703", "20261103", "", "3"), // Lấy NGAY_RA từ patient (04/11): 03/11 < 04/11 -> Lỗi
+      ];
+    }
+    return [];
+  },
+};
+
+const xml7Warnings = readXml7Warnings(mockXml7Doc, mockXml7Patients);
+assert.equal(xml7Warnings.length, 2, "XML7 phải phát hiện chính xác 2 ca vi phạm ngày ngoại trú");
+
+const wLk701 = xml7Warnings.find((w) => w.MA_LK === "LK-701");
+assert.ok(wLk701, "Phải có cảnh báo cho LK-701");
+assert.ok(wLk701.message.includes("NGOAITRU_TUNGAY (02/11/2026) không được nhỏ hơn"));
+assert.ok(wLk701.message.includes("NGAY_RA (04/11/2026)"));
+assert.ok(wLk701.message.includes("05/11/2026"), "Gợi ý phải là +1 ngày sau ra viện: 05/11/2026");
+
+const wLk703 = xml7Warnings.find((w) => w.MA_LK === "LK-703");
+assert.ok(wLk703, "Phải có cảnh báo cho LK-703 khi fallback lấy NGAY_RA từ XML1 patient");
+assert.ok(wLk703.message.includes("05/11/2026"));
+
 console.log(
-  "All tests passed: XML1 CCCD validation, Z00.0 & Z30.1 validation, XML3 duplicate machine time validation, duplicate machine excel export, warning colors & column filter/sort helpers: OK",
+  "All tests passed: XML1 CCCD validation, Z00.0 & Z30.1 validation, XML3 duplicate machine time validation, XML7 NGOAITRU_TUNGAY < NGAY_RA validation (+1 day suggestion), duplicate machine excel export, warning colors & column filter/sort helpers: OK",
 );
