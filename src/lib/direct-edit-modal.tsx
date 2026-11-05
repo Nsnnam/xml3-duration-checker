@@ -1023,14 +1023,6 @@ export function CorrectionPlanModal({
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={onAutoGenerate}
-              className="rounded-lg border border-amber-400 bg-amber-50 px-3 py-1.5 font-bold text-amber-900 hover:bg-amber-100 flex items-center gap-1 shadow-xs"
-              title="Tự động quét toàn bộ lỗi và tạo kế hoạch sửa tối ưu"
-            >
-              <span>⚡</span> Tự động tạo kế hoạch
-            </button>
-            <button
-              type="button"
               disabled={items.length === 0}
               onClick={onExportJson}
               className="rounded-lg bg-indigo-700 px-3 py-1.5 font-bold text-white hover:bg-indigo-800 disabled:opacity-40 disabled:cursor-not-allowed shadow-xs flex items-center gap-1"
@@ -1057,9 +1049,9 @@ export function CorrectionPlanModal({
               <div className="text-4xl">📝</div>
               <div>Chưa có mục nào trong kế hoạch chỉnh sửa.</div>
               <div className="text-xs text-slate-500 max-w-md mx-auto">
-                Bạn có thể bấm nút <b>"✏️ Sửa"</b> trên từng dòng lỗi của bảng cảnh báo, hoặc bấm
-                nút <b className="text-amber-700">"⚡ Tự động tạo kế hoạch"</b> để công cụ tự động
-                đề xuất phương án khắc phục toàn bộ lỗi!
+                Bạn có thể bấm nút <b>"✏️ Sửa"</b> trên từng dòng lỗi hoặc chọn nút{" "}
+                <b>"⚡ Sửa hàng loạt"</b> trên từng tab lỗi của bảng cảnh báo để thêm các mục cần
+                hiệu chỉnh vào kế hoạch!
               </div>
             </div>
           ) : (

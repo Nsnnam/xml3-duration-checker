@@ -3,12 +3,22 @@ export const APP_META = {
   title: "NsN_XMLcheck",
   description:
     "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, MA_MAY chuẩn XX.3[xxx].Z & trùng thời gian máy, cảnh báo Z00.0/Z30.1 (KHHGĐ) & Hồ sơ 15 bảng BHYT",
-  version: "2.10.0",
+  version: "2.10.1",
   date: "2026-11-05",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.10.1",
+      date: "2026-11-05",
+      changes: [
+        "Ẩn nút '⚡ Tự động tạo kế hoạch' trên giao diện chính và modal Kế hoạch sửa để tránh thao tác bấm nhầm làm ghi đè nội dung người dùng đang hiệu chỉnh thủ công hoặc sửa hàng loạt.",
+        "Khắc phục triệt để lỗi hiển thị mã nguồn JavaScript dạng text khi mở trực tiếp file HTML offline (single-page) trên Chrome/Edge qua giao thức file:///.",
+        "Tối ưu hóa thứ tự script trong file build offline: Đặt inline script ở cuối body giúp DOM khởi tạo hoàn tất trước khi app mount.",
+        "Cập nhật tài liệu và hướng dẫn sử dụng phiên bản v2.10.1.",
+      ],
+    },
     {
       version: "2.10.0",
       date: "2026-11-05",

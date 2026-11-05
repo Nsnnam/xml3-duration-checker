@@ -52,21 +52,28 @@ for (const asset of fs.readdirSync(assetDir)) {
     const absolute = path.join(assetDir, asset);
     const cssContent = fs.readFileSync(absolute, "utf8");
     const cssLinkRegex = new RegExp(`<link[^>]*href=["'][^"']*${asset}["'][^>]*>`, "gi");
-    html = html.replace(cssLinkRegex, `<style>\n${cssContent}\n</style>`);
+    html = html.replace(cssLinkRegex, () => `<style>\n${cssContent}\n</style>`);
   }
 }
 
-// Bước 3: Inline JS trực tiếp vào thẻ <script type="module"> (an toàn 100% khi mở file:/// offline)
+// Bước 3: Inline JS trực tiếp vào thẻ <script type="module"> đặt trước </body> (an toàn 100% khi mở file:/// offline)
 for (const asset of fs.readdirSync(assetDir)) {
   if (asset.endsWith(".js")) {
     const absolute = path.join(assetDir, asset);
     let jsContent = fs.readFileSync(absolute, "utf8");
-    jsContent = jsContent.replaceAll("</script>", "<\\/script>");
+    // Thoát tất cả các chuỗi </script (kể cả hoa thường) để trình duyệt không đóng thẻ script sớm
+    jsContent = jsContent.replace(/<\/script/gi, "<\\/script");
     const jsScriptRegex = new RegExp(
       `<script[^>]*src=["'][^"']*${asset}["'][^>]*>\\s*<\\/script>`,
       "gi",
     );
-    html = html.replace(jsScriptRegex, `<script type="module">\n${jsContent}\n</script>`);
+    // Xóa thẻ script ở <head>
+    html = html.replace(jsScriptRegex, () => "");
+    // Chèn script trực tiếp trước </body> để đảm bảo DOM #root đã sẵn sàng khi mở offline file:///
+    html = html.replace(
+      "</body>",
+      () => `<script type="module">\n${jsContent}\n</script>\n</body>`,
+    );
   }
 }
 

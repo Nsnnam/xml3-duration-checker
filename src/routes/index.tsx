@@ -2222,14 +2222,6 @@ function CheckerView({
                 </button>
                 <button
                   type="button"
-                  onClick={onAutoGeneratePlan}
-                  className="rounded-lg border border-amber-500 bg-amber-50 text-amber-900 px-2.5 py-1.5 text-xs font-bold hover:bg-amber-100 shadow-sm flex items-center gap-1"
-                  title="Tự động phát hiện lỗi và đề xuất kế hoạch chỉnh sửa tối ưu hàng loạt"
-                >
-                  <span>⚡ Tự tạo kế hoạch</span>
-                </button>
-                <button
-                  type="button"
                   onClick={onOpenColumnModal}
                   className="rounded-lg border border-teal-300 bg-teal-50 px-2.5 py-1.5 text-xs font-bold text-teal-800 hover:bg-teal-100 shadow-sm flex items-center gap-1"
                   title="Tùy chỉnh ẩn/hiện các cột của bảng này"

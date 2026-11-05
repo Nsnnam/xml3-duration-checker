@@ -36,6 +36,9 @@
 | Excel Mẫu   | Cho phép tải file Excel mẫu chuẩn 3 sheet (`mau_nhap_thu_vien_nsn_xmlcheck.xlsx`) để dễ dàng nhập liệu và xuất toàn bộ thư viện ra Excel       |
 | Backup      | Xuất file sao lưu Thư viện (.json) hoặc Cấu hình toàn trang (.json); hỗ trợ khôi phục (Restore) trực tiếp từ file backup                       |
 | Telegram    | Cấu hình Bot Token & Chat ID: kiểm tra kết nối, gửi file báo cáo Excel và file backup trực tiếp về kênh Telegram                                |
+| Sửa trực tiếp| Nút **✏️ Sửa** trực tiếp trên từng dòng lỗi: hộp thoại đối chiếu 3 mốc thời gian, gợi ý trừ lùi giờ thực hiện hoặc cộng dồn giờ kết quả, đồng bộ công khám, copy GIA_TRI sang KET_LUAN XML4 |
+| Sửa hàng loạt| Tính năng **⚡ Sửa hàng loạt** trên từng tab cảnh báo: giảm thời lượng, sao chép kết luận XML4, sửa thời gian cho nhiều dịch vụ cùng lúc |
+| Kế hoạch sửa | Quản lý **Kế hoạch chỉnh sửa tự động (Correction Plan)**: lưu trữ danh sách cần sửa, xuất file JSON nạp vào Extension VNPT HIS và xuất file Excel đối soát |
 | Báo cáo     | Xuất XLSX XML3 gồm `Tóm tắt`, `Chi tiết`, `Nhật ký` (kèm cột `MA_MAY`); xuất riêng danh sách cảnh báo XML1/XML2/XML4                           |
 | Phát hành   | Bản web portable và single HTML offline                                                                                                        |
 
@@ -80,7 +83,7 @@ Artifact được tạo tại `releases/web/` và `releases/single-page/xml3-dur
 
 ## Phiên bản
 
-Phiên bản hiện tại: **2.0.0** · ngày **2026-09-14** · múi giờ **Asia/Ho_Chi_Minh (GMT+7)**. Xem [CHANGELOG.md](CHANGELOG.md) để biết lịch sử thay đổi.
+Phiên bản hiện tại: **2.10.1** · ngày **2026-11-05** · múi giờ **Asia/Ho_Chi_Minh (GMT+7)**. Xem [CHANGELOG.md](CHANGELOG.md) để biết lịch sử thay đổi.
 
 ## Tác giả và hỗ trợ
 
