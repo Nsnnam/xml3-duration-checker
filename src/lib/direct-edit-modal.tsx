@@ -21,6 +21,13 @@ function formatDisplayDateTime(val?: string): string {
   return formatXmlDateTime(val) || val;
 }
 
+function formatShortTime(val?: string): string {
+  if (!val || val.length < 12) return "";
+  const hh = val.substring(8, 10);
+  const mm = val.substring(10, 12);
+  return `${hh}:${mm}`;
+}
+
 export function DirectEditModal({
   isOpen,
   onClose,
@@ -61,6 +68,9 @@ export function DirectEditModal({
     if (record?.hasOrderWarning && record.NGAY_YL && record.NGAY_TH_YL) return "NGAY_YL";
     if (record?.hasMaMayWarning) return "MA_MAY";
     if (record?.hasTtThauWarning) return "TT_THAU";
+    // Ca trùng giờ thực hiện và kết quả (0 phút): mặc định chọn NGAY_TH_YL để trừ lùi
+    if (record?.NGAY_TH_YL && record?.NGAY_KQ && record.NGAY_TH_YL === record.NGAY_KQ)
+      return "NGAY_TH_YL";
     return "NGAY_KQ";
   }, [source, record, warning]);
 
@@ -91,32 +101,68 @@ export function DirectEditModal({
   const [newValue, setNewValue] = useState(currentOldValue);
   const [lyDo, setLyDo] = useState("");
 
+  const isExamGroup13 = record?.MA_NHOM?.trim() === "13";
+  const ylOld = record?.NGAY_YL || "";
+  const thOld = record?.NGAY_TH_YL || "";
+  const kqOld = record?.NGAY_KQ || "";
+
+  const durationOldVal = calcDiffMinutes(thOld, kqOld);
+  const isSameExecutionAndResult = Boolean(
+    (thOld && kqOld && thOld === kqOld) || durationOldVal === 0,
+  );
+  const isOverDuration = Boolean(durationOldVal !== null && durationOldVal > 70);
+
   useEffect(() => {
     if (isOpen) {
       setSelectedField(defaultField);
       let initialVal = "";
+      let initialLyDo = "Chỉnh sửa dữ liệu tránh cảnh báo BHYT";
+
       if (source === "XML1") {
         if (defaultField === "SO_CCCD") initialVal = patient?.SO_CCCD || "";
         else if (defaultField === "NGAY_TTOAN") initialVal = patient?.NGAY_TTOAN || "";
+        if (warning?.message) initialLyDo = warning.message;
       } else if (source === "XML3" && record) {
-        if (defaultField === "NGAY_KQ") initialVal = record.NGAY_KQ || "";
-        else if (defaultField === "NGAY_TH_YL") initialVal = record.NGAY_TH_YL || "";
-        else if (defaultField === "NGAY_YL") initialVal = record.NGAY_YL || "";
-        else if (defaultField === "MA_MAY") initialVal = record.MA_MAY || "";
-        else if (defaultField === "TT_THAU") initialVal = record.TT_THAU || "";
+        if (isSameExecutionAndResult && record.NGAY_KQ) {
+          // Ca trùng giờ thực hiện và trả kết quả: tự động gợi ý trừ lùi 10 phút tính từ NGAY_KQ
+          initialVal = addMinutesToXmlDateTime(record.NGAY_KQ, -10);
+          initialLyDo = `Trừ lùi giờ thực hiện y lệnh 10 phút so với giờ kết quả (${formatShortTime(record.NGAY_KQ)} ➔ ${formatShortTime(initialVal)}) để tránh trùng giờ (0 phút)`;
+        } else if (isOverDuration && record.NGAY_TH_YL && defaultField === "NGAY_KQ") {
+          // Ca vượt thời lượng: gợi ý điện tim / nhanh 10 phút tính từ NGAY_TH_YL
+          initialVal = addMinutesToXmlDateTime(record.NGAY_TH_YL, 10);
+          initialLyDo = `Rút ngắn thời lượng theo chuẩn điện tim/nhanh 10 phút tính từ giờ thực hiện (${formatShortTime(record.NGAY_TH_YL)} ➔ ${formatShortTime(initialVal)})`;
+        } else if (defaultField === "NGAY_KQ") {
+          initialVal = record.NGAY_KQ || "";
+        } else if (defaultField === "NGAY_TH_YL") {
+          initialVal = record.NGAY_TH_YL || "";
+        } else if (defaultField === "NGAY_YL") {
+          initialVal = record.NGAY_YL || "";
+        } else if (defaultField === "MA_MAY") {
+          initialVal = record.MA_MAY || "";
+        } else if (defaultField === "TT_THAU") {
+          initialVal = record.TT_THAU || "";
+        }
+
+        if (!isSameExecutionAndResult && !isOverDuration) {
+          if (record?.hasDuplicateMachineWarning)
+            initialLyDo = "Tránh trùng thời gian thực hiện trên cùng mã máy";
+          else if (record?.hasOrderWarning) initialLyDo = "Khắc phục sai thứ tự thời gian y lệnh";
+          else if (warning?.message) initialLyDo = warning.message;
+        }
       }
       setNewValue(initialVal);
-
-      let initialLyDo = "Chỉnh sửa dữ liệu tránh cảnh báo BHYT";
-      if (record?.hasDuplicateMachineWarning)
-        initialLyDo = "Tránh trùng thời gian thực hiện trên cùng mã máy";
-      else if (record?.status === "warning")
-        initialLyDo = "Rút ngắn thời lượng thực hiện dịch vụ kỹ thuật <= 70 phút";
-      else if (record?.hasOrderWarning) initialLyDo = "Khắc phục sai thứ tự thời gian y lệnh";
-      else if (warning?.message) initialLyDo = warning.message;
       setLyDo(initialLyDo);
     }
-  }, [isOpen, defaultField, record, warning, patient, source]);
+  }, [
+    isOpen,
+    defaultField,
+    record,
+    warning,
+    patient,
+    source,
+    isSameExecutionAndResult,
+    isOverDuration,
+  ]);
 
   if (!isOpen) return null;
 
@@ -138,13 +184,35 @@ export function DirectEditModal({
   };
 
   // Các hàm gợi ý thông minh
-  const applySuggestShortenDuration = (mins = 30) => {
+  // 1. Nhóm ca trùng giờ (0 phút): Căn cứ vào giờ trả kết quả (NGAY_KQ) trừ lùi X phút để điền vào NGAY_TH_YL
+  const applySuggestRewindExecution = (offsetMins = 10) => {
+    const base = record?.NGAY_KQ || record?.NGAY_TH_YL || "";
+    if (base) {
+      const calculated = addMinutesToXmlDateTime(base, -offsetMins);
+      setSelectedField("NGAY_TH_YL");
+      setNewValue(calculated);
+      setLyDo(
+        `Trừ lùi giờ thực hiện y lệnh ${offsetMins} phút so với giờ kết quả (${formatShortTime(base)} ➔ ${formatShortTime(calculated)}) để tránh trùng giờ`,
+      );
+    }
+  };
+
+  // 2. Nhóm ca vượt thời lượng: Căn cứ vào giờ thực hiện y lệnh (NGAY_TH_YL) cộng thêm X phút để điền vào NGAY_KQ
+  const applySuggestAddDurationFromThYl = (mins: number, label?: string) => {
     if (record?.NGAY_TH_YL) {
       const calculated = addMinutesToXmlDateTime(record.NGAY_TH_YL, mins);
       setSelectedField("NGAY_KQ");
       setNewValue(calculated);
-      setLyDo(`Rút ngắn thời lượng thực hiện xuống ${mins} phút (chuẩn <= 70 phút)`);
+      setLyDo(
+        label
+          ? `${label}: Đặt giờ kết quả = giờ thực hiện + ${mins} phút (${formatShortTime(record.NGAY_TH_YL)} ➔ ${formatShortTime(calculated)})`
+          : `Đặt thời lượng ${mins} phút tính từ giờ thực hiện y lệnh (${formatShortTime(record.NGAY_TH_YL)} ➔ ${formatShortTime(calculated)})`,
+      );
     }
+  };
+
+  const applySuggestShortenDuration = (mins = 30) => {
+    applySuggestAddDurationFromThYl(mins, "Rút ngắn thời lượng");
   };
 
   const applySuggestShiftExecution = (offsetMins = 5) => {
@@ -199,11 +267,6 @@ export function DirectEditModal({
     setNewValue(text);
     setLyDo("Bổ sung nội dung kết luận chẩn đoán xét nghiệm / CLS");
   };
-
-  const isExamGroup13 = record?.MA_NHOM?.trim() === "13";
-  const ylOld = record?.NGAY_YL || "";
-  const thOld = record?.NGAY_TH_YL || "";
-  const kqOld = record?.NGAY_KQ || "";
 
   const ylNew = selectedField === "NGAY_YL" ? newValue : ylOld;
   const thNew = selectedField === "NGAY_TH_YL" ? newValue : thOld;
@@ -554,18 +617,158 @@ export function DirectEditModal({
           </div>
 
           {/* Gợi ý thông minh */}
-          <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
-            <div className="text-[11px] font-bold text-amber-900 flex items-center gap-1">
-              <span>⚡</span> Gợi ý sửa tự động nhanh:
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-3.5 space-y-2.5">
+            <div className="text-[11px] font-bold text-amber-900 flex items-center justify-between">
+              <span className="flex items-center gap-1">
+                <span>⚡</span> Gợi ý sửa tự động nhanh:
+              </span>
+              {source === "XML3" && isSameExecutionAndResult && (
+                <span className="text-[10px] font-bold text-rose-700 bg-rose-100 rounded px-1.5 py-0.5">
+                  ⚠️ Trùng giờ thực hiện &amp; kết quả (0p)
+                </span>
+              )}
             </div>
-            <div className="flex flex-wrap gap-1.5 text-xs">
-              {source === "XML3" && (
-                <>
+
+            {source === "XML3" && record && (
+              <div className="space-y-2 text-xs">
+                {/* Khối 1: Ca trùng giờ (0 phút) -> Căn cứ NGAY_KQ trừ lùi giờ NGAY_TH_YL */}
+                <div className="rounded-xl border border-rose-200 bg-white p-2.5 space-y-1.5">
+                  <div className="text-[10px] uppercase font-bold text-rose-800 flex items-center justify-between">
+                    <span>
+                      ⏱️ Trùng giờ (0p): Căn cứ giờ KQ ({formatShortTime(record.NGAY_KQ) || "—"})
+                      trừ lùi giờ TH_YL:
+                    </span>
+                    <span className="text-[10px] font-semibold text-rose-600 lowercase bg-rose-50 px-1.5 py-0.5 rounded">
+                      (khuyên dùng)
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => applySuggestRewindExecution(10)}
+                      className="rounded-lg border border-rose-400 bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-900 hover:bg-rose-100 shadow-xs transition"
+                      title={`Lùi NGAY_TH_YL về 10 phút trước giờ kết quả: ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_KQ, -10))}`}
+                    >
+                      ⏱️ Lùi TH_YL -10p{" "}
+                      {record.NGAY_KQ &&
+                        `(➔ ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_KQ, -10))})`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applySuggestRewindExecution(8)}
+                      className="rounded-lg border border-rose-400 bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-900 hover:bg-rose-100 shadow-xs transition"
+                      title={`Lùi NGAY_TH_YL về 8 phút trước giờ kết quả: ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_KQ, -8))}`}
+                    >
+                      ⏱️ Lùi TH_YL -8p{" "}
+                      {record.NGAY_KQ &&
+                        `(➔ ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_KQ, -8))})`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applySuggestRewindExecution(15)}
+                      className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 transition"
+                      title={`Lùi NGAY_TH_YL về 15 phút trước giờ kết quả: ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_KQ, -15))}`}
+                    >
+                      Lùi TH_YL -15p{" "}
+                      {record.NGAY_KQ &&
+                        `(➔ ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_KQ, -15))})`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applySuggestRewindExecution(20)}
+                      className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 transition"
+                      title={`Lùi NGAY_TH_YL về 20 phút trước giờ kết quả: ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_KQ, -20))}`}
+                    >
+                      Lùi TH_YL -20p{" "}
+                      {record.NGAY_KQ &&
+                        `(➔ ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_KQ, -20))})`}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Khối 2: Ca vượt thời lượng -> Căn cứ NGAY_TH_YL cộng thêm giờ KQ */}
+                <div className="rounded-xl border border-teal-200 bg-white p-2.5 space-y-1.5">
+                  <div className="text-[10px] uppercase font-bold text-teal-800 flex items-center justify-between">
+                    <span>
+                      🕒 Căn cứ giờ TH_YL ({formatShortTime(record.NGAY_TH_YL) || "—"}) để cộng thêm
+                      giờ trả KQ:
+                    </span>
+                    <span className="text-[10px] font-semibold text-teal-700">
+                      Điện tim / Xét nghiệm nhanh
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => applySuggestAddDurationFromThYl(10, "⭐ Điện tim / CLS nhanh")}
+                      className="rounded-lg border border-emerald-500 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-900 hover:bg-emerald-100 shadow-xs transition"
+                      title="Đặt NGAY_KQ = NGAY_TH_YL + 10 phút (chuẩn điện tim/xét nghiệm nhanh)"
+                    >
+                      ⭐ Điện tim (+10p{" "}
+                      {record.NGAY_TH_YL &&
+                        `➔ ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_TH_YL, 10))}`}
+                      )
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applySuggestAddDurationFromThYl(15)}
+                      className="rounded-lg border border-teal-300 bg-teal-50 px-2 py-1 text-[11px] font-semibold text-teal-900 hover:bg-teal-100 transition"
+                      title="Đặt NGAY_KQ = NGAY_TH_YL + 15 phút"
+                    >
+                      +15p{" "}
+                      {record.NGAY_TH_YL &&
+                        `(➔ ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_TH_YL, 15))})`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applySuggestAddDurationFromThYl(20)}
+                      className="rounded-lg border border-teal-300 bg-teal-50 px-2 py-1 text-[11px] font-semibold text-teal-900 hover:bg-teal-100 transition"
+                      title="Đặt NGAY_KQ = NGAY_TH_YL + 20 phút"
+                    >
+                      +20p{" "}
+                      {record.NGAY_TH_YL &&
+                        `(➔ ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_TH_YL, 20))})`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applySuggestAddDurationFromThYl(30)}
+                      className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 transition"
+                      title="Đặt NGAY_KQ = NGAY_TH_YL + 30 phút"
+                    >
+                      +30p{" "}
+                      {record.NGAY_TH_YL &&
+                        `(➔ ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_TH_YL, 30))})`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applySuggestAddDurationFromThYl(45)}
+                      className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 transition"
+                      title="Đặt NGAY_KQ = NGAY_TH_YL + 45 phút"
+                    >
+                      +45p{" "}
+                      {record.NGAY_TH_YL &&
+                        `(➔ ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_TH_YL, 45))})`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applySuggestAddDurationFromThYl(60)}
+                      className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 transition"
+                      title="Đặt NGAY_KQ = NGAY_TH_YL + 60 phút"
+                    >
+                      +60p{" "}
+                      {record.NGAY_TH_YL &&
+                        `(➔ ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_TH_YL, 60))})`}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Khối 3: Công khám / Thứ tự y lệnh / Trùng máy */}
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
                   {isExamGroup13 && (
                     <button
                       type="button"
                       onClick={applySuggestExamSync}
-                      className="rounded-lg border border-teal-500 bg-teal-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-teal-700 shadow-xs"
+                      className="rounded-lg border border-teal-500 bg-teal-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-teal-700 shadow-xs"
                       title="Gán NGAY_YL = NGAY_TH_YL (ở công khám nhóm 13 hai thời gian này được phép trùng nhau)"
                     >
                       🩺 [Công khám 13] Đồng bộ NGAY_YL = NGAY_TH_YL
@@ -573,24 +776,16 @@ export function DirectEditModal({
                   )}
                   <button
                     type="button"
-                    onClick={() => applySuggestShortenDuration(30)}
-                    className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100"
-                    title="Đặt NGAY_KQ = NGAY_TH_YL + 30 phút"
+                    onClick={applySuggestFixOrder}
+                    className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 shadow-xs"
+                    title="Đặt NGAY_YL trước NGAY_TH_YL 5 phút"
                   >
-                    ⏱️ Đặt thời lượng 30p
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applySuggestShortenDuration(60)}
-                    className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100"
-                    title="Đặt NGAY_KQ = NGAY_TH_YL + 60 phút"
-                  >
-                    ⏱️ Đặt thời lượng 60p
+                    🕒 Sửa thứ tự y lệnh
                   </button>
                   <button
                     type="button"
                     onClick={() => applySuggestShiftExecution(5)}
-                    className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100"
+                    className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 shadow-xs"
                     title="Dịch NGAY_TH_YL thêm 5 phút tránh trùng máy"
                   >
                     🔀 Dịch máy +5p
@@ -598,72 +793,66 @@ export function DirectEditModal({
                   <button
                     type="button"
                     onClick={() => applySuggestShiftExecution(10)}
-                    className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100"
+                    className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 shadow-xs"
                     title="Dịch NGAY_TH_YL thêm 10 phút tránh trùng máy"
                   >
                     🔀 Dịch máy +10p
                   </button>
+                </div>
+              </div>
+            )}
+
+            {source === "XML1" && (
+              <button
+                type="button"
+                onClick={applySuggestPaddedCccd}
+                className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100"
+                title="Thêm số 0 vào đầu cho đủ 12 chữ số"
+              >
+                🪪 Chuẩn hóa 12 số CCCD
+              </button>
+            )}
+
+            {source === "XML4" && (
+              <div className="flex flex-wrap gap-1.5 text-xs">
+                {warning?.giaTri ? (
                   <button
                     type="button"
-                    onClick={applySuggestFixOrder}
-                    className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100"
-                    title="Đặt NGAY_YL trước NGAY_TH_YL 5 phút"
+                    onClick={applySuggestFromGiaTri}
+                    className="rounded-lg border border-teal-500 bg-teal-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-teal-700 shadow-xs"
+                    title="Copy trực tiếp từ ô GIA_TRI trong XML4 của BA đó xuống ô KET_LUAN"
                   >
-                    🕒 Sửa thứ tự y lệnh
+                    📋 Lấy từ ô GIA_TRI: "
+                    {warning.giaTri.length > 25
+                      ? warning.giaTri.slice(0, 25) + "..."
+                      : warning.giaTri}
+                    "
                   </button>
-                </>
-              )}
-              {source === "XML1" && (
+                ) : null}
                 <button
                   type="button"
-                  onClick={applySuggestPaddedCccd}
+                  onClick={() =>
+                    applySuggestSampleConclusion(
+                      "Trên phiến đồ nền hồng cầu thấy nhiều lympho bào nằm phân tán hoặc đứng thành các đám, trong đó lympho bào nhỏ chiếm đa số, kèm rải rác đại thực bào.",
+                    )
+                  }
                   className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100"
-                  title="Thêm số 0 vào đầu cho đủ 12 chữ số"
                 >
-                  🪪 Chuẩn hóa 12 số CCCD
+                  🔬 Mẫu kết luận hạch / TB
                 </button>
-              )}
-              {source === "XML4" && (
-                <>
-                  {warning?.giaTri ? (
-                    <button
-                      type="button"
-                      onClick={applySuggestFromGiaTri}
-                      className="rounded-lg border border-teal-500 bg-teal-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-teal-700 shadow-xs"
-                      title="Copy trực tiếp từ ô GIA_TRI trong XML4 của BA đó xuống ô KET_LUAN"
-                    >
-                      📋 Lấy từ ô GIA_TRI: "
-                      {warning.giaTri.length > 25
-                        ? warning.giaTri.slice(0, 25) + "..."
-                        : warning.giaTri}
-                      "
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      applySuggestSampleConclusion(
-                        "Trên phiến đồ nền hồng cầu thấy nhiều lympho bào nằm phân tán hoặc đứng thành các đám, trong đó lympho bào nhỏ chiếm đa số, kèm rải rác đại thực bào.",
-                      )
-                    }
-                    className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100"
-                  >
-                    🔬 Mẫu kết luận hạch / TB
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      applySuggestSampleConclusion(
-                        "Các tế bào biểu mô có hình thái bình thường, không thấy tế bào ác tính.",
-                      )
-                    }
-                    className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100"
-                  >
-                    🔬 Mẫu TB bình thường
-                  </button>
-                </>
-              )}
-            </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    applySuggestSampleConclusion(
+                      "Các tế bào biểu mô có hình thái bình thường, không thấy tế bào ác tính.",
+                    )
+                  }
+                  className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100"
+                >
+                  🔬 Mẫu TB bình thường
+                </button>
+              </div>
+            )}
           </div>
 
           <div>

@@ -203,6 +203,41 @@ export function generateAutoCorrectionPlan(analysis: BatchAnalysis): CorrectionI
       });
     }
 
+    // 2.1. Ca trùng giờ thực hiện và trả kết quả (0 phút): Căn cứ giờ kết quả trừ lùi 10 phút để điền vào giờ thực hiện
+    const isSameThKq =
+      r.hasEqualWarning ||
+      (Boolean(r.NGAY_TH_YL) && Boolean(r.NGAY_KQ) && r.NGAY_TH_YL === r.NGAY_KQ);
+    if (isSameThKq && !handledDupKeys.has(itemThKey) && r.NGAY_KQ) {
+      const patient = r.patient;
+      const ngayRa = patient?.NGAY_RA || "";
+      const ngayVao = patient?.NGAY_VAO || "";
+      const tuNgay =
+        toHisDateString(ngayRa) || toHisDateString(ngayVao) || toHisDateString(r.NGAY_YL);
+      const denNgay = toHisDateString(ngayRa) || tuNgay;
+
+      const newThYl = addMinutesToXmlDateTime(r.NGAY_KQ, -10);
+      plan.push({
+        id: `CORR_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        maLk: r.MA_LK,
+        maBa: r.MA_BN || patient?.MA_BN || "",
+        hoTen: r.HO_TEN || patient?.HO_TEN || "",
+        ngayVao,
+        ngayRa,
+        tuNgay,
+        denNgay,
+        tab: "XML3",
+        stt: r.STT,
+        maDichVu: r.MA_DICH_VU,
+        tenDichVu: r.TEN_DICH_VU,
+        field: "NGAY_TH_YL",
+        oldValue: r.NGAY_TH_YL,
+        newValue: newThYl,
+        lyDo: "Trừ lùi giờ thực hiện y lệnh 10 phút so với giờ trả kết quả để tránh trùng giờ (0 phút)",
+        createdAt: nowStr,
+      });
+      handledDupKeys.add(itemThKey);
+    }
+
     // Lỗi sai thứ tự thời gian: NGAY_TH_YL < NGAY_YL
     if (r.hasOrderWarning && r.NGAY_YL && r.NGAY_TH_YL) {
       const patient = r.patient;

@@ -1115,6 +1115,7 @@ export function HomePage() {
             selectedMaLk={selectedDossierMaLk}
             onSelectPatient={setSelectedDossierMaLk}
             onBackToChecker={() => setView("checker")}
+            onOpenDirectEdit={(target) => setDirectEditTarget(target)}
           />
         )}
 

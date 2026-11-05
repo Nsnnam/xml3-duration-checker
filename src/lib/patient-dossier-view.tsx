@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   type PatientDossier,
+  type Xml3Record,
+  type ValidationWarning,
   XML_TABLE_META,
   ALL_XML_TABLE_KEYS,
   formatXmlString,
@@ -63,6 +65,136 @@ function getFieldLabel(key: string): string {
   return XML1_FIELD_LABELS[k] || COMMON_FIELD_LABELS[k] || key;
 }
 
+type RowWarningInfo = {
+  hasWarning: boolean;
+  messages: string[];
+  xml3Record?: Xml3Record;
+  warningObj?: ValidationWarning;
+};
+
+function getRowWarningInfo(
+  tableKey: string,
+  row: Record<string, string>,
+  rowIndex: number,
+  dossier: PatientDossier | null,
+): RowWarningInfo {
+  if (!dossier) return { hasWarning: false, messages: [] };
+
+  const messages: string[] = [];
+  let matchedRecord: Xml3Record | undefined;
+  let matchedWarning: ValidationWarning | undefined;
+
+  const stt = row.STT?.trim();
+  const maDv = (row.MA_DICH_VU || row.MA_VAT_TU || row.MA_THUOC)?.trim();
+
+  if (tableKey === "XML3") {
+    // 1. Khớp với xml3Records
+    if (dossier.xml3Records && dossier.xml3Records.length > 0) {
+      matchedRecord = dossier.xml3Records.find((rec) => {
+        if (stt && rec.STT === stt) return true;
+        if (maDv && (rec.MA_DICH_VU === maDv || rec.MA_VAT_TU === maDv)) return true;
+        return false;
+      });
+    }
+
+    if (matchedRecord) {
+      if (matchedRecord.status === "warning") {
+        messages.push(`Vượt thời lượng: ${matchedRecord.durationMinutes} phút (giới hạn <= 70p)`);
+      }
+      if (
+        matchedRecord.hasEqualWarning ||
+        (Boolean(matchedRecord.NGAY_TH_YL) &&
+          Boolean(matchedRecord.NGAY_KQ) &&
+          matchedRecord.NGAY_TH_YL === matchedRecord.NGAY_KQ)
+      ) {
+        messages.push("Trùng giờ thực hiện và trả kết quả (0 phút)");
+      }
+      if (matchedRecord.hasOrderWarning) {
+        messages.push("Sai thứ tự: Giờ thực hiện sớm hơn giờ y lệnh");
+      }
+      if (matchedRecord.hasDuplicateMachineWarning) {
+        messages.push("Trùng thời gian thực hiện trên cùng mã máy");
+      }
+      if (matchedRecord.hasMaMayWarning) {
+        messages.push("Mã máy không đúng chuẩn XX.3[xxx].Z");
+      }
+      if (matchedRecord.hasTtThauWarning) {
+        messages.push("Thiếu hoặc sai thông tin thầu");
+      }
+      if (matchedRecord.hasBedWarning) {
+        messages.push("Cảnh báo giường bệnh");
+      }
+    }
+
+    // 2. Khớp với warnings của XML3
+    for (const w of dossier.warnings) {
+      if (w.source === "XML3") {
+        const matchByStt = stt && String(w.detailIndex) === stt;
+        const matchByDv = maDv && w.MA_DICH_VU === maDv;
+        if (matchByStt || matchByDv) {
+          if (!messages.includes(w.message)) {
+            messages.push(w.message);
+          }
+          if (!matchedWarning) matchedWarning = w;
+          if (!matchedRecord && w.record) matchedRecord = w.record;
+        }
+      }
+    }
+  } else if (tableKey === "XML4") {
+    for (const w of dossier.warnings) {
+      if (w.source === "XML4") {
+        const matchByStt = stt && String(w.detailIndex) === stt;
+        const matchByDv = maDv && w.MA_DICH_VU === maDv;
+        const matchByIndex = String(w.detailIndex) === String(rowIndex + 1);
+        if (matchByStt || matchByDv || matchByIndex) {
+          if (!messages.includes(w.message)) messages.push(w.message);
+          if (!matchedWarning) matchedWarning = w;
+        }
+      }
+    }
+    // Kiểm tra trực tiếp thiếu KET_LUAN
+    const ketLuan = row.KET_LUAN ? String(row.KET_LUAN).trim() : "";
+    if (!ketLuan || ketLuan === "-") {
+      const msg = "Thiếu kết luận cận lâm sàng (KET_LUAN trống)";
+      if (!messages.includes(msg)) messages.push(msg);
+      if (!matchedWarning) {
+        matchedWarning = {
+          source: "XML4",
+          detailIndex: Number(stt || rowIndex + 1),
+          MA_LK: dossier.maLk,
+          HO_TEN: dossier.patient?.HO_TEN || "",
+          MA_BN: dossier.patient?.MA_BN || "",
+          MA_DICH_VU: row.MA_DICH_VU || "",
+          TEN_DICH_VU: row.TEN_DICH_VU || "",
+          message: msg,
+          giaTri: row.GIA_TRI,
+          patient: dossier.patient,
+        };
+      }
+    }
+  } else {
+    // Các bảng khác
+    for (const w of dossier.warnings) {
+      if (w.source === tableKey) {
+        const matchByStt = stt && String(w.detailIndex) === stt;
+        const matchByDv = maDv && w.MA_DICH_VU === maDv;
+        const matchByIndex = String(w.detailIndex) === String(rowIndex + 1);
+        if (matchByStt || matchByDv || matchByIndex) {
+          if (!messages.includes(w.message)) messages.push(w.message);
+          if (!matchedWarning) matchedWarning = w;
+        }
+      }
+    }
+  }
+
+  return {
+    hasWarning: messages.length > 0,
+    messages,
+    xml3Record: matchedRecord,
+    warningObj: matchedWarning,
+  };
+}
+
 function RowDetailModal({
   isOpen,
   onClose,
@@ -71,6 +203,8 @@ function RowDetailModal({
   totalRows,
   headers,
   row,
+  warningInfo,
+  onOpenDirectEdit,
   onPrev,
   onNext,
 }: {
@@ -81,6 +215,12 @@ function RowDetailModal({
   totalRows: number;
   headers: string[];
   row: Record<string, string>;
+  warningInfo?: RowWarningInfo;
+  onOpenDirectEdit?: (target: {
+    record?: Xml3Record;
+    warning?: ValidationWarning;
+    source: string;
+  }) => void;
   onPrev?: () => void;
   onNext?: () => void;
 }) {
@@ -142,6 +282,39 @@ function RowDetailModal({
             ✕
           </button>
         </div>
+
+        {/* Cảnh báo lỗi trên dòng (nếu có) */}
+        {warningInfo && warningInfo.hasWarning && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/60 px-6 py-2.5 text-xs text-rose-900 dark:text-rose-200">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-base shrink-0">⚠️</span>
+              <div className="min-w-0">
+                <div className="font-bold">
+                  Phát hiện {warningInfo.messages.length} cảnh báo lỗi trên dòng này:
+                </div>
+                <div className="text-[11px] text-rose-700 dark:text-rose-300 font-medium truncate">
+                  {warningInfo.messages.join(" • ")}
+                </div>
+              </div>
+            </div>
+            {onOpenDirectEdit && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenDirectEdit({
+                    record: warningInfo.xml3Record,
+                    warning: warningInfo.warningObj,
+                    source: tableKey,
+                  });
+                }}
+                className="shrink-0 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-bold px-3 py-1.5 shadow-sm transition flex items-center gap-1.5"
+              >
+                <span>✏️</span> Sửa dòng này
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-6 py-2.5 text-xs">
@@ -233,17 +406,24 @@ export function PatientDossierView({
   selectedMaLk,
   onSelectPatient,
   onBackToChecker,
+  onOpenDirectEdit,
 }: {
   dossiers: PatientDossier[];
   selectedMaLk: string | null;
   onSelectPatient: (maLk: string) => void;
   onBackToChecker: () => void;
+  onOpenDirectEdit?: (target: {
+    record?: Xml3Record;
+    warning?: ValidationWarning;
+    source: string;
+  }) => void;
 }) {
   const [patientSearch, setPatientSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "warnings" | "clean">("all");
   const [activeTableKey, setActiveTableKey] = useState<string>("XML1");
   const [viewMode, setViewMode] = useState<"table" | "raw">("table");
   const [tableSearch, setTableSearch] = useState("");
+  const [onlyWarningRows, setOnlyWarningRows] = useState(false);
   const [showWarningPanel, setShowWarningPanel] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState(false);
   const [showFullPatientInfo, setShowFullPatientInfo] = useState(false);
@@ -303,15 +483,41 @@ export function PatientDossierView({
   // Dữ liệu bảng hiện tại
   const currentTableData = activeDossier?.tables[activeTableKey];
 
-  // Lọc dòng trong bảng dữ liệu
+  // Đếm số dòng có cảnh báo trong bảng hiện tại
+  const currentTableWarningRowCount = useMemo(() => {
+    if (!currentTableData?.rows || !activeDossier) return 0;
+    return currentTableData.rows.reduce((count, row, idx) => {
+      const info = getRowWarningInfo(activeTableKey, row, idx, activeDossier);
+      return info.hasWarning ? count + 1 : count;
+    }, 0);
+  }, [currentTableData, activeTableKey, activeDossier]);
+
+  // Lọc dòng trong bảng dữ liệu (kết hợp tìm kiếm & chỉ hiện dòng cảnh báo)
   const filteredTableRows = useMemo(() => {
     if (!currentTableData?.rows) return [];
     const q = tableSearch.trim().toLowerCase();
-    if (!q) return currentTableData.rows;
-    return currentTableData.rows.filter((row) =>
-      Object.values(row).some((val) => String(val).toLowerCase().includes(q)),
-    );
-  }, [currentTableData, tableSearch]);
+
+    const mapped = currentTableData.rows.map((row, idx) => ({
+      row,
+      originalIndex: idx,
+      warningInfo: getRowWarningInfo(activeTableKey, row, idx, activeDossier),
+    }));
+
+    let result = mapped;
+    if (onlyWarningRows) {
+      result = result.filter((item) => item.warningInfo.hasWarning);
+    }
+
+    if (q) {
+      result = result.filter(
+        (item) =>
+          Object.values(item.row).some((val) => String(val).toLowerCase().includes(q)) ||
+          item.warningInfo.messages.some((m) => m.toLowerCase().includes(q)),
+      );
+    }
+
+    return result;
+  }, [currentTableData, tableSearch, onlyWarningRows, activeTableKey, activeDossier]);
 
   // Tổng hợp toàn bộ các trường hành chính XML1 của bệnh nhân hiện tại
   const dossierAdminFields = useMemo(() => {
@@ -518,30 +724,32 @@ export function PatientDossierView({
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header Banner */}
-      <div className="rounded-3xl border border-teal-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">
-        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-          <div>
-            <div className="text-xs font-black uppercase tracking-wider text-teal-700 dark:text-cyan-400">
-              Tra cứu hồ sơ &amp; Đối chiếu dữ liệu
+    <div className="space-y-4">
+      {/* Header Banner Thu gọn */}
+      <div className="rounded-2xl border border-teal-100 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <span className="text-2xl">📋</span>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                  Tra cứu &amp; Xem XML Hồ sơ Bệnh nhân (15 bảng BHYT)
+                </h2>
+                <span className="rounded-md bg-teal-100 dark:bg-cyan-900/60 text-teal-800 dark:text-cyan-300 px-2 py-0.5 text-[10px] font-bold">
+                  {dossiers.length} hồ sơ
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Đối chiếu 15 tab XML chuẩn Bộ Y tế · Xem chi tiết từng trường dữ liệu &amp; XML gốc
+              </p>
             </div>
-            <h2 className="mt-1 text-2xl font-black text-slate-900 dark:text-white">
-              Tra cứu &amp; Xem XML Hồ sơ Bệnh nhân (15 bảng BHYT)
-            </h2>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 max-w-3xl">
-              Xem toàn diện tất cả hồ sơ bệnh nhân (cả bệnh nhân có lỗi và không có lỗi), diễn giải
-              chi tiết từng bảng XML theo 15 tab chuẩn Bộ Y tế, có hỗ trợ xem mã XML gốc.
-            </p>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onBackToChecker}
-              className="rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 shadow-sm"
-            >
-              ← Quay lại Cảnh báo
-            </button>
-          </div>
+          <button
+            onClick={onBackToChecker}
+            className="self-start sm:self-auto rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 shadow-xs transition"
+          >
+            ← Quay lại Cảnh báo
+          </button>
         </div>
       </div>
 
@@ -665,17 +873,17 @@ export function PatientDossierView({
         <div className="lg:col-span-8 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm flex flex-col h-[calc(100vh-140px)] min-h-[620px] overflow-hidden">
           {activeDossier ? (
             <div className="flex flex-col h-full space-y-4">
-              {/* Thẻ hành chính tổng hợp bệnh nhân */}
-              <div className="rounded-2xl border border-teal-200/70 dark:border-cyan-900/60 bg-gradient-to-r from-teal-50/60 to-slate-50 dark:from-slate-800/80 dark:to-slate-800/40 p-4">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-teal-100 dark:border-slate-700/60 pb-3">
+              {/* Thẻ hành chính tổng hợp bệnh nhân (gọn gàng, tối ưu chiều cao) */}
+              <div className="rounded-2xl border border-teal-200/70 dark:border-cyan-900/60 bg-gradient-to-r from-teal-50/60 to-slate-50 dark:from-slate-800/80 dark:to-slate-800/40 p-3 sm:p-3.5 shadow-xs">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 border-b border-teal-100 dark:border-slate-700/60 pb-2">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xl">🧑‍⚕️</span>
-                      <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                      <span className="text-lg">🧑‍⚕️</span>
+                      <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
                         {activeDossier.patient?.HO_TEN || "(Bệnh nhân chưa có tên)"}
                       </h3>
                       {activeDossier.patient?.GIOI_TINH && (
-                        <span className="rounded-lg bg-teal-100 dark:bg-cyan-900/60 text-teal-800 dark:text-cyan-300 px-2 py-0.5 text-xs font-bold">
+                        <span className="rounded-md bg-teal-100 dark:bg-cyan-900/60 text-teal-800 dark:text-cyan-300 px-1.5 py-0.2 text-[11px] font-bold">
                           {activeDossier.patient.GIOI_TINH === "1"
                             ? "Nam"
                             : activeDossier.patient.GIOI_TINH === "2"
@@ -684,7 +892,7 @@ export function PatientDossierView({
                         </span>
                       )}
                     </div>
-                    <div className="mt-1 flex flex-wrap gap-3 text-xs font-mono text-slate-600 dark:text-slate-300">
+                    <div className="mt-0.5 flex flex-wrap gap-2.5 text-[11px] font-mono text-slate-600 dark:text-slate-300">
                       <span>
                         Mã LK: <b>{activeDossier.maLk}</b>
                       </span>
@@ -707,7 +915,7 @@ export function PatientDossierView({
                       <button
                         type="button"
                         onClick={() => setShowWarningPanel((prev) => !prev)}
-                        className={`rounded-xl px-3 py-1.5 text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer border ${
+                        className={`rounded-xl px-2.5 py-1 text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer border ${
                           showWarningPanel
                             ? "bg-rose-600 text-white border-rose-700"
                             : "bg-rose-100 hover:bg-rose-200 dark:bg-rose-950/60 dark:hover:bg-rose-900/80 border-rose-300 dark:border-rose-700 text-rose-800 dark:text-rose-200"
@@ -715,47 +923,47 @@ export function PatientDossierView({
                         title="Nhấn để xem danh sách các bảng lỗi và chuyển nhanh tới bảng bị cảnh báo"
                       >
                         <span>⚠️</span>
-                        <span>{activeDossier.warningCount} cảnh báo cần rà soát</span>
+                        <span>{activeDossier.warningCount} cảnh báo</span>
                         <span className="text-[10px] opacity-80 font-normal">
-                          {showWarningPanel ? "▲ Đóng" : "▼ Xem các bảng lỗi"}
+                          {showWarningPanel ? "▲ Đóng" : "▼ Xem"}
                         </span>
                       </button>
                     ) : (
-                      <div className="rounded-xl bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-3 py-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                      <div className="rounded-xl bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1 text-xs font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
                         <span>✅</span>
-                        <span>Hồ sơ đạt chuẩn (không có cảnh báo)</span>
+                        <span>Đạt chuẩn</span>
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* Các trường trọng tâm */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 text-xs">
-                  <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/40 p-2">
+                {/* Các trường trọng tâm compact */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 text-xs">
+                  <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/40 px-2.5 py-1.5">
                     <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-400 block">
-                      📥 Ngày vào viện
+                      📥 Vào viện
                     </span>
                     <b className="font-mono text-xs text-emerald-950 dark:text-emerald-200">
                       {formatXmlDateTime(activeDossier.patient?.NGAY_VAO) || "—"}
                     </b>
                   </div>
-                  <div className="rounded-xl bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-900/40 p-2">
+                  <div className="rounded-xl bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-900/40 px-2.5 py-1.5">
                     <span className="text-[10px] uppercase font-bold text-sky-700 dark:text-sky-400 block">
-                      📤 Ngày ra viện
+                      📤 Ra viện
                     </span>
                     <b className="font-mono text-xs text-sky-950 dark:text-sky-200">
                       {formatXmlDateTime(activeDossier.patient?.NGAY_RA) || "—"}
                     </b>
                   </div>
-                  <div className="rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-2">
+                  <div className="rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
                     <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block">
-                      🪪 Thẻ BHYT &amp; ĐKBD
+                      🪪 Thẻ BHYT
                     </span>
                     <div className="font-mono font-bold text-slate-800 dark:text-slate-200 truncate">
                       {activeDossier.patient?.MA_THE_BHYT || "—"}
                     </div>
                   </div>
-                  <div className="rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-2">
+                  <div className="rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5">
                     <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block">
                       🩺 Chẩn đoán chính
                     </span>
@@ -773,7 +981,7 @@ export function PatientDossierView({
                         >
                           {diag.code ? (
                             <span className="flex items-center gap-1 truncate">
-                              <span className="rounded bg-teal-100 dark:bg-cyan-900/60 text-teal-900 dark:text-cyan-200 px-1.5 py-0.2 font-mono font-black text-[11px]">
+                              <span className="rounded bg-teal-100 dark:bg-cyan-900/60 text-teal-900 dark:text-cyan-200 px-1 py-0.2 font-mono font-black text-[10px]">
                                 {diag.code}
                               </span>
                               {diag.full && diag.full !== diag.code && (
@@ -792,7 +1000,7 @@ export function PatientDossierView({
                 </div>
 
                 {/* Nút bật/tắt xem toàn bộ thông tin hành chính XML1 */}
-                <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-teal-100 dark:border-slate-700/60">
+                <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-teal-100 dark:border-slate-700/60">
                   <button
                     type="button"
                     onClick={() => setShowFullPatientInfo((prev) => !prev)}
@@ -1092,25 +1300,52 @@ export function PatientDossierView({
                       </div>
                     </div>
 
-                    {/* Lọc trong bảng & Nút cuộn nhanh */}
+                    {/* Lọc trong bảng, Checkbox chỉ hiện cảnh báo & Nút cuộn nhanh */}
                     {viewMode === "table" && currentTableData.rows.length > 0 && (
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                      <div className="flex flex-wrap items-center justify-between gap-2.5">
+                        <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[200px]">
                           <input
                             type="text"
                             value={tableSearch}
                             onChange={(e) => setTableSearch(e.target.value)}
                             placeholder={`Lọc nhanh trong bảng ${activeTableKey}...`}
-                            className="w-full max-w-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none"
+                            className="w-full max-w-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none"
                           />
+
+                          {/* Checkbox: Chỉ hiện dòng cảnh báo */}
+                          <label
+                            className={`flex items-center gap-1.5 cursor-pointer rounded-xl border px-2.5 py-1.5 text-xs font-bold transition select-none ${
+                              onlyWarningRows
+                                ? "bg-rose-600 text-white border-rose-700 shadow-xs ring-2 ring-rose-300"
+                                : currentTableWarningRowCount > 0
+                                  ? "bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 border-rose-300 dark:border-rose-800 hover:bg-rose-100"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-60"
+                            }`}
+                            title={
+                              currentTableWarningRowCount > 0
+                                ? `Lọc chỉ hiển thị ${currentTableWarningRowCount} dòng có cảnh báo lỗi trong bảng ${activeTableKey}`
+                                : `Bảng ${activeTableKey} không có dòng cảnh báo lỗi nào`
+                            }
+                          >
+                            <input
+                              type="checkbox"
+                              checked={onlyWarningRows}
+                              disabled={currentTableWarningRowCount === 0}
+                              onChange={(e) => setOnlyWarningRows(e.target.checked)}
+                              className="rounded border-rose-400 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                            />
+                            <span>⚠️ Chỉ hiện dòng cảnh báo ({currentTableWarningRowCount})</span>
+                          </label>
+
                           <span className="text-xs text-slate-400 whitespace-nowrap">
-                            Hiển thị {filteredTableRows.length}/{currentTableData.rows.length} dòng
-                            ·{" "}
+                            Hiển thị <b>{filteredTableRows.length}</b>/
+                            {currentTableData.rows.length} dòng ·{" "}
                             <span className="text-teal-700 dark:text-cyan-400 font-semibold">
-                              💡 Click đúp vào dòng để xem chi tiết
+                              💡 Click đúp xem chi tiết
                             </span>
                           </span>
                         </div>
+
                         <div className="flex items-center gap-1.5">
                           <span className="text-[11px] text-slate-500 font-semibold hidden sm:inline">
                             ↔ Cuộn cột:
@@ -1166,9 +1401,14 @@ export function PatientDossierView({
                           <table className="w-full text-xs text-left border-collapse min-w-max">
                             <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-900 text-[11px] font-bold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800 shadow-xs select-none">
                               <tr>
-                                <th className="px-3 py-2.5 w-12 text-center sticky left-0 bg-slate-100 dark:bg-slate-900 z-20 border-r border-slate-200 dark:border-slate-800">
+                                <th className="px-3 py-2.5 w-14 text-center sticky left-0 bg-slate-100 dark:bg-slate-900 z-20 border-r border-slate-200 dark:border-slate-800">
                                   #
                                 </th>
+                                {onOpenDirectEdit && (
+                                  <th className="px-2 py-2.5 w-16 text-center border-r border-slate-200 dark:border-slate-800">
+                                    Sửa
+                                  </th>
+                                )}
                                 {currentTableData.headers.map((h) => (
                                   <th
                                     key={h}
@@ -1180,27 +1420,78 @@ export function PatientDossierView({
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                              {filteredTableRows.map((row, idx) => (
-                                <tr
-                                  key={idx}
-                                  onDoubleClick={() => setDetailRowIndex(idx)}
-                                  className="hover:bg-teal-50/60 dark:hover:bg-slate-800/80 transition cursor-pointer select-text"
-                                  title="💡 Click đúp để xem chi tiết toàn bộ các trường của dòng này"
-                                >
-                                  <td className="px-3 py-2 text-center text-slate-400 font-mono text-[11px] sticky left-0 bg-white dark:bg-slate-950 z-10 border-r border-slate-100 dark:border-slate-800/60">
-                                    {idx + 1}
-                                  </td>
-                                  {currentTableData.headers.map((h) => (
+                              {filteredTableRows.map((item) => {
+                                const { row, originalIndex, warningInfo } = item;
+                                const isWarn = warningInfo.hasWarning;
+
+                                return (
+                                  <tr
+                                    key={originalIndex}
+                                    onDoubleClick={() => setDetailRowIndex(originalIndex)}
+                                    className={`transition cursor-pointer select-text ${
+                                      isWarn
+                                        ? "bg-rose-50/80 dark:bg-rose-950/45 text-rose-950 dark:text-rose-100 hover:bg-rose-100/90 dark:hover:bg-rose-900/60 font-medium border-l-4 border-l-rose-500"
+                                        : "hover:bg-teal-50/60 dark:hover:bg-slate-800/80"
+                                    }`}
+                                    title={
+                                      isWarn
+                                        ? `⚠️ CẢNH BÁO LỖI:\n${warningInfo.messages.join("\n")}\n\n💡 Click đúp để xem chi tiết / sửa trực tiếp`
+                                        : "💡 Click đúp để xem chi tiết toàn bộ các trường của dòng này"
+                                    }
+                                  >
                                     <td
-                                      key={h}
-                                      className="px-3 py-2 font-mono whitespace-nowrap border-r border-slate-100 dark:border-slate-800/60 last:border-r-0 max-w-[280px] truncate"
-                                      title={row[h]}
+                                      className={`px-3 py-2 text-center font-mono text-[11px] sticky left-0 z-10 border-r ${
+                                        isWarn
+                                          ? "bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-200 font-bold border-rose-200 dark:border-rose-900 shadow-xs"
+                                          : "bg-white dark:bg-slate-950 text-slate-400 border-slate-100 dark:border-slate-800/60"
+                                      }`}
                                     >
-                                      {row[h] || "—"}
+                                      <div className="flex items-center justify-center gap-1">
+                                        {isWarn && <span className="text-xs">⚠️</span>}
+                                        <span>{originalIndex + 1}</span>
+                                      </div>
                                     </td>
-                                  ))}
-                                </tr>
-                              ))}
+                                    {onOpenDirectEdit && (
+                                      <td className="px-2 py-1.5 text-center border-r border-slate-100 dark:border-slate-800/60 whitespace-nowrap">
+                                        {isWarn ? (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              onOpenDirectEdit({
+                                                record: warningInfo.xml3Record,
+                                                warning: warningInfo.warningObj,
+                                                source: activeTableKey,
+                                              });
+                                            }}
+                                            className="rounded-lg bg-teal-700 hover:bg-teal-800 text-white px-2 py-0.5 text-[10px] font-bold shadow-xs transition"
+                                            title="Sửa trực tiếp dòng cảnh báo này"
+                                          >
+                                            ✏️ Sửa
+                                          </button>
+                                        ) : (
+                                          <span className="text-slate-300 dark:text-slate-700 text-[10px]">
+                                            —
+                                          </span>
+                                        )}
+                                      </td>
+                                    )}
+                                    {currentTableData.headers.map((h) => (
+                                      <td
+                                        key={h}
+                                        className={`px-3 py-2 font-mono whitespace-nowrap border-r max-w-[280px] truncate ${
+                                          isWarn
+                                            ? "border-rose-100 dark:border-rose-900/50"
+                                            : "border-slate-100 dark:border-slate-800/60"
+                                        } last:border-r-0`}
+                                        title={row[h]}
+                                      >
+                                        {row[h] || "—"}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                );
+                              })}
                             </tbody>
                           </table>
                         )
@@ -1236,18 +1527,25 @@ export function PatientDossierView({
       </div>
 
       {/* Modal Xem chi tiết dòng khi click đúp */}
-      {detailRowIndex !== null && filteredTableRows[detailRowIndex] && currentTableData && (
+      {detailRowIndex !== null && currentTableData && currentTableData.rows[detailRowIndex] && (
         <RowDetailModal
           isOpen={true}
           onClose={() => setDetailRowIndex(null)}
           tableKey={activeTableKey}
           rowIndex={detailRowIndex + 1}
-          totalRows={filteredTableRows.length}
+          totalRows={currentTableData.rows.length}
           headers={currentTableData.headers}
-          row={filteredTableRows[detailRowIndex]}
+          row={currentTableData.rows[detailRowIndex]}
+          warningInfo={getRowWarningInfo(
+            activeTableKey,
+            currentTableData.rows[detailRowIndex],
+            detailRowIndex,
+            activeDossier,
+          )}
+          onOpenDirectEdit={onOpenDirectEdit}
           onPrev={detailRowIndex > 0 ? () => setDetailRowIndex(detailRowIndex - 1) : undefined}
           onNext={
-            detailRowIndex < filteredTableRows.length - 1
+            detailRowIndex < currentTableData.rows.length - 1
               ? () => setDetailRowIndex(detailRowIndex + 1)
               : undefined
           }

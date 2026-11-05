@@ -3,12 +3,23 @@ export const APP_META = {
   title: "NsN_XMLcheck",
   description:
     "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, MA_MAY chuẩn XX.3[xxx].Z & trùng thời gian máy, cảnh báo Z00.0/Z30.1 (KHHGĐ) & Hồ sơ 15 bảng BHYT",
-  version: "2.9.0",
-  date: "2026-11-04",
+  version: "2.10.0",
+  date: "2026-11-05",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.10.0",
+      date: "2026-11-05",
+      changes: [
+        "Nâng cấp gợi ý sửa tự động nhanh trong modal Sửa trực tiếp: Với các ca trùng giờ thực hiện và trả kết quả (0 phút), căn cứ vào giờ kết quả trừ lùi 8-10 phút (kèm mốc 15p, 20p) để tự động sửa giờ thực hiện y lệnh (NGAY_TH_YL). Với các ca vượt thời lượng (> 70 phút), căn cứ vào giờ thực hiện y lệnh cộng thêm giờ phút tương ứng (+10p điện tim/nhanh, +15p, +20p, +30p, +45p, +60p) để điền vào giờ kết quả (NGAY_KQ). Hiển thị trực quan mốc giờ sau khi điều chỉnh ngay trên nhãn nút (➔ HH:mm).",
+        "Tối ưu trang Tra cứu Hồ sơ Bệnh nhân (15 bảng BHYT): Tự động phát hiện và highlight màu nền đỏ nhạt nổi bật kèm viền trái đỏ đối với tất cả các dòng có cảnh báo/lỗi. Cột số thứ tự (#) hiển thị icon cảnh báo ⚠️ kèm tooltip chi tiết các lỗi của dòng đó.",
+        "Bộ lọc chỉ hiện dòng cảnh báo (Checkbox): Bổ sung nút tích '⚠️ Chỉ hiện dòng cảnh báo (X)' trên toolbar bảng XML để lọc tức thì các dòng lỗi trên các bảng có nhiều dữ liệu (XML3, XML4...).",
+        "Tích hợp nút Sửa trực tiếp ✏️ ngay trên dòng lỗi trong bảng XML và trong modal Xem chi tiết dòng (click đúp) để lập kế hoạch sửa nhanh mà không cần chuyển trang.",
+        "Tối ưu layout gọn gàng, tăng diện tích bảng dữ liệu: Thu gọn header banner và thẻ hành chính bệnh nhân, mở rộng chiều cao bảng XML thêm hơn 120px giúp người dùng quan sát được nhiều dòng dữ liệu cùng lúc mà không phải cuộn tìm liên tục.",
+      ],
+    },
     {
       version: "2.9.0",
       date: "2026-11-04",
