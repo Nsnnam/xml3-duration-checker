@@ -83,6 +83,7 @@ export function DirectEditModal({
   warning,
   source,
   customRow,
+  correctionPlan,
   onSaveCorrection,
 }: {
   isOpen: boolean;
@@ -91,6 +92,7 @@ export function DirectEditModal({
   warning?: ValidationWarning;
   source: string; // XML1, XML2, XML3, XML4, XML7...
   customRow?: CustomRowContext;
+  correctionPlan?: CorrectionItem[];
   onSaveCorrection: (item: CorrectionItem) => void;
 }) {
   const effectiveTab = customRow?.tab || source;
@@ -116,8 +118,42 @@ export function DirectEditModal({
     customRow?.row?.TEN_VAT_TU ||
     "";
 
-  // Xác định trường mặc định cần sửa theo loại cảnh báo hoặc ngữ cảnh bảng
+  // Tìm các mục đã được lập kế hoạch sửa trước đó cho dòng này (từ sửa lẻ hoặc sửa hàng loạt)
+  const existingPlannedMap = useMemo(() => {
+    const map = new Map<string, CorrectionItem>();
+    if (!correctionPlan || correctionPlan.length === 0) return map;
+    for (const item of correctionPlan) {
+      const matchMaLk = item.maLk === maLk;
+      const matchTab = item.tab === effectiveTab;
+      const matchStt = String(item.stt).trim() === String(stt).trim();
+      const matchService = Boolean(
+        item.maDichVu && maDichVu && item.maDichVu.trim() === maDichVu.trim(),
+      );
+      if (matchMaLk && matchTab && (matchStt || matchService)) {
+        map.set(item.field, item);
+      }
+    }
+    return map;
+  }, [correctionPlan, maLk, effectiveTab, stt, maDichVu]);
+
+  const existingPlannedItems = useMemo(
+    () => Array.from(existingPlannedMap.values()),
+    [existingPlannedMap],
+  );
+
+  // Xác định trường mặc định cần sửa theo loại cảnh báo hoặc ngữ cảnh bảng (ưu tiên trường đã sửa trong kế hoạch)
   const defaultField = useMemo(() => {
+    if (existingPlannedMap.size > 0) {
+      if (existingPlannedMap.has("NGAY_KQ")) return "NGAY_KQ";
+      if (existingPlannedMap.has("NGAY_TH_YL")) return "NGAY_TH_YL";
+      if (existingPlannedMap.has("NGAY_YL")) return "NGAY_YL";
+      if (existingPlannedMap.has("KET_LUAN")) return "KET_LUAN";
+      if (existingPlannedMap.has("SO_CCCD")) return "SO_CCCD";
+      if (existingPlannedMap.has("NGOAITRU_TUNGAY")) return "NGOAITRU_TUNGAY";
+      const firstField = existingPlannedItems[0]?.field;
+      if (firstField) return firstField;
+    }
+
     if (customRow && customRow.headers && customRow.headers.length > 0) {
       if (effectiveTab === "XML7" && customRow.headers.includes("NGOAITRU_TUNGAY")) {
         return "NGOAITRU_TUNGAY";
@@ -163,7 +199,7 @@ export function DirectEditModal({
     if (record?.NGAY_TH_YL && record?.NGAY_KQ && record.NGAY_TH_YL === record.NGAY_KQ)
       return "NGAY_TH_YL";
     return "NGAY_KQ";
-  }, [source, effectiveTab, record, warning, customRow]);
+  }, [existingPlannedMap, existingPlannedItems, source, effectiveTab, record, warning, customRow]);
 
   const [selectedField, setSelectedField] = useState(defaultField);
 
@@ -231,7 +267,18 @@ export function DirectEditModal({
       let initialVal = "";
       let initialLyDo = "Chỉnh sửa dữ liệu tránh cảnh báo BHYT";
 
-      if (effectiveTab === "XML7" || source === "XML7") {
+      if (existingPlannedMap.size > 0) {
+        // Hồ sơ này đã có trong kế hoạch sửa (từ sửa hàng loạt hoặc sửa lẻ)
+        const targetField = existingPlannedMap.has(defaultField)
+          ? defaultField
+          : existingPlannedItems[0]?.field || defaultField;
+        setSelectedField(targetField);
+        const planned = existingPlannedMap.get(targetField) || existingPlannedItems[0];
+        if (planned) {
+          initialVal = planned.newValue;
+          initialLyDo = planned.lyDo;
+        }
+      } else if (effectiveTab === "XML7" || source === "XML7") {
         const oldNgoaiTru = customRow?.row?.NGOAITRU_TUNGAY || warning?.giaTri || "";
         if (xml7NextDaySuggestion && defaultField === "NGOAITRU_TUNGAY") {
           const oldTime = oldNgoaiTru.replace(/\D/g, "").slice(8);
@@ -286,6 +333,8 @@ export function DirectEditModal({
   }, [
     isOpen,
     defaultField,
+    existingPlannedMap,
+    existingPlannedItems,
     record,
     warning,
     patient,
@@ -302,6 +351,13 @@ export function DirectEditModal({
   // Khi đổi trường chọn
   const handleFieldChange = (f: string) => {
     setSelectedField(f);
+    // Nếu trường này đã có trong kế hoạch sửa thì lấy giá trị đã lập kế hoạch
+    if (existingPlannedMap.has(f)) {
+      const p = existingPlannedMap.get(f)!;
+      setNewValue(p.newValue);
+      setLyDo(p.lyDo);
+      return;
+    }
     let oldVal = "";
     if (customRow) {
       oldVal = customRow.row[f] || "";
@@ -421,17 +477,21 @@ export function DirectEditModal({
     setLyDo("Bổ sung nội dung kết luận chẩn đoán xét nghiệm / CLS");
   };
 
-  const ylNew = selectedField === "NGAY_YL" ? newValue : ylOld;
-  const thNew = selectedField === "NGAY_TH_YL" ? newValue : thOld;
-  const kqNew = selectedField === "NGAY_KQ" ? newValue : kqOld;
+  const ylPlanned = existingPlannedMap.get("NGAY_YL")?.newValue;
+  const thPlanned = existingPlannedMap.get("NGAY_TH_YL")?.newValue;
+  const kqPlanned = existingPlannedMap.get("NGAY_KQ")?.newValue;
+
+  const ylNew = selectedField === "NGAY_YL" ? newValue : ylPlanned || ylOld;
+  const thNew = selectedField === "NGAY_TH_YL" ? newValue : thPlanned || thOld;
+  const kqNew = selectedField === "NGAY_KQ" ? newValue : kqPlanned || kqOld;
 
   const waitOld = calcDiffMinutes(ylOld, thOld);
   const waitNew = calcDiffMinutes(ylNew, thNew);
   const durationOld = calcDiffMinutes(thOld, kqOld);
   const durationNew = calcDiffMinutes(thNew, kqNew);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSave = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!newValue.trim()) {
       alert("Vui lòng nhập giá trị mới cần sửa!");
       return;
@@ -463,6 +523,10 @@ export function DirectEditModal({
 
     onSaveCorrection(item);
     onClose();
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    handleSave(e);
   };
 
   return (
@@ -518,6 +582,38 @@ export function DirectEditModal({
 
         {/* Form chỉnh sửa có cuộn nếu dài */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
+          {/* Banner thông báo nếu hồ sơ này đã có trong kế hoạch sửa */}
+          {existingPlannedItems.length > 0 && (
+            <div className="rounded-2xl border-2 border-emerald-400 bg-emerald-50/90 p-3.5 shadow-xs flex flex-wrap items-center justify-between gap-3 animate-in fade-in duration-150">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white text-xs font-black shadow-xs shrink-0">
+                  ✓
+                </span>
+                <div>
+                  <div className="text-xs font-black text-emerald-950">
+                    Hồ sơ này ĐÃ ĐƯỢC LẬP KẾ HOẠCH SỬA ({existingPlannedItems.length} mục)
+                  </div>
+                  <div className="text-[11px] text-emerald-800 font-medium">
+                    {existingPlannedItems
+                      .map(
+                        (p) =>
+                          `${getFieldLabel(p.field)}: ${p.oldValue || "(trống)"} ➔ ${p.newValue}`,
+                      )
+                      .join(" · ")}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleSave()}
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm transition cursor-pointer"
+                title="Lưu lại cập nhật này vào Kế hoạch sửa"
+              >
+                <span>💾</span> Cập nhật lại kế hoạch
+              </button>
+            </div>
+          )}
+
           {/* Bảng đối chiếu 3 mốc thời gian Trước & Sau (Dành cho XML3) */}
           {(source === "XML3" || effectiveTab === "XML3") &&
             (record || customRow?.row?.NGAY_TH_YL) && (
@@ -787,16 +883,36 @@ export function DirectEditModal({
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-teal-800 mb-1">
-              Giá trị mới thay thế:
-            </label>
-            <input
-              type="text"
-              value={newValue}
-              onChange={(e) => setNewValue(e.target.value)}
-              placeholder="Nhập giá trị mới (vd: 202611021430, 025221009314...)"
-              className="w-full rounded-xl border-2 border-teal-500 bg-teal-50/20 px-3 py-2 text-sm font-semibold text-slate-900 focus:bg-white focus:outline-none"
-            />
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-bold text-teal-800">Giá trị mới thay thế:</label>
+              <button
+                type="button"
+                onClick={() => handleSave()}
+                disabled={!newValue.trim()}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-teal-700 hover:bg-teal-800 px-3 py-1 text-xs font-bold text-white shadow-xs transition disabled:opacity-50 cursor-pointer"
+                title="Lưu ngay giá trị này vào Kế hoạch sửa mà không cần cuộn xuống đáy modal"
+              >
+                <span>💾</span> Lưu vào kế hoạch sửa
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={newValue}
+                onChange={(e) => setNewValue(e.target.value)}
+                placeholder="Nhập giá trị mới (vd: 202611021430, 025221009314...)"
+                className="flex-1 rounded-xl border-2 border-teal-500 bg-teal-50/20 px-3 py-2 text-sm font-semibold text-slate-900 focus:bg-white focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => handleSave()}
+                disabled={!newValue.trim()}
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-teal-700 hover:bg-teal-800 px-4 py-2 text-xs font-bold text-white shadow-md transition disabled:opacity-50 cursor-pointer"
+                title="Lưu ngay giá trị này vào Kế hoạch sửa (không cần cuộn)"
+              >
+                <span>💾</span> Lưu vào kế hoạch
+              </button>
+            </div>
           </div>
 
           {/* Gợi ý thông minh */}

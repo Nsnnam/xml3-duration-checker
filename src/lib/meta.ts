@@ -3,12 +3,22 @@ export const APP_META = {
   title: "NsN_XMLcheck",
   description:
     "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, MA_MAY chuẩn XX.3[xxx].Z & trùng thời gian máy, cảnh báo Z00.0/Z30.1 (KHHGĐ) & Hồ sơ 15 bảng BHYT",
-  version: "2.11.2",
+  version: "2.11.3",
   date: "2026-11-06",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.11.3",
+      date: "2026-11-06",
+      changes: [
+        "Tạo thêm nút 'Lưu vào kế hoạch sửa' ngay cạnh tiêu đề và ô nhập Giá trị mới thay thế trong Modal Sửa trực tiếp: Tiết kiệm tối đa thao tác, người dùng lưu ngay sau khi nhập hoặc chọn gợi ý nhanh mà không cần cuộn chuột xuống đáy modal.",
+        "Đồng bộ hóa dữ liệu đã sửa hàng loạt trên toàn bộ hệ thống: Khi đã tích sửa hàng loạt, mở hồ sơ bệnh nhân lên (kể cả từ hồ sơ thứ 2 trở đi trong danh sách tích hoặc mở từ trang Tra cứu 15 bảng XML) sẽ tự động hiển thị đầy đủ thông tin đã sửa, bao gồm mốc giờ dự kiến sau sửa, thời lượng sau sửa, ô nhập hiển thị giá trị mới thay thế và banner xanh lá thông báo đã lập kế hoạch.",
+        "Hiển thị trực quan kết quả đã sửa trên bảng cảnh báo XML3 và trang xem 15 bảng XML: Gạch ngang thời gian cũ và hiển thị giờ mới kèm dấu tick ✓ màu xanh lá đậm; tính lại thời lượng mới và hiển thị badge 'Đạt chuẩn ✓'; dòng đã sửa đổi màu xanh ngọc nhẹ với viền trái xanh lá nổi bật.",
+        "Loại bỏ hoàn toàn icon bút chì bị nhân đôi trên nút 'Đã sửa': Chỉ hiển thị duy nhất ký hiệu '✓ Đã sửa' khi dòng đã được lập kế hoạch.",
+      ],
+    },
     {
       version: "2.11.2",
       date: "2026-11-06",

@@ -11,6 +11,7 @@ import {
 } from "./xml3-duration.ts";
 import { formatXmlDateTime, formatXmlDate } from "./timezone.ts";
 import type { CustomRowContext } from "./direct-edit-modal.tsx";
+import type { CorrectionItem } from "./correction-plan.ts";
 
 const COMMON_FIELD_LABELS: Record<string, string> = {
   STT: "Số thứ tự",
@@ -506,6 +507,7 @@ export function PatientDossierView({
   onSelectPatient,
   onBackToChecker,
   onOpenDirectEdit,
+  correctionPlan,
 }: {
   dossiers: PatientDossier[];
   selectedMaLk: string | null;
@@ -517,6 +519,7 @@ export function PatientDossierView({
     source: string;
     customRow?: CustomRowContext;
   }) => void;
+  correctionPlan?: CorrectionItem[];
 }) {
   const [patientSearch, setPatientSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "warnings" | "clean">("all");
@@ -592,6 +595,52 @@ export function PatientDossierView({
       return info.hasWarning ? count + 1 : count;
     }, 0);
   }, [currentTableData, activeTableKey, activeDossier]);
+
+  // Bản đồ các mục đã lập kế hoạch sửa cho bệnh nhân đang chọn theo bảng hiện tại
+  const dossierPlannedMap = useMemo(() => {
+    const map = new Map<string, Map<string, CorrectionItem>>();
+    if (!correctionPlan || !activeDossier) return map;
+    for (const item of correctionPlan) {
+      if (item.maLk === activeDossier.maLk && item.tab === activeTableKey) {
+        const rowKey = String(item.stt).trim();
+        if (!map.has(rowKey)) {
+          map.set(rowKey, new Map());
+        }
+        map.get(rowKey)!.set(item.field, item);
+      }
+    }
+    return map;
+  }, [correctionPlan, activeDossier, activeTableKey]);
+
+  // Lấy các mục đã sửa của một hàng cụ thể
+  const getRowPlannedItems = (
+    row: Record<string, string>,
+    originalIndex: number,
+  ): Map<string, CorrectionItem> | undefined => {
+    if (!correctionPlan || correctionPlan.length === 0 || !activeDossier) return undefined;
+    const sttKey = String(row.STT || originalIndex + 1).trim();
+    if (dossierPlannedMap.has(sttKey)) {
+      return dossierPlannedMap.get(sttKey);
+    }
+    const serviceCode = (row.MA_DICH_VU || row.MA_THUOC || row.MA_VAT_TU || "").trim();
+    if (serviceCode) {
+      const matchItems = correctionPlan.filter(
+        (x) =>
+          x.maLk === activeDossier.maLk &&
+          x.tab === activeTableKey &&
+          x.maDichVu &&
+          x.maDichVu.trim() === serviceCode,
+      );
+      if (matchItems.length > 0) {
+        const fieldMap = new Map<string, CorrectionItem>();
+        for (const item of matchItems) {
+          fieldMap.set(item.field, item);
+        }
+        return fieldMap;
+      }
+    }
+    return undefined;
+  };
 
   // Lọc dòng trong bảng dữ liệu (kết hợp tìm kiếm & chỉ hiện dòng cảnh báo)
   const filteredTableRows = useMemo(() => {
@@ -1544,37 +1593,94 @@ export function PatientDossierView({
                               {filteredTableRows.map((item) => {
                                 const { row, originalIndex, warningInfo } = item;
                                 const isWarn = warningInfo.hasWarning;
+                                const rowPlannedMap = getRowPlannedItems(row, originalIndex);
+                                const isPlanned = Boolean(rowPlannedMap && rowPlannedMap.size > 0);
 
                                 return (
                                   <tr
                                     key={originalIndex}
                                     onDoubleClick={() => setDetailRowIndex(originalIndex)}
                                     className={`transition cursor-pointer select-text ${
-                                      isWarn
-                                        ? "bg-rose-50/80 dark:bg-rose-950/45 text-rose-950 dark:text-rose-100 hover:bg-rose-100/90 dark:hover:bg-rose-900/60 font-medium border-l-4 border-l-rose-500"
-                                        : "hover:bg-teal-50/60 dark:hover:bg-slate-800/80"
+                                      isPlanned
+                                        ? "bg-emerald-50/80 dark:bg-emerald-950/45 text-slate-900 dark:text-emerald-100 hover:bg-emerald-100/90 dark:hover:bg-emerald-900/60 font-medium border-l-4 border-l-emerald-500"
+                                        : isWarn
+                                          ? "bg-rose-50/80 dark:bg-rose-950/45 text-rose-950 dark:text-rose-100 hover:bg-rose-100/90 dark:hover:bg-rose-900/60 font-medium border-l-4 border-l-rose-500"
+                                          : "hover:bg-teal-50/60 dark:hover:bg-slate-800/80"
                                     }`}
                                     title={
-                                      isWarn
-                                        ? `⚠️ CẢNH BÁO LỖI:\n${warningInfo.messages.join("\n")}\n\n💡 Click đúp để xem chi tiết / sửa trực tiếp`
-                                        : "💡 Click đúp để xem chi tiết toàn bộ các trường của dòng này"
+                                      isPlanned
+                                        ? `✓ ĐÃ LẬP KẾ HOẠCH SỬA (${rowPlannedMap?.size} mục):\n${Array.from(
+                                            rowPlannedMap?.values() || [],
+                                          )
+                                            .map(
+                                              (p) =>
+                                                `${p.field}: ${p.oldValue || "(trống)"} ➔ ${p.newValue}`,
+                                            )
+                                            .join(
+                                              "\n",
+                                            )}\n\n💡 Click đúp để xem chi tiết / chỉnh sửa thêm`
+                                        : isWarn
+                                          ? `⚠️ CẢNH BÁO LỖI:\n${warningInfo.messages.join("\n")}\n\n💡 Click đúp để xem chi tiết / sửa trực tiếp`
+                                          : "💡 Click đúp để xem chi tiết toàn bộ các trường của dòng này"
                                     }
                                   >
                                     <td
                                       className={`px-3 py-2 text-center font-mono text-[11px] sticky left-0 z-10 border-r ${
-                                        isWarn
-                                          ? "bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-200 font-bold border-rose-200 dark:border-rose-900 shadow-xs"
-                                          : "bg-white dark:bg-slate-950 text-slate-400 border-slate-100 dark:border-slate-800/60"
+                                        isPlanned
+                                          ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-200 font-bold border-emerald-200 dark:border-emerald-900 shadow-xs"
+                                          : isWarn
+                                            ? "bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-200 font-bold border-rose-200 dark:border-rose-900 shadow-xs"
+                                            : "bg-white dark:bg-slate-950 text-slate-400 border-slate-100 dark:border-slate-800/60"
                                       }`}
                                     >
                                       <div className="flex items-center justify-center gap-1">
-                                        {isWarn && <span className="text-xs">⚠️</span>}
+                                        {isPlanned ? (
+                                          <span className="text-xs text-emerald-700 dark:text-emerald-300 font-black">
+                                            ✓
+                                          </span>
+                                        ) : (
+                                          isWarn && <span className="text-xs">⚠️</span>
+                                        )}
                                         <span>{originalIndex + 1}</span>
                                       </div>
                                     </td>
                                     {onOpenDirectEdit && (
                                       <td className="px-2 py-1.5 text-center border-r border-slate-100 dark:border-slate-800/60 whitespace-nowrap">
-                                        {isWarn ? (
+                                        {isPlanned ? (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              onOpenDirectEdit({
+                                                record: warningInfo.xml3Record,
+                                                warning: warningInfo.warningObj,
+                                                source: activeTableKey,
+                                                customRow: {
+                                                  tab: activeTableKey,
+                                                  row,
+                                                  headers: currentTableData.headers,
+                                                  stt: row.STT || String(originalIndex + 1),
+                                                  maLk: activeDossier?.maLk || row.MA_LK || "",
+                                                  maBa:
+                                                    activeDossier?.patient?.MA_BN ||
+                                                    row.MA_BN ||
+                                                    "",
+                                                  hoTen:
+                                                    activeDossier?.patient?.HO_TEN ||
+                                                    row.HO_TEN ||
+                                                    "",
+                                                  ngayVao: activeDossier?.patient?.NGAY_VAO,
+                                                  ngayRa:
+                                                    row.NGAY_RA || activeDossier?.patient?.NGAY_RA,
+                                                },
+                                              });
+                                            }}
+                                            className="rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white px-2 py-0.5 text-[10px] font-bold shadow-xs transition"
+                                            title="Dòng này đã có trong kế hoạch sửa (bấm để xem lại hoặc sửa)"
+                                          >
+                                            ✓ Đã sửa
+                                          </button>
+                                        ) : isWarn ? (
                                           <button
                                             type="button"
                                             onClick={(e) => {
@@ -1647,19 +1753,41 @@ export function PatientDossierView({
                                         )}
                                       </td>
                                     )}
-                                    {currentTableData.headers.map((h) => (
-                                      <td
-                                        key={h}
-                                        className={`px-3 py-2 font-mono whitespace-nowrap border-r max-w-[280px] truncate ${
-                                          isWarn
-                                            ? "border-rose-100 dark:border-rose-900/50"
-                                            : "border-slate-100 dark:border-slate-800/60"
-                                        } last:border-r-0`}
-                                        title={row[h]}
-                                      >
-                                        {row[h] || "—"}
-                                      </td>
-                                    ))}
+                                    {currentTableData.headers.map((h) => {
+                                      const plannedCol = rowPlannedMap?.get(h);
+                                      return (
+                                        <td
+                                          key={h}
+                                          className={`px-3 py-2 font-mono whitespace-nowrap border-r max-w-[280px] truncate ${
+                                            plannedCol
+                                              ? "bg-emerald-50/60 dark:bg-emerald-950/30 text-emerald-950 dark:text-emerald-100 font-bold border-emerald-200 dark:border-emerald-900/60"
+                                              : isPlanned
+                                                ? "border-emerald-100 dark:border-emerald-900/40"
+                                                : isWarn
+                                                  ? "border-rose-100 dark:border-rose-900/50"
+                                                  : "border-slate-100 dark:border-slate-800/60"
+                                          } last:border-r-0`}
+                                          title={
+                                            plannedCol
+                                              ? `Giá trị cũ: ${row[h] || "(trống)"} ➔ Đã sửa thành: ${plannedCol.newValue} (${plannedCol.lyDo})`
+                                              : row[h]
+                                          }
+                                        >
+                                          {plannedCol ? (
+                                            <div className="flex items-center gap-1.5">
+                                              <span className="line-through text-slate-400 text-[10px] font-normal">
+                                                {row[h] || "—"}
+                                              </span>
+                                              <span className="font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-100/90 dark:bg-emerald-900/70 px-1.5 py-0.5 rounded text-[11px]">
+                                                ✓ {plannedCol.newValue}
+                                              </span>
+                                            </div>
+                                          ) : (
+                                            row[h] || "—"
+                                          )}
+                                        </td>
+                                      );
+                                    })}
                                   </tr>
                                 );
                               })}

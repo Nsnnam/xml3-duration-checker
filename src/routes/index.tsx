@@ -25,6 +25,7 @@ import {
   getValidationWarningCategory,
   WARNING_CATEGORY_CONFIG,
   loadWarningColors,
+  parseXmlDateTime,
   type BatchAnalysis,
   type Xml3Record,
   type ServiceRule,
@@ -33,6 +34,14 @@ import {
   type ValidationWarning,
   type WarningCategory,
 } from "../lib/xml3-duration.ts";
+
+function calcDiffMinutes(startRaw?: string, endRaw?: string): number | null {
+  if (!startRaw || !endRaw) return null;
+  const start = parseXmlDateTime(startRaw);
+  const end = parseXmlDateTime(endRaw);
+  if (!start || !end) return null;
+  return Math.round((end.getTime() - start.getTime()) / 60000);
+}
 import { WarningColorModal } from "../lib/warning-color-modal.tsx";
 import {
   loadTelegramConfig,
@@ -1133,6 +1142,7 @@ export function HomePage() {
             onSelectPatient={setSelectedDossierMaLk}
             onBackToChecker={() => setView("checker")}
             onOpenDirectEdit={(target) => setDirectEditTarget(target)}
+            correctionPlan={correctionPlan}
           />
         )}
 
@@ -1321,6 +1331,7 @@ export function HomePage() {
           warning={directEditTarget.warning}
           source={directEditTarget.source}
           customRow={directEditTarget.customRow}
+          correctionPlan={correctionPlan}
           onSaveCorrection={handleSaveCorrectionItem}
         />
       )}
@@ -2796,6 +2807,7 @@ function CheckerView({
                               isPlanned={plannedSet.has(`${record.MA_LK}_XML3_${record.STT}`)}
                               isSelected={selectedXml3Keys.has(recordKey)}
                               onToggleSelect={() => handleToggleSelectXml3Row(recordKey)}
+                              correctionPlan={correctionPlan}
                             />
                           );
                         })}
@@ -2902,7 +2914,7 @@ function ResizableTh({
       onClick={() => {
         if (onSort) onSort();
       }}
-      className={`group/th relative px-3 py-2.5 font-bold border-r border-slate-200 last:border-r-0 select-none transition-colors ${
+      className={`group/th relative px-3 py-2.5 font-bold border-r border-slate-200 bg-slate-100 last:border-r-0 select-none transition-colors ${
         onSort ? "cursor-pointer hover:bg-slate-200/80" : ""
       } ${sortDir ? "bg-teal-50/90 text-teal-900 border-b-2 border-b-teal-600" : ""} ${
         isCompact ? "bg-amber-50/70 text-amber-900" : isWide ? "bg-teal-50/70 text-teal-900" : ""
@@ -2951,9 +2963,10 @@ function WarningRow({
   onOpenDossier,
   warningColors,
   onOpenDirectEdit,
-  isPlanned = false,
+  isPlanned: isPlannedProp = false,
   isSelected = false,
   onToggleSelect,
+  correctionPlan,
 }: {
   record: Xml3Record;
   tabCols: TabColumnState;
@@ -2973,10 +2986,33 @@ function WarningRow({
   isPlanned?: boolean;
   isSelected?: boolean;
   onToggleSelect?: () => void;
+  correctionPlan?: CorrectionItem[];
 }) {
   const cat = getXml3RecordCategory(record);
   const catMeta = WARNING_CATEGORY_CONFIG[cat];
   const customColor = warningColors?.[cat] || catMeta.defaultColor;
+
+  // Lấy các mục đã lập kế hoạch sửa cho dòng này
+  const plannedItems = useMemo(() => {
+    if (!correctionPlan || correctionPlan.length === 0) return [];
+    return correctionPlan.filter((x) => {
+      const matchMaLk = x.maLk === record.MA_LK;
+      const matchTab = x.tab === "XML3";
+      const matchStt = String(x.stt).trim() === String(record.STT).trim();
+      const matchService = Boolean(
+        x.maDichVu && record.MA_DICH_VU && x.maDichVu.trim() === record.MA_DICH_VU.trim(),
+      );
+      return matchMaLk && matchTab && (matchStt || matchService);
+    });
+  }, [correctionPlan, record]);
+
+  const plannedKq = plannedItems.find((x) => x.field === "NGAY_KQ");
+  const plannedTh = plannedItems.find((x) => x.field === "NGAY_TH_YL");
+  const isPlanned = plannedItems.length > 0 || isPlannedProp;
+
+  const effectiveTh = plannedTh ? plannedTh.newValue : record.NGAY_TH_YL;
+  const effectiveKq = plannedKq ? plannedKq.newValue : record.NGAY_KQ;
+  const newDuration = calcDiffMinutes(effectiveTh, effectiveKq);
 
   const isWarning =
     record.status === "warning" ||
@@ -3006,7 +3042,7 @@ function WarningRow({
         isSelected
           ? "bg-teal-50 hover:bg-teal-100/80"
           : isPlanned
-            ? "bg-emerald-50/70 hover:bg-emerald-100/80 border-l-4 border-l-emerald-500 shadow-2xs"
+            ? "bg-emerald-50/80 hover:bg-emerald-100/80 border-l-4 border-l-emerald-500 font-medium shadow-2xs"
             : isWarning
               ? "bg-rose-50/60 hover:bg-rose-100/60"
               : "hover:bg-slate-50/80"
@@ -3071,7 +3107,15 @@ function WarningRow({
                   : "Mở hộp thoại sửa trực tiếp dòng XML3 này"
               }
             >
-              <span>{isPlanned ? "✓" : "✏️"}</span> {isPlanned ? "Đã sửa" : "Sửa"}
+              {isPlanned ? (
+                <span className="flex items-center gap-1 text-emerald-800 font-bold">
+                  <span className="font-black text-emerald-700">✓</span> Đã sửa
+                </span>
+              ) : (
+                <span className="flex items-center gap-1">
+                  <span>✏️</span> Sửa
+                </span>
+              )}
             </button>
           )}
         </td>
@@ -3133,7 +3177,20 @@ function WarningRow({
           style={colWidth("duration", 75)}
           className="px-3 py-2.5 text-right font-black text-slate-800"
         >
-          {record.durationMinutes === null ? "—" : record.durationMinutes.toLocaleString("vi-VN")}
+          {isPlanned && newDuration !== null ? (
+            <div className="flex flex-col items-end">
+              <span className="line-through text-slate-400 text-[10px] font-normal">
+                {record.durationMinutes !== null ? `${record.durationMinutes}p` : "—"}
+              </span>
+              <span className="font-bold text-emerald-800 bg-emerald-100/90 px-1 py-0.5 rounded text-xs">
+                {newDuration} ph ✓
+              </span>
+            </div>
+          ) : record.durationMinutes === null ? (
+            "—"
+          ) : (
+            record.durationMinutes.toLocaleString("vi-VN")
+          )}
         </td>
       )}
       {isVisible("overLimit") && (
@@ -3141,9 +3198,26 @@ function WarningRow({
           style={colWidth("overLimit", 90)}
           className="px-3 py-2.5 text-right font-bold text-rose-700"
         >
-          {record.status === "warning" && record.durationMinutes !== null
-            ? `${(record.durationMinutes - (record.serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES)).toLocaleString("vi-VN")} ph`
-            : "—"}
+          {isPlanned && newDuration !== null
+            ? (() => {
+                const maxM = record.serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES;
+                if (newDuration > 0 && newDuration <= maxM) {
+                  return (
+                    <span className="inline-flex items-center gap-0.5 font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded text-[10px]">
+                      <span>✓</span> Đạt chuẩn
+                    </span>
+                  );
+                }
+                const diff = newDuration - maxM;
+                return (
+                  <span className="text-rose-600 font-bold text-[11px]">
+                    +{diff > 0 ? diff : 0} ph
+                  </span>
+                );
+              })()
+            : record.status === "warning" && record.durationMinutes !== null
+              ? `${(record.durationMinutes - (record.serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES)).toLocaleString("vi-VN")} ph`
+              : "—"}
         </td>
       )}
       {isVisible("detail") && (
@@ -3193,15 +3267,23 @@ function WarningRow({
               {onOpenDirectEdit && (
                 <button
                   type="button"
-                  className={`rounded border px-1.5 py-0.5 text-[9px] font-bold ${
+                  className={`rounded border px-1.5 py-0.5 text-[9px] font-bold transition ${
                     isPlanned
-                      ? "border-emerald-400 bg-emerald-100 text-emerald-900 hover:bg-emerald-200"
+                      ? "border-emerald-400 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
                       : "border-teal-300 bg-teal-50 text-teal-800 hover:bg-teal-100"
                   }`}
                   onClick={() => onOpenDirectEdit({ record, source: "XML3" })}
                   title="Sửa trực tiếp các trường NGAY_KQ, NGAY_TH_YL, MA_MAY..."
                 >
-                  <span>{isPlanned ? "✓" : "✏️"}</span> {isPlanned ? "Đã sửa" : "Sửa dòng"}
+                  {isPlanned ? (
+                    <span className="flex items-center gap-1 text-emerald-700 font-bold">
+                      <span className="font-black">✓</span> Đã sửa
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1">
+                      <span>✏️</span> Sửa dòng
+                    </span>
+                  )}
                 </button>
               )}
             </div>
@@ -3272,7 +3354,18 @@ function WarningRow({
           style={colWidth("ngayThYl", 130)}
           className="whitespace-nowrap px-3 py-2.5 font-mono text-[11px]"
         >
-          {formatXmlDateTime(record.NGAY_TH_YL) || record.NGAY_TH_YL || "—"}
+          {plannedTh ? (
+            <div className="flex flex-col">
+              <span className="line-through text-slate-400 text-[10px]">
+                {formatXmlDateTime(record.NGAY_TH_YL) || record.NGAY_TH_YL || "—"}
+              </span>
+              <span className="font-bold text-emerald-700 text-[11px]">
+                ✓ {formatXmlDateTime(plannedTh.newValue) || plannedTh.newValue}
+              </span>
+            </div>
+          ) : (
+            formatXmlDateTime(record.NGAY_TH_YL) || record.NGAY_TH_YL || "—"
+          )}
         </td>
       )}
       {isVisible("ngayKq") && (
@@ -3280,7 +3373,18 @@ function WarningRow({
           style={colWidth("ngayKq", 130)}
           className="whitespace-nowrap px-3 py-2.5 font-mono text-[11px]"
         >
-          {formatXmlDateTime(record.NGAY_KQ) || record.NGAY_KQ || "—"}
+          {plannedKq ? (
+            <div className="flex flex-col">
+              <span className="line-through text-slate-400 text-[10px]">
+                {formatXmlDateTime(record.NGAY_KQ) || record.NGAY_KQ || "—"}
+              </span>
+              <span className="font-bold text-emerald-700 text-[11px]">
+                ✓ {formatXmlDateTime(plannedKq.newValue) || plannedKq.newValue}
+              </span>
+            </div>
+          ) : (
+            formatXmlDateTime(record.NGAY_KQ) || record.NGAY_KQ || "—"
+          )}
         </td>
       )}
       {isVisible("fileName") && (
