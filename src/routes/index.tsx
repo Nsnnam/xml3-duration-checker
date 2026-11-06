@@ -1639,6 +1639,108 @@ function CheckerView({
     }
   };
 
+  const handleBatchApplyRuleDuration = (safeMargin = 0) => {
+    if (selectedXml3Keys.size === 0) return;
+    const targetRecords = displayRecords.filter((r) =>
+      selectedXml3Keys.has(`${r.fileName}-${r.MA_LK}-${r.STT}`),
+    );
+    const newItems: CorrectionItem[] = [];
+
+    for (const r of targetRecords) {
+      if (!r.NGAY_TH_YL) continue;
+      // Áp dụng theo cấu hình quy tắc của từng dịch vụ (serviceRule)
+      // Nếu có quy tắc riêng thì lấy maxMinutes, nếu chưa cấu hình thì lấy 30p làm chuẩn an toàn
+      const maxMinutes = r.serviceRule?.maxMinutes ?? 70;
+      const targetMins = Math.max(1, maxMinutes - safeMargin);
+      const newKq = addMinutesToXmlDateTime(r.NGAY_TH_YL, targetMins);
+
+      const dossier = analysis?.dossiers?.find((d) => d.maLk === r.MA_LK);
+      const ngayVao = dossier?.patient?.NGAY_VAO || r.NGAY_YL || "";
+      const ngayRa = dossier?.patient?.NGAY_RA || r.NGAY_KQ || "";
+      const tuNgay = toHisDateString(ngayVao) || toHisDateString(r.NGAY_YL);
+      const denNgay = toHisDateString(ngayRa) || toHisDateString(r.NGAY_KQ);
+
+      newItems.push({
+        id: `plan_xml3_rule_${r.MA_LK}_${r.STT}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        maLk: r.MA_LK,
+        maBa: r.MA_BN || dossier?.patient?.MA_BN || "",
+        hoTen: r.HO_TEN || dossier?.patient?.HO_TEN || "",
+        ngayVao,
+        ngayRa,
+        tuNgay,
+        denNgay,
+        tab: "XML3",
+        stt: r.STT,
+        maDichVu: r.MA_DICH_VU,
+        tenDichVu: r.TEN_DICH_VU,
+        field: "NGAY_KQ",
+        oldValue: r.NGAY_KQ,
+        newValue: newKq,
+        lyDo:
+          safeMargin > 0
+            ? `Áp dụng theo cấu hình quy tắc dịch vụ: dưới ngưỡng ${safeMargin}p (${targetMins} phút / max: ${maxMinutes}p)`
+            : `Áp dụng theo ngưỡng cấu hình quy tắc dịch vụ (${targetMins} phút)`,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    if (newItems.length > 0) {
+      onSaveCorrectionItems(
+        newItems,
+        `✓ Đã áp dụng cấu hình quy tắc cho ${newItems.length} dịch vụ XML3!`,
+      );
+      setSelectedXml3Keys(new Set());
+    }
+  };
+
+  const handleBatchRewindThYl = (offsetMins = 10) => {
+    if (selectedXml3Keys.size === 0) return;
+    const targetRecords = displayRecords.filter((r) =>
+      selectedXml3Keys.has(`${r.fileName}-${r.MA_LK}-${r.STT}`),
+    );
+    const newItems: CorrectionItem[] = [];
+
+    for (const r of targetRecords) {
+      const base = r.NGAY_KQ || r.NGAY_TH_YL;
+      if (!base) continue;
+      const newThYl = addMinutesToXmlDateTime(base, -offsetMins);
+
+      const dossier = analysis?.dossiers?.find((d) => d.maLk === r.MA_LK);
+      const ngayVao = dossier?.patient?.NGAY_VAO || r.NGAY_YL || "";
+      const ngayRa = dossier?.patient?.NGAY_RA || r.NGAY_KQ || "";
+      const tuNgay = toHisDateString(ngayVao) || toHisDateString(r.NGAY_YL);
+      const denNgay = toHisDateString(ngayRa) || toHisDateString(r.NGAY_KQ);
+
+      newItems.push({
+        id: `plan_xml3_th_${r.MA_LK}_${r.STT}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        maLk: r.MA_LK,
+        maBa: r.MA_BN || dossier?.patient?.MA_BN || "",
+        hoTen: r.HO_TEN || dossier?.patient?.HO_TEN || "",
+        ngayVao,
+        ngayRa,
+        tuNgay,
+        denNgay,
+        tab: "XML3",
+        stt: r.STT,
+        maDichVu: r.MA_DICH_VU,
+        tenDichVu: r.TEN_DICH_VU,
+        field: "NGAY_TH_YL",
+        oldValue: r.NGAY_TH_YL,
+        newValue: newThYl,
+        lyDo: `Trừ lùi giờ thực hiện y lệnh ${offsetMins} phút so với giờ trả kết quả để tránh trùng giờ (0 phút)`,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    if (newItems.length > 0) {
+      onSaveCorrectionItems(
+        newItems,
+        `✓ Đã trừ lùi giờ thực hiện cho ${newItems.length} dịch vụ (-${offsetMins} phút)!`,
+      );
+      setSelectedXml3Keys(new Set());
+    }
+  };
+
   const handleBatchSyncExamTime = () => {
     if (selectedXml3Keys.size === 0) return;
     const targetRecords = displayRecords.filter((r) =>
@@ -2444,9 +2546,9 @@ function CheckerView({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {/* Thanh công cụ Thao tác hàng loạt (Bulk Action Toolbar) cho XML3 */}
+                  {/* Thanh công cụ Thao tác hàng loạt (Bulk Action Toolbar) cho XML3 - Đóng băng ở đỉnh khi cuộn */}
                   {selectedXml3Keys.size > 0 && (
-                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-teal-500 bg-teal-50/95 p-3 shadow-md animate-in fade-in duration-150">
+                    <div className="sticky top-0 z-30 mb-2 flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-teal-500 bg-teal-50/98 p-3 shadow-md backdrop-blur-xs animate-in fade-in duration-150">
                       <div className="flex items-center gap-2.5">
                         <span className="flex h-7 w-7 items-center justify-center rounded-full bg-teal-700 text-white text-xs font-black shadow-xs">
                           ✓
@@ -2471,7 +2573,7 @@ function CheckerView({
                           <span className="text-[11px] font-bold text-slate-700">
                             ⏱️ Giảm thời lượng:
                           </span>
-                          {[10, 15, 20, 30, 45, 60].map((mins) => (
+                          {[8, 10, 15, 20, 30, 45, 60].map((mins) => (
                             <button
                               key={mins}
                               type="button"
@@ -2479,11 +2581,17 @@ function CheckerView({
                               className={`rounded-lg px-2 py-1 text-[11px] font-bold transition shadow-xs ${
                                 batchDurationMins === mins
                                   ? "bg-teal-700 text-white"
-                                  : "bg-teal-50 text-teal-800 hover:bg-teal-100 border border-teal-200"
+                                  : mins <= 10
+                                    ? "bg-emerald-50 text-emerald-900 hover:bg-emerald-100 border border-emerald-300"
+                                    : "bg-teal-50 text-teal-800 hover:bg-teal-100 border border-teal-200"
                               }`}
-                              title={`Rút ngắn thời lượng xuống ${mins} phút (NGAY_KQ = NGAY_TH_YL + ${mins}p)`}
+                              title={
+                                mins <= 10
+                                  ? `Rút ngắn theo chuẩn nhanh/điện tim ${mins} phút (NGAY_KQ = NGAY_TH_YL + ${mins}p)`
+                                  : `Rút ngắn thời lượng xuống ${mins} phút (NGAY_KQ = NGAY_TH_YL + ${mins}p)`
+                              }
                             >
-                              {mins}p
+                              {mins <= 10 ? `⭐ ${mins}p` : `${mins}p`}
                             </button>
                           ))}
                           <div className="flex items-center gap-1 border-l border-slate-200 pl-1.5">
@@ -2508,6 +2616,26 @@ function CheckerView({
                             </button>
                           </div>
                         </div>
+
+                        {/* Nút áp dụng cấu hình quy tắc từng dịch vụ */}
+                        <button
+                          type="button"
+                          onClick={() => handleBatchApplyRuleDuration(0)}
+                          className="rounded-xl border border-emerald-400 bg-emerald-50 px-3 py-1.5 text-[11px] font-bold text-emerald-950 hover:bg-emerald-100 shadow-xs flex items-center gap-1"
+                          title="Tự động áp dụng theo ngưỡng tối đa (maxMinutes) trong cấu hình quy tắc của từng dịch vụ đang chọn"
+                        >
+                          <span>🎯</span> Theo cấu hình quy tắc từng DV
+                        </button>
+
+                        {/* Nút lùi giờ thực hiện cho ca trùng giờ */}
+                        <button
+                          type="button"
+                          onClick={() => handleBatchRewindThYl(10)}
+                          className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-[11px] font-bold text-amber-950 hover:bg-amber-100 shadow-xs flex items-center gap-1"
+                          title="Trừ lùi giờ thực hiện (NGAY_TH_YL) 10 phút so với giờ kết quả để xử lý các ca trùng giờ (0 phút)"
+                        >
+                          <span>⏱️</span> Trừ lùi giờ TH (-10p)
+                        </button>
 
                         {/* Nút đồng bộ công khám */}
                         <button
@@ -2541,9 +2669,10 @@ function CheckerView({
                     </div>
                   )}
 
-                  <div className="overflow-x-auto">
+                  {/* Bảng dữ liệu XML3 với thanh tiêu đề đóng băng (freeze header) khi cuộn */}
+                  <div className="relative overflow-x-auto overflow-y-auto max-h-[calc(100vh-250px)] min-h-[380px] rounded-2xl border border-slate-200/90 bg-white shadow-xs">
                     <table className="w-full text-left text-xs border-collapse">
-                      <thead className="bg-slate-100/95 text-[11px] uppercase tracking-wide text-slate-600 sticky top-0 z-10 select-none shadow-xs">
+                      <thead className="bg-slate-100 text-[11px] uppercase tracking-wide text-slate-700 sticky top-0 z-20 select-none shadow-xs border-b border-slate-200">
                         <tr>
                           {/* Cột Checkbox chọn tất cả */}
                           <th className="w-10 min-w-[40px] px-2 py-2 text-center border-r border-slate-200 bg-slate-100">
@@ -2876,9 +3005,11 @@ function WarningRow({
       className={`border-t border-slate-200/70 align-top transition-colors ${
         isSelected
           ? "bg-teal-50 hover:bg-teal-100/80"
-          : isWarning
-            ? "bg-rose-50/60 hover:bg-rose-100/60"
-            : "hover:bg-slate-50/80"
+          : isPlanned
+            ? "bg-emerald-50/70 hover:bg-emerald-100/80 border-l-4 border-l-emerald-500 shadow-2xs"
+            : isWarning
+              ? "bg-rose-50/60 hover:bg-rose-100/60"
+              : "hover:bg-slate-50/80"
       }`}
     >
       {/* Ô checkbox chọn dòng */}
@@ -2931,7 +3062,7 @@ function WarningRow({
               onClick={() => onOpenDirectEdit({ record, source: "XML3" })}
               className={`mt-1 inline-flex items-center justify-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-bold transition shadow-xs w-full ${
                 isPlanned
-                  ? "border-emerald-600 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                  ? "border-emerald-600 bg-emerald-100 text-emerald-900 hover:bg-emerald-200"
                   : "border-teal-600 bg-teal-50 text-teal-800 hover:bg-teal-100"
               }`}
               title={
@@ -2940,7 +3071,7 @@ function WarningRow({
                   : "Mở hộp thoại sửa trực tiếp dòng XML3 này"
               }
             >
-              <span>✏️</span> {isPlanned ? "Đã sửa ✏️" : "Sửa"}
+              <span>{isPlanned ? "✓" : "✏️"}</span> {isPlanned ? "Đã sửa" : "Sửa"}
             </button>
           )}
         </td>
@@ -3064,13 +3195,13 @@ function WarningRow({
                   type="button"
                   className={`rounded border px-1.5 py-0.5 text-[9px] font-bold ${
                     isPlanned
-                      ? "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                      ? "border-emerald-400 bg-emerald-100 text-emerald-900 hover:bg-emerald-200"
                       : "border-teal-300 bg-teal-50 text-teal-800 hover:bg-teal-100"
                   }`}
                   onClick={() => onOpenDirectEdit({ record, source: "XML3" })}
                   title="Sửa trực tiếp các trường NGAY_KQ, NGAY_TH_YL, MA_MAY..."
                 >
-                  ✏️ {isPlanned ? "Đã sửa ✏️" : "Sửa dòng"}
+                  <span>{isPlanned ? "✓" : "✏️"}</span> {isPlanned ? "Đã sửa" : "Sửa dòng"}
                 </button>
               )}
             </div>
@@ -3474,9 +3605,9 @@ function ValidationTable({
         </div>
       ) : (
         <div className="p-3 space-y-3">
-          {/* Thanh thao tác hàng loạt cho XML4 */}
+          {/* Thanh thao tác hàng loạt cho XML4 - Đóng băng đầu trang */}
           {source === "XML4" && selectedWarningIds.size > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-indigo-500 bg-indigo-50/95 p-3 shadow-md animate-in fade-in duration-150">
+            <div className="sticky top-0 z-30 mb-2 flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-indigo-500 bg-indigo-50/95 p-3 shadow-md backdrop-blur-xs animate-in fade-in duration-150">
               <div className="flex items-center gap-2.5">
                 <span className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-700 text-white text-xs font-black shadow-xs">
                   ✓
@@ -3527,9 +3658,10 @@ function ValidationTable({
             </div>
           )}
 
-          <div className="overflow-x-auto">
+          {/* Bảng dữ liệu cảnh báo với thanh tiêu đề đóng băng (freeze header) khi cuộn */}
+          <div className="relative overflow-x-auto overflow-y-auto max-h-[calc(100vh-250px)] min-h-[380px] rounded-2xl border border-slate-200/90 bg-white shadow-xs">
             <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-slate-100 text-[11px] uppercase tracking-wide text-slate-600 select-none sticky top-0 z-10 shadow-xs">
+              <thead className="bg-slate-100 text-[11px] uppercase tracking-wide text-slate-700 select-none sticky top-0 z-20 shadow-xs border-b border-slate-200">
                 <tr>
                   {/* Cột Checkbox chọn tất cả */}
                   <th className="w-10 min-w-[40px] px-2 py-2 text-center border-r border-slate-200 bg-slate-100">
@@ -3626,7 +3758,9 @@ function ValidationTable({
                       className={`border-t border-slate-100 align-top transition-colors ${
                         isSelected
                           ? "bg-indigo-50 hover:bg-indigo-100/80"
-                          : "bg-rose-50/60 hover:bg-rose-100/60"
+                          : isPlanned
+                            ? "bg-emerald-50/70 hover:bg-emerald-100/80 border-l-4 border-l-emerald-500 shadow-2xs"
+                            : "bg-rose-50/60 hover:bg-rose-100/60"
                       }`}
                     >
                       {/* Checkbox chọn cảnh báo */}
@@ -3668,7 +3802,7 @@ function ValidationTable({
                                 onClick={() => onOpenDirectEdit({ warning, source })}
                                 className={`inline-flex items-center justify-center gap-1 rounded-md border px-2 py-1 text-[11px] font-bold transition shadow-xs whitespace-nowrap ${
                                   isPlanned
-                                    ? "border-emerald-600 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                                    ? "border-emerald-600 bg-emerald-100 text-emerald-900 hover:bg-emerald-200"
                                     : "border-teal-600 bg-teal-50 text-teal-800 hover:bg-teal-100"
                                 }`}
                                 title={
@@ -3677,7 +3811,7 @@ function ValidationTable({
                                     : "Mở hộp thoại sửa trực tiếp thông tin lỗi này"
                                 }
                               >
-                                <span>✏️</span> {isPlanned ? "Đã sửa ✏️" : "Sửa"}
+                                <span>{isPlanned ? "✓" : "✏️"}</span> {isPlanned ? "Đã sửa" : "Sửa"}
                               </button>
                             )}
                             {source === "XML2" && warning.MA_DICH_VU && (

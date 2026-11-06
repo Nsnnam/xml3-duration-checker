@@ -3,12 +3,22 @@ export const APP_META = {
   title: "NsN_XMLcheck",
   description:
     "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, MA_MAY chuẩn XX.3[xxx].Z & trùng thời gian máy, cảnh báo Z00.0/Z30.1 (KHHGĐ) & Hồ sơ 15 bảng BHYT",
-  version: "2.11.1",
+  version: "2.11.2",
   date: "2026-11-06",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.11.2",
+      date: "2026-11-06",
+      changes: [
+        "Đổi màu sắc trực quan nổi bật cho dòng đã sửa xong: Dòng đã được thêm vào Kế hoạch sửa (isPlanned) tự động chuyển sang màu nền xanh ngọc nhẹ (emerald-50) kèm viền trái màu xanh lá đậm (border-l-4 border-l-emerald-500), phân biệt rõ ràng và trực quan hoàn toàn với các dòng lỗi màu hồng (rose-50).",
+        "Chuẩn hóa nút trạng thái 'Đã sửa': Loại bỏ triệt để icon bút chì thứ 2 bị nhân đôi thừa, chuyển sang định dạng chuyên nghiệp '✓ Đã sửa' (hoặc '✏️ Sửa' khi chưa lập kế hoạch).",
+        "Nâng cấp thanh công cụ Hiệu chỉnh đồng thời (Bulk Action Toolbar): Bổ sung mốc rút ngắn nhanh '8p' (bên cạnh 10p, 15p, 20p, 30p, 45p, 60p), bổ sung nút thông minh '🎯 Theo cấu hình quy tắc từng DV' tự động áp dụng ngưỡng tối đa maxMinutes theo đúng cấu hình Thư viện dịch vụ của từng dòng, và bổ sung nút '⏱️ Trừ lùi giờ TH (-10p)' chuyên xử lý hàng loạt các ca trùng giờ (0 phút).",
+        "Đóng băng đầu trang (Freeze Pane / Sticky Header): Cố định thanh thao tác hàng loạt (Bulk Action Toolbar) và toàn bộ hàng tiêu đề cột (kèm dòng lọc tìm kiếm) trên cùng khi cuộn dọc bảng danh sách, áp dụng đồng bộ cho cả bảng XML3 và các bảng cảnh báo XML1, XML2, XML4, XML5, XML7.",
+      ],
+    },
     {
       version: "2.11.1",
       date: "2026-11-06",
