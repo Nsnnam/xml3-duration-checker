@@ -3,12 +3,21 @@ export const APP_META = {
   title: "NsN_XMLcheck",
   description:
     "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, MA_MAY chuẩn XX.3[xxx].Z & trùng thời gian máy, cảnh báo Z00.0/Z30.1 (KHHGĐ) & Hồ sơ 15 bảng BHYT",
-  version: "2.11.0",
-  date: "2026-11-05",
+  version: "2.11.1",
+  date: "2026-11-06",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.11.1",
+      date: "2026-11-06",
+      changes: [
+        "Khắc phục triệt để lỗi lệch múi giờ (UTC+7) trong hàm tính toán thời gian addMinutesToXmlDateTime: Sử dụng phương thức UTC chuẩn hóa (getUTCFullYear, getUTCHours, getUTCMinutes), loại bỏ hoàn toàn hiện tượng bị cộng dư 7 giờ (420 phút) trên máy tính người dùng Việt Nam.",
+        "Chuẩn hóa nghiệp vụ gợi ý cộng giờ cho ca vượt thời lượng: Căn cứ chính xác vào mốc thời gian thực hiện y lệnh (NGAY_TH_YL) để cộng thêm phút ra giờ trả kết quả (NGAY_KQ), ví dụ NGAY_TH_YL 12:07 ➔ NGAY_KQ thành 12:17 (+10p điện tim) hoặc 12:15 (+8p chuẩn).",
+        "Bổ sung nút gợi ý '⭐ Chuẩn (+8p)' bên cạnh nút '⭐ Điện tim (+10p)' trong modal Sửa trực tiếp và tự động điền giá trị chuẩn xác ngay khi mở modal.",
+      ],
+    },
     {
       version: "2.11.0",
       date: "2026-11-05",

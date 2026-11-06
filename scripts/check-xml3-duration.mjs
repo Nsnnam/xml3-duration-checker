@@ -41,8 +41,15 @@ import {
   createLibraryBackupContent,
   createFullConfigBackupContent,
 } from "../src/lib/backup.ts";
+import { addMinutesToXmlDateTime } from "../src/lib/correction-plan.ts";
 
 // 1. Kiểm tra tính phút và thứ tự thời gian
+assert.equal(addMinutesToXmlDateTime("202611041207", 10), "202611041217");
+assert.equal(addMinutesToXmlDateTime("202611041207", 8), "202611041215");
+assert.equal(addMinutesToXmlDateTime("202611041356", -10), "202611041346");
+assert.equal(addMinutesToXmlDateTime("202611041356", -8), "202611041348");
+assert.equal(addMinutesToXmlDateTime("202611042355", 10), "202611050005");
+assert.equal(addMinutesToXmlDateTime("20261104120730", 10), "20261104121730");
 assert.equal(minutesBetween("202608280800", "202608280910"), 70);
 assert.equal(minutesBetween("202608280800", "202608280911"), 71);
 assert.equal(minutesBetween("202608282350", "202608290020"), 30);

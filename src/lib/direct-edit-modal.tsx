@@ -883,6 +883,17 @@ export function DirectEditModal({
                   <div className="flex flex-wrap gap-1.5">
                     <button
                       type="button"
+                      onClick={() => applySuggestAddDurationFromThYl(8, "⭐ Chuẩn nhanh")}
+                      className="rounded-lg border border-emerald-500 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-900 hover:bg-emerald-100 shadow-xs transition"
+                      title="Đặt NGAY_KQ = NGAY_TH_YL + 8 phút (chuẩn thời lượng nhanh)"
+                    >
+                      ⭐ Chuẩn (+8p{" "}
+                      {record.NGAY_TH_YL &&
+                        `➔ ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_TH_YL, 8))}`}
+                      )
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => applySuggestAddDurationFromThYl(10, "⭐ Điện tim / CLS nhanh")}
                       className="rounded-lg border border-emerald-500 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-900 hover:bg-emerald-100 shadow-xs transition"
                       title="Đặt NGAY_KQ = NGAY_TH_YL + 10 phút (chuẩn điện tim/xét nghiệm nhanh)"

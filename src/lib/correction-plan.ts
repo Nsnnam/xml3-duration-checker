@@ -62,17 +62,23 @@ export function toHisDateString(val?: string): string {
 }
 
 /**
- * Cộng thêm phút vào chuỗi yyyyMMddHHmm
+ * Cộng thêm hoặc trừ lùi số phút vào chuỗi yyyyMMddHHmm (hoặc yyyyMMddHHmmss)
+ * Tuyệt đối dùng getUTC* để không bị lệch múi giờ cục bộ (GMT+7)
  */
 export function addMinutesToXmlDateTime(dtStr: string, minutes: number): string {
-  const d = parseXmlDateTime(dtStr);
-  if (!d) return dtStr;
+  const trimmed = dtStr.trim();
+  const d = parseXmlDateTime(trimmed);
+  if (!d) return trimmed;
   const newDate = new Date(d.getTime() + minutes * 60000);
-  const y = newDate.getFullYear();
-  const m = String(newDate.getMonth() + 1).padStart(2, "0");
-  const day = String(newDate.getDate()).padStart(2, "0");
-  const h = String(newDate.getHours()).padStart(2, "0");
-  const min = String(newDate.getMinutes()).padStart(2, "0");
+  const y = newDate.getUTCFullYear();
+  const m = String(newDate.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(newDate.getUTCDate()).padStart(2, "0");
+  const h = String(newDate.getUTCHours()).padStart(2, "0");
+  const min = String(newDate.getUTCMinutes()).padStart(2, "0");
+  if (trimmed.length >= 14) {
+    const sec = String(newDate.getUTCSeconds()).padStart(2, "0");
+    return `${y}${m}${day}${h}${min}${sec}`;
+  }
   return `${y}${m}${day}${h}${min}`;
 }
 
