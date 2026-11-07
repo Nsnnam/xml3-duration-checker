@@ -3,12 +3,19 @@ export const APP_META = {
   title: "NsN_XMLcheck",
   description:
     "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, MA_MAY chuẩn XX.3[xxx].Z & trùng thời gian máy, cảnh báo Z00.0/Z30.1 (KHHGĐ) & Hồ sơ 15 bảng BHYT",
-  version: "2.11.3",
-  date: "2026-11-06",
+  version: "2.11.4",
+  date: "2026-11-07",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.11.4",
+      date: "2026-11-07",
+      changes: [
+        "Chuẩn hóa giao diện modal Sửa trực tiếp: Loại bỏ nút 'Lưu vào kế hoạch' bị trùng lặp ở hàng tiêu đề label, chỉ giữ lại một nút '💾 Lưu vào kế hoạch sửa' duy nhất đặt trực quan ngay cạnh ô nhập giá trị mới thay thế.",
+      ],
+    },
     {
       version: "2.11.3",
       date: "2026-11-06",

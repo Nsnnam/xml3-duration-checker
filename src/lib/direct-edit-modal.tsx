@@ -883,18 +883,9 @@ export function DirectEditModal({
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-bold text-teal-800">Giá trị mới thay thế:</label>
-              <button
-                type="button"
-                onClick={() => handleSave()}
-                disabled={!newValue.trim()}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-teal-700 hover:bg-teal-800 px-3 py-1 text-xs font-bold text-white shadow-xs transition disabled:opacity-50 cursor-pointer"
-                title="Lưu ngay giá trị này vào Kế hoạch sửa mà không cần cuộn xuống đáy modal"
-              >
-                <span>💾</span> Lưu vào kế hoạch sửa
-              </button>
-            </div>
+            <label className="block text-xs font-bold text-teal-800 mb-1">
+              Giá trị mới thay thế:
+            </label>
             <div className="flex items-center gap-2">
               <input
                 type="text"
@@ -908,9 +899,9 @@ export function DirectEditModal({
                 onClick={() => handleSave()}
                 disabled={!newValue.trim()}
                 className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-teal-700 hover:bg-teal-800 px-4 py-2 text-xs font-bold text-white shadow-md transition disabled:opacity-50 cursor-pointer"
-                title="Lưu ngay giá trị này vào Kế hoạch sửa (không cần cuộn)"
+                title="Lưu ngay giá trị này vào Kế hoạch sửa (không cần cuộn xuống đáy modal)"
               >
-                <span>💾</span> Lưu vào kế hoạch
+                <span>💾</span> Lưu vào kế hoạch sửa
               </button>
             </div>
           </div>
