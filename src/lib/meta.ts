@@ -3,12 +3,20 @@ export const APP_META = {
   title: "NsN_XMLcheck",
   description:
     "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, MA_MAY chuẩn XX.3[xxx].Z & trùng thời gian máy, cảnh báo Z00.0/Z30.1 (KHHGĐ) & Hồ sơ 15 bảng BHYT",
-  version: "2.11.5",
+  version: "2.12.0",
   date: "2026-11-10",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.12.0",
+      date: "2026-11-10",
+      changes: [
+        "Quản lý chọn xóa từng hoặc nhiều kế hoạch sửa: Bổ sung checkbox từng dòng và checkbox chọn tất cả trong bảng Kế hoạch sửa (CorrectionPlanModal), kèm thanh thao tác nhanh '🗑️ Xóa các mục đã chọn (X)' và '✕ Bỏ chọn' song song với nút xóa lẻ từng mục.",
+        "Tùy chọn Reset XML của dòng sai về ban đầu (khi chưa tạo kế hoạch sửa): Cho phép hủy can thiệp kế hoạch sửa và khôi phục về dữ liệu XML gốc ban đầu ngay tại DirectEditModal (nút '↺ Khôi phục về ban đầu' ở banner và footer), trên bảng cảnh báo XML3 (nút icon '↺' cạnh nút '✓ Đã sửa'), trên thanh Bulk Action Toolbar XML3 (nút '↺ Khôi phục ban đầu (X)'), trên các bảng cảnh báo XML khác (ValidationTable) và trong giao diện tra cứu hồ sơ 15 bảng (PatientDossierView).",
+      ],
+    },
     {
       version: "2.11.5",
       date: "2026-11-10",

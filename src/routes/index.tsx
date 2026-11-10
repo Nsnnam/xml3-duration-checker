@@ -380,6 +380,48 @@ export function HomePage() {
     });
   };
 
+  const handleRemoveCorrectionItems = (ids: string[]) => {
+    const idSet = new Set(ids);
+    setCorrectionPlan((prev) => {
+      const next = prev.filter((x) => !idSet.has(x.id));
+      saveCorrectionPlan(next);
+      return next;
+    });
+    setNotice(`Đã xóa ${ids.length} mục khỏi kế hoạch sửa.`);
+  };
+
+  const handleResetRecordCorrection = (
+    maLk: string,
+    tab: string,
+    stt: string,
+    maDichVu?: string,
+  ) => {
+    const sttStr = String(stt).trim();
+    const dvuStr = maDichVu?.trim();
+    setCorrectionPlan((prev) => {
+      const next = prev.filter((x) => {
+        const matchMaLk = x.maLk === maLk;
+        const matchTab = x.tab === tab;
+        const matchStt = String(x.stt).trim() === sttStr;
+        const matchService = Boolean(dvuStr && x.maDichVu && x.maDichVu.trim() === dvuStr);
+        return !(matchMaLk && matchTab && (matchStt || matchService));
+      });
+      saveCorrectionPlan(next);
+      return next;
+    });
+    setNotice(`✓ Đã khôi phục dòng ${tab} (STT ${stt}) về dữ liệu ban đầu!`);
+  };
+
+  const handleResetMultipleRecords = (keys: { maLk: string; tab: string; stt: string }[]) => {
+    const keySet = new Set(keys.map((k) => `${k.maLk}_${k.tab}_${String(k.stt).trim()}`));
+    setCorrectionPlan((prev) => {
+      const next = prev.filter((x) => !keySet.has(`${x.maLk}_${x.tab}_${String(x.stt).trim()}`));
+      saveCorrectionPlan(next);
+      return next;
+    });
+    setNotice(`✓ Đã khôi phục ${keys.length} dòng về dữ liệu ban đầu!`);
+  };
+
   const handleClearAllCorrections = () => {
     if (confirm("Bạn có chắc chắn muốn xóa toàn bộ kế hoạch chỉnh sửa?")) {
       setCorrectionPlan([]);
@@ -1132,6 +1174,8 @@ export function HomePage() {
             onOpenCorrectionPlanModal={() => setShowCorrectionPlanModal(true)}
             onAutoGeneratePlan={handleAutoGeneratePlan}
             onSaveCorrectionItems={handleSaveCorrectionItems}
+            onResetCorrection={handleResetRecordCorrection}
+            onResetRecords={handleResetMultipleRecords}
           />
         )}
 
@@ -1143,6 +1187,7 @@ export function HomePage() {
             onBackToChecker={() => setView("checker")}
             onOpenDirectEdit={(target) => setDirectEditTarget(target)}
             correctionPlan={correctionPlan}
+            onResetCorrection={handleResetRecordCorrection}
           />
         )}
 
@@ -1333,6 +1378,7 @@ export function HomePage() {
           customRow={directEditTarget.customRow}
           correctionPlan={correctionPlan}
           onSaveCorrection={handleSaveCorrectionItem}
+          onResetCorrection={handleResetRecordCorrection}
         />
       )}
 
@@ -1343,6 +1389,7 @@ export function HomePage() {
           onClose={() => setShowCorrectionPlanModal(false)}
           items={correctionPlan}
           onRemoveItem={handleRemoveCorrectionItem}
+          onRemoveItems={handleRemoveCorrectionItems}
           onClearAll={handleClearAllCorrections}
           onAutoGenerate={handleAutoGeneratePlan}
           onExportJson={handleExportCorrectionPlanJson}
@@ -1468,6 +1515,8 @@ function CheckerView({
   onOpenCorrectionPlanModal,
   onAutoGeneratePlan,
   onSaveCorrectionItems,
+  onResetCorrection,
+  onResetRecords,
 }: {
   files: File[];
   analysis: BatchAnalysis | null;
@@ -1521,6 +1570,8 @@ function CheckerView({
   onOpenCorrectionPlanModal: () => void;
   onAutoGeneratePlan: () => void;
   onSaveCorrectionItems: (items: CorrectionItem[], msg?: string) => void;
+  onResetCorrection?: (maLk: string, tab: string, stt: string, maDichVu?: string) => void;
+  onResetRecords?: (keys: { maLk: string; tab: string; stt: string }[]) => void;
 }) {
   const categoryCounts = useMemo(() => {
     const list = onlyWarnings ? filteredWarnings : filteredRecords;
@@ -1795,6 +1846,28 @@ function CheckerView({
       );
       setSelectedXml3Keys(new Set());
     }
+  };
+
+  const handleBatchResetXml3 = () => {
+    if (selectedXml3Keys.size === 0) return;
+    const targetRecords = displayRecords.filter((r) =>
+      selectedXml3Keys.has(`${r.fileName}-${r.MA_LK}-${r.STT}`),
+    );
+    if (
+      !confirm(
+        `Bạn có chắc chắn muốn khôi phục ${targetRecords.length} dòng XML3 đã chọn về dữ liệu ban đầu khi chưa sửa?`,
+      )
+    ) {
+      return;
+    }
+    if (onResetRecords) {
+      onResetRecords(targetRecords.map((r) => ({ maLk: r.MA_LK, tab: "XML3", stt: r.STT })));
+    } else if (onResetCorrection) {
+      for (const r of targetRecords) {
+        onResetCorrection(r.MA_LK, "XML3", r.STT, r.MA_DICH_VU);
+      }
+    }
+    setSelectedXml3Keys(new Set());
   };
 
   const handleSort = (key: string) => {
@@ -2658,6 +2731,16 @@ function CheckerView({
                           <span>🩺</span> Đồng bộ YL = TH_YL (Công khám)
                         </button>
 
+                        {/* Nút khôi phục hàng loạt về ban đầu */}
+                        <button
+                          type="button"
+                          onClick={handleBatchResetXml3}
+                          className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-1.5 text-[11px] font-bold text-rose-800 hover:bg-rose-100 shadow-xs flex items-center gap-1 cursor-pointer"
+                          title="Hủy kế hoạch sửa cho các dòng XML3 đã chọn, khôi phục về dữ liệu ban đầu khi chưa sửa"
+                        >
+                          <span>↺</span> Khôi phục ban đầu ({selectedXml3Keys.size})
+                        </button>
+
                         {/* Nút mở Kế hoạch sửa */}
                         <button
                           type="button"
@@ -2808,6 +2891,7 @@ function CheckerView({
                               isSelected={selectedXml3Keys.has(recordKey)}
                               onToggleSelect={() => handleToggleSelectXml3Row(recordKey)}
                               correctionPlan={correctionPlan}
+                              onResetCorrection={onResetCorrection}
                             />
                           );
                         })}
@@ -2839,6 +2923,7 @@ function CheckerView({
                 analysis={analysis}
                 onOpenCorrectionPlanModal={onOpenCorrectionPlanModal}
                 correctionPlanCount={correctionPlan.length}
+                onResetCorrection={onResetCorrection}
               />
             )}
           </section>
@@ -2967,6 +3052,7 @@ function WarningRow({
   isSelected = false,
   onToggleSelect,
   correctionPlan,
+  onResetCorrection,
 }: {
   record: Xml3Record;
   tabCols: TabColumnState;
@@ -2987,6 +3073,7 @@ function WarningRow({
   isSelected?: boolean;
   onToggleSelect?: () => void;
   correctionPlan?: CorrectionItem[];
+  onResetCorrection?: (maLk: string, tab: string, stt: string, maDichVu?: string) => void;
 }) {
   const cat = getXml3RecordCategory(record);
   const catMeta = WARNING_CATEGORY_CONFIG[cat];
@@ -3093,30 +3180,51 @@ function WarningRow({
             </button>
           )}
           {onOpenDirectEdit && (
-            <button
-              type="button"
-              onClick={() => onOpenDirectEdit({ record, source: "XML3" })}
-              className={`mt-1 inline-flex items-center justify-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-bold transition shadow-xs w-full ${
-                isPlanned
-                  ? "border-emerald-600 bg-emerald-100 text-emerald-900 hover:bg-emerald-200"
-                  : "border-teal-600 bg-teal-50 text-teal-800 hover:bg-teal-100"
-              }`}
-              title={
-                isPlanned
-                  ? "Dòng này đã có trong kế hoạch sửa (bấm để xem lại hoặc sửa thêm)"
-                  : "Mở hộp thoại sửa trực tiếp dòng XML3 này"
-              }
-            >
-              {isPlanned ? (
-                <span className="flex items-center gap-1 text-emerald-800 font-bold">
-                  <span className="font-black text-emerald-700">✓</span> Đã sửa
-                </span>
-              ) : (
-                <span className="flex items-center gap-1">
-                  <span>✏️</span> Sửa
-                </span>
+            <div className="mt-1 flex items-center gap-1 w-full">
+              <button
+                type="button"
+                onClick={() => onOpenDirectEdit({ record, source: "XML3" })}
+                className={`flex-1 inline-flex items-center justify-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-bold transition shadow-xs ${
+                  isPlanned
+                    ? "border-emerald-600 bg-emerald-100 text-emerald-900 hover:bg-emerald-200"
+                    : "border-teal-600 bg-teal-50 text-teal-800 hover:bg-teal-100"
+                }`}
+                title={
+                  isPlanned
+                    ? "Dòng này đã có trong kế hoạch sửa (bấm để xem lại hoặc sửa thêm)"
+                    : "Mở hộp thoại sửa trực tiếp dòng XML3 này"
+                }
+              >
+                {isPlanned ? (
+                  <span className="flex items-center gap-1 text-emerald-800 font-bold">
+                    <span className="font-black text-emerald-700">✓</span> Đã sửa
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1">
+                    <span>✏️</span> Sửa
+                  </span>
+                )}
+              </button>
+              {isPlanned && onResetCorrection && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (
+                      confirm(
+                        `Khôi phục dòng XML3 (STT ${record.STT}) của BN ${record.HO_TEN || record.MA_LK} về dữ liệu ban đầu khi chưa sửa?`,
+                      )
+                    ) {
+                      onResetCorrection(record.MA_LK, "XML3", record.STT, record.MA_DICH_VU);
+                    }
+                  }}
+                  className="rounded-md border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-700 px-1.5 py-0.5 text-[10px] font-bold shadow-xs transition cursor-pointer"
+                  title="Khôi phục dòng này về dữ liệu XML ban đầu (hủy khỏi kế hoạch sửa)"
+                >
+                  ↺
+                </button>
               )}
-            </button>
+            </div>
           )}
         </td>
       )}
@@ -3265,26 +3373,47 @@ function WarningRow({
                 Đặt ngưỡng
               </button>
               {onOpenDirectEdit && (
-                <button
-                  type="button"
-                  className={`rounded border px-1.5 py-0.5 text-[9px] font-bold transition ${
-                    isPlanned
-                      ? "border-emerald-400 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
-                      : "border-teal-300 bg-teal-50 text-teal-800 hover:bg-teal-100"
-                  }`}
-                  onClick={() => onOpenDirectEdit({ record, source: "XML3" })}
-                  title="Sửa trực tiếp các trường NGAY_KQ, NGAY_TH_YL, MA_MAY..."
-                >
-                  {isPlanned ? (
-                    <span className="flex items-center gap-1 text-emerald-700 font-bold">
-                      <span className="font-black">✓</span> Đã sửa
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1">
-                      <span>✏️</span> Sửa dòng
-                    </span>
+                <div className="inline-flex items-center gap-1">
+                  <button
+                    type="button"
+                    className={`rounded border px-1.5 py-0.5 text-[9px] font-bold transition ${
+                      isPlanned
+                        ? "border-emerald-400 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                        : "border-teal-300 bg-teal-50 text-teal-800 hover:bg-teal-100"
+                    }`}
+                    onClick={() => onOpenDirectEdit({ record, source: "XML3" })}
+                    title="Sửa trực tiếp các trường NGAY_KQ, NGAY_TH_YL, MA_MAY..."
+                  >
+                    {isPlanned ? (
+                      <span className="flex items-center gap-1 text-emerald-700 font-bold">
+                        <span className="font-black">✓</span> Đã sửa
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1">
+                        <span>✏️</span> Sửa dòng
+                      </span>
+                    )}
+                  </button>
+                  {isPlanned && onResetCorrection && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (
+                          confirm(
+                            `Khôi phục dòng XML3 (STT ${record.STT}) của BN ${record.HO_TEN || record.MA_LK} về dữ liệu ban đầu khi chưa sửa?`,
+                          )
+                        ) {
+                          onResetCorrection(record.MA_LK, "XML3", record.STT, record.MA_DICH_VU);
+                        }
+                      }}
+                      className="rounded border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-700 px-1 py-0.5 text-[9px] font-bold shadow-xs transition cursor-pointer"
+                      title="Khôi phục dòng này về dữ liệu XML ban đầu (hủy khỏi kế hoạch sửa)"
+                    >
+                      ↺
+                    </button>
                   )}
-                </button>
+                </div>
               )}
             </div>
           )}
@@ -3425,6 +3554,7 @@ function ValidationTable({
   analysis,
   onOpenCorrectionPlanModal,
   correctionPlanCount = 0,
+  onResetCorrection,
 }: {
   source: AlertTab;
   warnings: ValidationWarning[];
@@ -3445,6 +3575,7 @@ function ValidationTable({
   analysis?: BatchAnalysis;
   onOpenCorrectionPlanModal?: () => void;
   correctionPlanCount?: number;
+  onResetCorrection?: (maLk: string, tab: string, stt: string, maDichVu?: string) => void;
 }) {
   const isVisible = (key: string) => tabCols.visible[key] !== false;
   const colWidth = (key: string, def: number) => ({
@@ -3901,22 +4032,49 @@ function ValidationTable({
                               </button>
                             )}
                             {onOpenDirectEdit && (
-                              <button
-                                type="button"
-                                onClick={() => onOpenDirectEdit({ warning, source })}
-                                className={`inline-flex items-center justify-center gap-1 rounded-md border px-2 py-1 text-[11px] font-bold transition shadow-xs whitespace-nowrap ${
-                                  isPlanned
-                                    ? "border-emerald-600 bg-emerald-100 text-emerald-900 hover:bg-emerald-200"
-                                    : "border-teal-600 bg-teal-50 text-teal-800 hover:bg-teal-100"
-                                }`}
-                                title={
-                                  isPlanned
-                                    ? "Mục này đã có trong kế hoạch sửa (bấm để xem lại hoặc sửa)"
-                                    : "Mở hộp thoại sửa trực tiếp thông tin lỗi này"
-                                }
-                              >
-                                <span>{isPlanned ? "✓" : "✏️"}</span> {isPlanned ? "Đã sửa" : "Sửa"}
-                              </button>
+                              <div className="inline-flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => onOpenDirectEdit({ warning, source })}
+                                  className={`inline-flex items-center justify-center gap-1 rounded-md border px-2 py-1 text-[11px] font-bold transition shadow-xs whitespace-nowrap ${
+                                    isPlanned
+                                      ? "border-emerald-600 bg-emerald-100 text-emerald-900 hover:bg-emerald-200"
+                                      : "border-teal-600 bg-teal-50 text-teal-800 hover:bg-teal-100"
+                                  }`}
+                                  title={
+                                    isPlanned
+                                      ? "Mục này đã có trong kế hoạch sửa (bấm để xem lại hoặc sửa)"
+                                      : "Mở hộp thoại sửa trực tiếp thông tin lỗi này"
+                                  }
+                                >
+                                  <span>{isPlanned ? "✓" : "✏️"}</span>{" "}
+                                  {isPlanned ? "Đã sửa" : "Sửa"}
+                                </button>
+                                {isPlanned && onResetCorrection && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (
+                                        confirm(
+                                          `Khôi phục dòng ${source} (STT ${warning.detailIndex || 1}) của BN ${warning.HO_TEN || warning.MA_LK} về dữ liệu ban đầu khi chưa sửa?`,
+                                        )
+                                      ) {
+                                        onResetCorrection(
+                                          warning.MA_LK,
+                                          source,
+                                          String(warning.detailIndex || "1"),
+                                          warning.MA_DICH_VU,
+                                        );
+                                      }
+                                    }}
+                                    className="rounded-md border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-700 px-1.5 py-1 text-[11px] font-bold shadow-xs transition cursor-pointer"
+                                    title="Khôi phục dòng này về dữ liệu ban đầu (hủy khỏi kế hoạch sửa)"
+                                  >
+                                    ↺
+                                  </button>
+                                )}
+                              </div>
                             )}
                             {source === "XML2" && warning.MA_DICH_VU && (
                               <button

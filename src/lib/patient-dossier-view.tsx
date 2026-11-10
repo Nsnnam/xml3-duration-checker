@@ -508,6 +508,7 @@ export function PatientDossierView({
   onBackToChecker,
   onOpenDirectEdit,
   correctionPlan,
+  onResetCorrection,
 }: {
   dossiers: PatientDossier[];
   selectedMaLk: string | null;
@@ -520,6 +521,7 @@ export function PatientDossierView({
     customRow?: CustomRowContext;
   }) => void;
   correctionPlan?: CorrectionItem[];
+  onResetCorrection?: (maLk: string, tab: string, stt: string, maDichVu?: string) => void;
 }) {
   const [patientSearch, setPatientSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "warnings" | "clean">("all");
@@ -1647,39 +1649,68 @@ export function PatientDossierView({
                                     {onOpenDirectEdit && (
                                       <td className="px-2 py-1.5 text-center border-r border-slate-100 dark:border-slate-800/60 whitespace-nowrap">
                                         {isPlanned ? (
-                                          <button
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              onOpenDirectEdit({
-                                                record: warningInfo.xml3Record,
-                                                warning: warningInfo.warningObj,
-                                                source: activeTableKey,
-                                                customRow: {
-                                                  tab: activeTableKey,
-                                                  row,
-                                                  headers: currentTableData.headers,
-                                                  stt: row.STT || String(originalIndex + 1),
-                                                  maLk: activeDossier?.maLk || row.MA_LK || "",
-                                                  maBa:
-                                                    activeDossier?.patient?.MA_BN ||
-                                                    row.MA_BN ||
-                                                    "",
-                                                  hoTen:
-                                                    activeDossier?.patient?.HO_TEN ||
-                                                    row.HO_TEN ||
-                                                    "",
-                                                  ngayVao: activeDossier?.patient?.NGAY_VAO,
-                                                  ngayRa:
-                                                    row.NGAY_RA || activeDossier?.patient?.NGAY_RA,
-                                                },
-                                              });
-                                            }}
-                                            className="rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white px-2 py-0.5 text-[10px] font-bold shadow-xs transition"
-                                            title="Dòng này đã có trong kế hoạch sửa (bấm để xem lại hoặc sửa)"
-                                          >
-                                            ✓ Đã sửa
-                                          </button>
+                                          <div className="inline-flex items-center gap-1">
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                onOpenDirectEdit({
+                                                  record: warningInfo.xml3Record,
+                                                  warning: warningInfo.warningObj,
+                                                  source: activeTableKey,
+                                                  customRow: {
+                                                    tab: activeTableKey,
+                                                    row,
+                                                    headers: currentTableData.headers,
+                                                    stt: row.STT || String(originalIndex + 1),
+                                                    maLk: activeDossier?.maLk || row.MA_LK || "",
+                                                    maBa:
+                                                      activeDossier?.patient?.MA_BN ||
+                                                      row.MA_BN ||
+                                                      "",
+                                                    hoTen:
+                                                      activeDossier?.patient?.HO_TEN ||
+                                                      row.HO_TEN ||
+                                                      "",
+                                                    ngayVao: activeDossier?.patient?.NGAY_VAO,
+                                                    ngayRa:
+                                                      row.NGAY_RA ||
+                                                      activeDossier?.patient?.NGAY_RA,
+                                                  },
+                                                });
+                                              }}
+                                              className="rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white px-2 py-0.5 text-[10px] font-bold shadow-xs transition"
+                                              title="Dòng này đã có trong kế hoạch sửa (bấm để xem lại hoặc sửa)"
+                                            >
+                                              ✓ Đã sửa
+                                            </button>
+                                            {onResetCorrection && (
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  if (
+                                                    confirm(
+                                                      `Khôi phục dòng ${activeTableKey} (STT ${row.STT || originalIndex + 1}) về dữ liệu XML ban đầu khi chưa sửa?`,
+                                                    )
+                                                  ) {
+                                                    onResetCorrection(
+                                                      activeDossier?.maLk || row.MA_LK || "",
+                                                      activeTableKey,
+                                                      row.STT || String(originalIndex + 1),
+                                                      row.MA_DICH_VU ||
+                                                        row.MA_THUOC ||
+                                                        row.MA_VAT_TU,
+                                                    );
+                                                  }
+                                                }}
+                                                className="rounded-lg border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 text-rose-700 dark:text-rose-300 px-1.5 py-0.5 text-[10px] font-bold shadow-xs transition cursor-pointer"
+                                                title="Khôi phục dòng này về dữ liệu gốc ban đầu (hủy khỏi kế hoạch sửa)"
+                                              >
+                                                ↺
+                                              </button>
+                                            )}
+                                          </div>
                                         ) : isWarn ? (
                                           <button
                                             type="button"

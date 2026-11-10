@@ -85,6 +85,7 @@ export function DirectEditModal({
   customRow,
   correctionPlan,
   onSaveCorrection,
+  onResetCorrection,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -94,6 +95,7 @@ export function DirectEditModal({
   customRow?: CustomRowContext;
   correctionPlan?: CorrectionItem[];
   onSaveCorrection: (item: CorrectionItem) => void;
+  onResetCorrection?: (maLk: string, tab: string, stt: string, maDichVu?: string) => void;
 }) {
   const effectiveTab = customRow?.tab || source;
   const patient = record?.patient || warning?.patient;
@@ -625,14 +627,35 @@ export function DirectEditModal({
                   </div>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => handleSave()}
-                className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm transition cursor-pointer"
-                title="Lưu lại cập nhật này vào Kế hoạch sửa"
-              >
-                <span>💾</span> Cập nhật lại kế hoạch
-              </button>
+              <div className="flex items-center gap-2">
+                {onResetCorrection && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (
+                        confirm(
+                          "Khôi phục dòng này về dữ liệu XML ban đầu (hủy khỏi kế hoạch sửa)?",
+                        )
+                      ) {
+                        onResetCorrection(maLk, effectiveTab, stt, maDichVu);
+                        onClose();
+                      }
+                    }}
+                    className="shrink-0 inline-flex items-center gap-1.5 rounded-xl border border-rose-300 bg-white hover:bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700 shadow-2xs transition cursor-pointer"
+                    title="Hủy kế hoạch sửa của dòng này, khôi phục về dữ liệu XML ban đầu"
+                  >
+                    <span>↺</span> Khôi phục về ban đầu
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleSave()}
+                  className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm transition cursor-pointer"
+                  title="Lưu lại cập nhật này vào Kế hoạch sửa"
+                >
+                  <span>💾</span> Cập nhật lại kế hoạch
+                </button>
+              </div>
             </div>
           )}
 
@@ -1246,21 +1269,42 @@ export function DirectEditModal({
             />
           </div>
 
-          <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
-            >
-              Hủy bỏ
-            </button>
-            <button
-              type="submit"
-              disabled={!isFieldEmptyAllowed && !newValue.trim()}
-              className="rounded-xl bg-teal-700 px-5 py-2 text-xs font-bold text-white hover:bg-teal-800 shadow-md transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
-            >
-              <span>💾</span> Lưu vào kế hoạch sửa
-            </button>
+          <div className="pt-2 flex items-center justify-between gap-2 border-t border-slate-100">
+            <div>
+              {existingPlannedItems.length > 0 && onResetCorrection && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (
+                      confirm("Khôi phục dòng này về dữ liệu XML ban đầu (hủy khỏi kế hoạch sửa)?")
+                    ) {
+                      onResetCorrection(maLk, effectiveTab, stt, maDichVu);
+                      onClose();
+                    }
+                  }}
+                  className="rounded-xl border border-rose-300 bg-rose-50 px-3.5 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  title="Hủy kế hoạch sửa của dòng này, khôi phục về dữ liệu gốc XML ban đầu"
+                >
+                  <span>↺</span> Khôi phục về ban đầu
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="submit"
+                disabled={!isFieldEmptyAllowed && !newValue.trim()}
+                className="rounded-xl bg-teal-700 px-5 py-2 text-xs font-bold text-white hover:bg-teal-800 shadow-md transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+              >
+                <span>💾</span> Lưu vào kế hoạch sửa
+              </button>
+            </div>
           </div>
         </form>
       </div>
@@ -1273,6 +1317,7 @@ export function CorrectionPlanModal({
   onClose,
   items,
   onRemoveItem,
+  onRemoveItems,
   onClearAll,
   onAutoGenerate,
   onExportJson,
@@ -1282,12 +1327,14 @@ export function CorrectionPlanModal({
   onClose: () => void;
   items: CorrectionItem[];
   onRemoveItem: (id: string) => void;
+  onRemoveItems?: (ids: string[]) => void;
   onClearAll: () => void;
   onAutoGenerate: () => void;
   onExportJson: () => void;
   onExportExcel: () => void;
 }) {
   const [filterQuery, setFilterQuery] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const topScrollRef = useRef<HTMLDivElement>(null);
   const bottomScrollRef = useRef<HTMLDivElement>(null);
 
@@ -1313,20 +1360,78 @@ export function CorrectionPlanModal({
     }
   };
 
-  if (!isOpen) return null;
-
-  const filteredItems = items.filter((item) => {
-    if (!filterQuery) return true;
+  const filteredItems = useMemo(() => {
+    if (!filterQuery) return items;
     const q = filterQuery.toLowerCase();
-    return (
-      item.maBa.toLowerCase().includes(q) ||
-      item.hoTen.toLowerCase().includes(q) ||
-      item.maLk.toLowerCase().includes(q) ||
-      item.maDichVu.toLowerCase().includes(q) ||
-      item.field.toLowerCase().includes(q) ||
-      item.tab.toLowerCase().includes(q)
+    return items.filter(
+      (item) =>
+        item.maBa.toLowerCase().includes(q) ||
+        item.hoTen.toLowerCase().includes(q) ||
+        item.maLk.toLowerCase().includes(q) ||
+        item.maDichVu.toLowerCase().includes(q) ||
+        item.field.toLowerCase().includes(q) ||
+        item.tab.toLowerCase().includes(q),
     );
-  });
+  }, [items, filterQuery]);
+
+  const isAllSelected =
+    filteredItems.length > 0 && filteredItems.every((item) => selectedIds.has(item.id));
+  const isSomeSelected =
+    filteredItems.length > 0 &&
+    filteredItems.some((item) => selectedIds.has(item.id)) &&
+    !isAllSelected;
+
+  const handleToggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const item of filteredItems) {
+          next.delete(item.id);
+        }
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const item of filteredItems) {
+          next.add(item.id);
+        }
+        return next;
+      });
+    }
+  };
+
+  const handleToggleSelectRow = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleRemoveSelected = () => {
+    if (selectedIds.size === 0) return;
+    const count = selectedIds.size;
+    if (
+      !confirm(
+        `Bạn có chắc chắn muốn xóa ${count} mục đã chọn khỏi Kế hoạch chỉnh sửa tự động XML130?`,
+      )
+    ) {
+      return;
+    }
+    const idList = Array.from(selectedIds);
+    if (onRemoveItems) {
+      onRemoveItems(idList);
+    } else {
+      for (const id of idList) {
+        onRemoveItem(id);
+      }
+    }
+    setSelectedIds(new Set());
+  };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 md:p-6 animate-in fade-in duration-150">
@@ -1367,7 +1472,33 @@ export function CorrectionPlanModal({
               placeholder="Lọc theo Mã BA, họ tên, tab..."
               className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-teal-500 focus:outline-none w-56"
             />
-            {items.length > 0 && (
+
+            {/* Cụm thao tác tích chọn nhiều mục để xóa */}
+            {selectedIds.size > 0 && (
+              <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-300 rounded-lg px-2.5 py-1 text-xs animate-in fade-in duration-150">
+                <span className="font-bold text-rose-900">
+                  Đã chọn: <span className="underline font-black">{selectedIds.size}</span> mục
+                </span>
+                <button
+                  type="button"
+                  onClick={handleRemoveSelected}
+                  className="rounded-md bg-rose-700 hover:bg-rose-800 text-white px-2.5 py-1 font-bold shadow-xs transition flex items-center gap-1 cursor-pointer"
+                  title="Xóa tất cả các mục đang được tích chọn khỏi Kế hoạch sửa"
+                >
+                  <span>🗑️</span> Xóa các mục đã chọn ({selectedIds.size})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedIds(new Set())}
+                  className="rounded-md border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 px-2 py-1 font-bold shadow-xs transition cursor-pointer"
+                  title="Bỏ chọn toàn bộ"
+                >
+                  ✕ Bỏ chọn
+                </button>
+              </div>
+            )}
+
+            {items.length > 0 && selectedIds.size === 0 && (
               <button
                 type="button"
                 onClick={onClearAll}
@@ -1443,7 +1574,7 @@ export function CorrectionPlanModal({
                 className="overflow-x-auto bg-slate-100 border-x border-t border-slate-200 h-3 rounded-t-xl"
                 style={{ overflowX: "scroll" }}
               >
-                <div style={{ width: "1550px", height: "1px" }} />
+                <div style={{ width: "1600px", height: "1px" }} />
               </div>
 
               {/* Bảng chính có cuộn ngang và cuộn dọc độc lập */}
@@ -1453,9 +1584,21 @@ export function CorrectionPlanModal({
                 className="flex-1 overflow-x-auto overflow-y-auto rounded-b-xl border border-slate-200"
                 style={{ overflowX: "scroll" }}
               >
-                <table className="w-full min-w-[1550px] text-left text-xs border-collapse">
+                <table className="w-full min-w-[1600px] text-left text-xs border-collapse">
                   <thead className="bg-slate-100 text-[11px] uppercase tracking-wider text-slate-600 select-none sticky top-0 z-10 shadow-xs">
                     <tr>
+                      <th className="px-3 py-2 border-r border-slate-200 w-10 min-w-[40px] text-center">
+                        <input
+                          type="checkbox"
+                          checked={isAllSelected}
+                          ref={(el) => {
+                            if (el) el.indeterminate = isSomeSelected;
+                          }}
+                          onChange={handleToggleSelectAll}
+                          className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                          title={isAllSelected ? "Bỏ chọn tất cả" : "Chọn tất cả các dòng"}
+                        />
+                      </th>
                       <th className="px-3 py-2 border-r border-slate-200 w-12 min-w-[48px] text-center">
                         STT
                       </th>
@@ -1483,68 +1626,86 @@ export function CorrectionPlanModal({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {filteredItems.map((item, idx) => (
-                      <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-3 py-2 text-center font-mono text-slate-500">
-                          {idx + 1}
-                        </td>
-                        <td className="px-3 py-2 font-mono font-bold text-teal-800">
-                          {item.maBa || "—"}
-                        </td>
-                        <td className="px-3 py-2 font-semibold text-slate-800">
-                          <div>{item.hoTen || "—"}</div>
-                          <div className="font-mono text-[10px] text-slate-400">
-                            LK: {item.maLk}
-                          </div>
-                        </td>
-                        <td className="px-3 py-2 text-[11px] text-slate-600 whitespace-nowrap">
-                          <div>{item.tuNgay}</div>
-                          <div className="text-[10px] text-slate-400">➔ {item.denNgay}</div>
-                        </td>
-                        <td className="px-3 py-2">
-                          <span className="rounded bg-teal-50 border border-teal-200 px-1.5 py-0.5 font-bold text-teal-900 text-[10px]">
-                            {item.tab}
-                          </span>
-                          <div className="text-[10px] text-slate-400 mt-0.5">STT: {item.stt}</div>
-                        </td>
-                        <td className="px-3 py-2">
-                          <div className="font-mono font-bold text-indigo-700">{item.field}</div>
-                          {item.tenDichVu && (
-                            <div
-                              className="text-[10px] text-slate-500 truncate max-w-xs"
-                              title={item.tenDichVu}
-                            >
-                              {item.tenDichVu}
+                    {filteredItems.map((item, idx) => {
+                      const isSelected = selectedIds.has(item.id);
+                      return (
+                        <tr
+                          key={item.id}
+                          className={`transition-colors ${
+                            isSelected
+                              ? "bg-teal-50/80 font-medium hover:bg-teal-100/70"
+                              : "hover:bg-slate-50"
+                          }`}
+                        >
+                          <td className="px-3 py-2 text-center border-r border-slate-200">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleToggleSelectRow(item.id)}
+                              className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-center font-mono text-slate-500">
+                            {idx + 1}
+                          </td>
+                          <td className="px-3 py-2 font-mono font-bold text-teal-800">
+                            {item.maBa || "—"}
+                          </td>
+                          <td className="px-3 py-2 font-semibold text-slate-800">
+                            <div>{item.hoTen || "—"}</div>
+                            <div className="font-mono text-[10px] text-slate-400">
+                              LK: {item.maLk}
                             </div>
-                          )}
-                        </td>
-                        <td className="px-3 py-2 font-mono text-[11px] text-rose-700 line-through break-words">
-                          {item.oldValue || "(trống)"}
-                        </td>
-                        <td className="px-3 py-2 font-mono text-[11px] font-bold text-teal-800 break-words whitespace-normal bg-teal-50/40">
-                          {item.newValue ? (
-                            item.newValue
-                          ) : (
-                            <span className="text-rose-700 font-bold bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded text-[10px]">
-                              (xóa rỗng / để trống)
+                          </td>
+                          <td className="px-3 py-2 text-[11px] text-slate-600 whitespace-nowrap">
+                            <div>{item.tuNgay}</div>
+                            <div className="text-[10px] text-slate-400">➔ {item.denNgay}</div>
+                          </td>
+                          <td className="px-3 py-2">
+                            <span className="rounded bg-teal-50 border border-teal-200 px-1.5 py-0.5 font-bold text-teal-900 text-[10px]">
+                              {item.tab}
                             </span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2 text-slate-600 text-[11px] leading-tight break-words">
-                          {item.lyDo}
-                        </td>
-                        <td className="px-2 py-2 text-center">
-                          <button
-                            type="button"
-                            onClick={() => onRemoveItem(item.id)}
-                            className="rounded p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
-                            title="Xóa mục này"
-                          >
-                            ✕
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                            <div className="text-[10px] text-slate-400 mt-0.5">STT: {item.stt}</div>
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="font-mono font-bold text-indigo-700">{item.field}</div>
+                            {item.tenDichVu && (
+                              <div
+                                className="text-[10px] text-slate-500 truncate max-w-xs"
+                                title={item.tenDichVu}
+                              >
+                                {item.tenDichVu}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 font-mono text-[11px] text-rose-700 line-through break-words">
+                            {item.oldValue || "(trống)"}
+                          </td>
+                          <td className="px-3 py-2 font-mono text-[11px] font-bold text-teal-800 break-words whitespace-normal bg-teal-50/40">
+                            {item.newValue ? (
+                              item.newValue
+                            ) : (
+                              <span className="text-rose-700 font-bold bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded text-[10px]">
+                                (xóa rỗng / để trống)
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-slate-600 text-[11px] leading-tight break-words">
+                            {item.lyDo}
+                          </td>
+                          <td className="px-2 py-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => onRemoveItem(item.id)}
+                              className="rounded p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer transition"
+                              title="Xóa mục này"
+                            >
+                              ✕
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
