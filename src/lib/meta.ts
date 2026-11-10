@@ -3,12 +3,19 @@ export const APP_META = {
   title: "NsN_XMLcheck",
   description:
     "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, MA_MAY chuẩn XX.3[xxx].Z & trùng thời gian máy, cảnh báo Z00.0/Z30.1 (KHHGĐ) & Hồ sơ 15 bảng BHYT",
-  version: "2.11.4",
-  date: "2026-11-07",
+  version: "2.11.5",
+  date: "2026-11-10",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.11.5",
+      date: "2026-11-10",
+      changes: [
+        "Cho phép bỏ trống trường SO_CCCD (xóa toàn bộ thông tin) ở XML1 và lưu vào Kế hoạch sửa: Bổ sung nút gợi ý '🗑️ Bỏ trống / Xóa thông tin SO_CCCD', gỡ bỏ chặn validation bắt buộc nhập khi xóa trắng trường CCCD, tự động điền lý do xóa rỗng và hiển thị trạng thái '(xóa rỗng / để trống)' trực quan trên Kế hoạch sửa và bảng 15 tab XML.",
+      ],
+    },
     {
       version: "2.11.4",
       date: "2026-11-07",

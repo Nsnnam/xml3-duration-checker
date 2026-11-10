@@ -1769,7 +1769,7 @@ export function PatientDossierView({
                                           } last:border-r-0`}
                                           title={
                                             plannedCol
-                                              ? `Giá trị cũ: ${row[h] || "(trống)"} ➔ Đã sửa thành: ${plannedCol.newValue} (${plannedCol.lyDo})`
+                                              ? `Giá trị cũ: ${row[h] || "(trống)"} ➔ Đã sửa thành: ${plannedCol.newValue || "(xóa rỗng / để trống)"} (${plannedCol.lyDo})`
                                               : row[h]
                                           }
                                         >
@@ -1778,9 +1778,15 @@ export function PatientDossierView({
                                               <span className="line-through text-slate-400 text-[10px] font-normal">
                                                 {row[h] || "—"}
                                               </span>
-                                              <span className="font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-100/90 dark:bg-emerald-900/70 px-1.5 py-0.5 rounded text-[11px]">
-                                                ✓ {plannedCol.newValue}
-                                              </span>
+                                              {plannedCol.newValue ? (
+                                                <span className="font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-100/90 dark:bg-emerald-900/70 px-1.5 py-0.5 rounded text-[11px]">
+                                                  ✓ {plannedCol.newValue}
+                                                </span>
+                                              ) : (
+                                                <span className="font-bold text-rose-700 dark:text-rose-300 bg-rose-100/90 dark:bg-rose-950/70 px-1.5 py-0.5 rounded text-[10px]">
+                                                  ✓ (xóa rỗng)
+                                                </span>
+                                              )}
                                             </div>
                                           ) : (
                                             row[h] || "—"

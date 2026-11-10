@@ -471,6 +471,12 @@ export function DirectEditModal({
     }
   };
 
+  const applySuggestClearCccd = () => {
+    setSelectedField("SO_CCCD");
+    setNewValue("");
+    setLyDo("Bỏ trống trường SO_CCCD (xóa toàn bộ thông tin)");
+  };
+
   const applySuggestSampleConclusion = (text: string) => {
     setSelectedField("KET_LUAN");
     setNewValue(text);
@@ -490,11 +496,27 @@ export function DirectEditModal({
   const durationOld = calcDiffMinutes(thOld, kqOld);
   const durationNew = calcDiffMinutes(thNew, kqNew);
 
+  // Các trường được phép bỏ trống / xóa sạch thông tin (như SO_CCCD khi bệnh nhân chưa có CCCD hoặc sai thông tin)
+  const isFieldEmptyAllowed =
+    selectedField === "SO_CCCD" ||
+    selectedField === "MA_MAY" ||
+    selectedField === "TT_THAU" ||
+    selectedField === "KET_LUAN" ||
+    selectedField === "MA_BENH_KT";
+
   const handleSave = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!newValue.trim()) {
+    const trimmedVal = newValue.trim();
+    if (!isFieldEmptyAllowed && !trimmedVal) {
       alert("Vui lòng nhập giá trị mới cần sửa!");
       return;
+    }
+
+    let finalLyDo = lyDo;
+    if (selectedField === "SO_CCCD" && !trimmedVal) {
+      if (!finalLyDo || finalLyDo === "Chỉnh sửa dữ liệu tránh cảnh báo BHYT") {
+        finalLyDo = "Bỏ trống trường SO_CCCD (xóa toàn bộ thông tin)";
+      }
     }
 
     const tuNgay =
@@ -516,8 +538,8 @@ export function DirectEditModal({
       tenDichVu: tenDichVu || (customRow ? getFieldLabel(selectedField) : selectedField),
       field: selectedField,
       oldValue: currentOldValue,
-      newValue: newValue.trim(),
-      lyDo,
+      newValue: trimmedVal,
+      lyDo: finalLyDo,
       createdAt: new Date().toISOString(),
     };
 
@@ -597,7 +619,7 @@ export function DirectEditModal({
                     {existingPlannedItems
                       .map(
                         (p) =>
-                          `${getFieldLabel(p.field)}: ${p.oldValue || "(trống)"} ➔ ${p.newValue}`,
+                          `${getFieldLabel(p.field)}: ${p.oldValue || "(trống)"} ➔ ${p.newValue ? p.newValue : "(xóa rỗng / để trống)"}`,
                       )
                       .join(" · ")}
                   </div>
@@ -883,27 +905,45 @@ export function DirectEditModal({
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-teal-800 mb-1">
-              Giá trị mới thay thế:
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-bold text-teal-800">Giá trị mới thay thế:</label>
+              {selectedField === "SO_CCCD" && (
+                <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded px-2 py-0.5">
+                  Cho phép để trống (xóa toàn bộ thông tin)
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-2">
               <input
                 type="text"
                 value={newValue}
                 onChange={(e) => setNewValue(e.target.value)}
-                placeholder="Nhập giá trị mới (vd: 202611021430, 025221009314...)"
+                placeholder={
+                  selectedField === "SO_CCCD"
+                    ? "Để trống ô này để xóa sạch thông tin SO_CCCD..."
+                    : "Nhập giá trị mới (vd: 202611021430, 025221009314...)"
+                }
                 className="flex-1 rounded-xl border-2 border-teal-500 bg-teal-50/20 px-3 py-2 text-sm font-semibold text-slate-900 focus:bg-white focus:outline-none"
               />
               <button
                 type="button"
                 onClick={() => handleSave()}
-                disabled={!newValue.trim()}
+                disabled={!isFieldEmptyAllowed && !newValue.trim()}
                 className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-teal-700 hover:bg-teal-800 px-4 py-2 text-xs font-bold text-white shadow-md transition disabled:opacity-50 cursor-pointer"
                 title="Lưu ngay giá trị này vào Kế hoạch sửa (không cần cuộn xuống đáy modal)"
               >
                 <span>💾</span> Lưu vào kế hoạch sửa
               </button>
             </div>
+            {selectedField === "SO_CCCD" && !newValue.trim() && (
+              <p className="mt-1 text-[11px] text-amber-800 font-medium flex items-center gap-1">
+                <span>💡</span>
+                <span>
+                  Ô giá trị đang để trống. Nhấn <b>"Lưu vào kế hoạch sửa"</b> để lưu trạng thái xóa
+                  bỏ/bỏ trống thông tin SO_CCCD này.
+                </span>
+              </p>
+            )}
           </div>
 
           {/* Gợi ý thông minh */}
@@ -1131,15 +1171,25 @@ export function DirectEditModal({
                 </div>
               )}
 
-            {(source === "XML1" || effectiveTab === "XML1") && (
-              <button
-                type="button"
-                onClick={applySuggestPaddedCccd}
-                className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100"
-                title="Thêm số 0 vào đầu cho đủ 12 chữ số"
-              >
-                🪪 Chuẩn hóa 12 số CCCD
-              </button>
+            {(source === "XML1" || effectiveTab === "XML1" || selectedField === "SO_CCCD") && (
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={applySuggestPaddedCccd}
+                  className="rounded-lg border border-amber-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 shadow-2xs"
+                  title="Thêm số 0 vào đầu cho đủ 12 chữ số"
+                >
+                  🪪 Chuẩn hóa 12 số CCCD
+                </button>
+                <button
+                  type="button"
+                  onClick={applySuggestClearCccd}
+                  className="rounded-lg border border-rose-300 bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-800 hover:bg-rose-100 shadow-2xs flex items-center gap-1"
+                  title="Xóa trắng trường SO_CCCD để bỏ trống theo quy định BHYT"
+                >
+                  <span>🗑️</span> Bỏ trống / Xóa thông tin SO_CCCD
+                </button>
+              </div>
             )}
 
             {source === "XML4" && (
@@ -1206,7 +1256,8 @@ export function DirectEditModal({
             </button>
             <button
               type="submit"
-              className="rounded-xl bg-teal-700 px-5 py-2 text-xs font-bold text-white hover:bg-teal-800 shadow-md transition flex items-center gap-1.5"
+              disabled={!isFieldEmptyAllowed && !newValue.trim()}
+              className="rounded-xl bg-teal-700 px-5 py-2 text-xs font-bold text-white hover:bg-teal-800 shadow-md transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
             >
               <span>💾</span> Lưu vào kế hoạch sửa
             </button>
@@ -1471,7 +1522,13 @@ export function CorrectionPlanModal({
                           {item.oldValue || "(trống)"}
                         </td>
                         <td className="px-3 py-2 font-mono text-[11px] font-bold text-teal-800 break-words whitespace-normal bg-teal-50/40">
-                          {item.newValue}
+                          {item.newValue ? (
+                            item.newValue
+                          ) : (
+                            <span className="text-rose-700 font-bold bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded text-[10px]">
+                              (xóa rỗng / để trống)
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-2 text-slate-600 text-[11px] leading-tight break-words">
                           {item.lyDo}
