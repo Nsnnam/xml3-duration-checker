@@ -283,6 +283,7 @@ function RowDetailModal({
     warning?: ValidationWarning;
     source: string;
     customRow?: CustomRowContext;
+    initialField?: string;
   }) => void;
   onPrev?: () => void;
   onNext?: () => void;
@@ -471,16 +472,46 @@ function RowDetailModal({
                 <div className="font-mono text-xs text-slate-800 dark:text-slate-200 break-words whitespace-normal selection:bg-teal-200">
                   {it.val ? it.val : <span className="text-slate-400 italic">(trống)</span>}
                 </div>
-                {it.val && (
-                  <button
-                    type="button"
-                    onClick={() => handleCopyKey(it.key, it.val)}
-                    className="opacity-0 group-hover:opacity-100 transition rounded px-2 py-0.5 text-[10px] font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-teal-700 shadow-xs whitespace-nowrap"
-                    title="Sao chép giá trị này"
-                  >
-                    {copiedKey === it.key ? "✓ Đã chép" : "Chép"}
-                  </button>
-                )}
+                <div className="flex items-center gap-1.5">
+                  {onOpenDirectEdit && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onOpenDirectEdit({
+                          source: tableKey,
+                          initialField: it.key,
+                          customRow: {
+                            tab: tableKey,
+                            row,
+                            headers,
+                            stt: row.STT || String(rowIndex),
+                            maLk: row.MA_LK || dossier?.maLk || "",
+                            maBa: row.MA_BN || dossier?.patient?.MA_BN || "",
+                            hoTen: row.HO_TEN || dossier?.patient?.HO_TEN || "",
+                            ngayVao: dossier?.patient?.NGAY_VAO,
+                            ngayRa: row.NGAY_RA || dossier?.patient?.NGAY_RA,
+                            initialField: it.key,
+                          },
+                        });
+                      }}
+                      className="rounded px-2 py-0.5 text-[10px] font-bold border border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-950/50 text-teal-800 dark:text-teal-200 hover:bg-teal-100 shadow-xs whitespace-nowrap cursor-pointer"
+                      title={`Chỉnh sửa trực tiếp cột ${it.key} (${it.label || it.key})`}
+                    >
+                      ✏️ Sửa cột này
+                    </button>
+                  )}
+                  {it.val && (
+                    <button
+                      type="button"
+                      onClick={() => handleCopyKey(it.key, it.val)}
+                      className="opacity-0 group-hover:opacity-100 transition rounded px-2 py-0.5 text-[10px] font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-teal-700 shadow-xs whitespace-nowrap"
+                      title="Sao chép giá trị này"
+                    >
+                      {copiedKey === it.key ? "✓ Đã chép" : "Chép"}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ))}
@@ -519,6 +550,7 @@ export function PatientDossierView({
     warning?: ValidationWarning;
     source: string;
     customRow?: CustomRowContext;
+    initialField?: string;
   }) => void;
   correctionPlan?: CorrectionItem[];
   onResetCorrection?: (maLk: string, tab: string, stt: string, maDichVu?: string) => void;
@@ -1789,7 +1821,36 @@ export function PatientDossierView({
                                       return (
                                         <td
                                           key={h}
-                                          className={`px-3 py-2 font-mono whitespace-nowrap border-r max-w-[280px] truncate ${
+                                          onClick={(e) => {
+                                            if (!onOpenDirectEdit) return;
+                                            const sel = window.getSelection();
+                                            if (sel && sel.toString().trim().length > 0) return;
+                                            e.stopPropagation();
+                                            onOpenDirectEdit({
+                                              record: warningInfo.xml3Record,
+                                              warning: warningInfo.warningObj,
+                                              source: activeTableKey,
+                                              initialField: h,
+                                              customRow: {
+                                                tab: activeTableKey,
+                                                row,
+                                                headers: currentTableData.headers,
+                                                stt: row.STT || String(originalIndex + 1),
+                                                maLk: activeDossier?.maLk || row.MA_LK || "",
+                                                maBa:
+                                                  activeDossier?.patient?.MA_BN || row.MA_BN || "",
+                                                hoTen:
+                                                  activeDossier?.patient?.HO_TEN ||
+                                                  row.HO_TEN ||
+                                                  "",
+                                                ngayVao: activeDossier?.patient?.NGAY_VAO,
+                                                ngayRa:
+                                                  row.NGAY_RA || activeDossier?.patient?.NGAY_RA,
+                                                initialField: h,
+                                              },
+                                            });
+                                          }}
+                                          className={`px-3 py-2 font-mono whitespace-nowrap border-r max-w-[280px] truncate cursor-pointer transition hover:bg-teal-100/70 dark:hover:bg-teal-950/60 hover:outline hover:outline-1 hover:outline-teal-400 ${
                                             plannedCol
                                               ? "bg-emerald-50/60 dark:bg-emerald-950/30 text-emerald-950 dark:text-emerald-100 font-bold border-emerald-200 dark:border-emerald-900/60"
                                               : isPlanned
@@ -1798,11 +1859,11 @@ export function PatientDossierView({
                                                   ? "border-rose-100 dark:border-rose-900/50"
                                                   : "border-slate-100 dark:border-slate-800/60"
                                           } last:border-r-0`}
-                                          title={
+                                          title={`[Cột ${h} - ${getFieldLabel(h)}]: ${row[h] || "(trống)"}\n${
                                             plannedCol
-                                              ? `Giá trị cũ: ${row[h] || "(trống)"} ➔ Đã sửa thành: ${plannedCol.newValue || "(xóa rỗng / để trống)"} (${plannedCol.lyDo})`
-                                              : row[h]
-                                          }
+                                              ? `✓ ĐÃ SỬA: ${plannedCol.newValue || "(xóa rỗng)"}\n`
+                                              : ""
+                                          }💡 Click để chỉnh sửa trực tiếp cột này`}
                                         >
                                           {plannedCol ? (
                                             <div className="flex items-center gap-1.5">

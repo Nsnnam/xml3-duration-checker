@@ -6,6 +6,8 @@ import {
   type CorrectionItem,
   toHisDateString,
   addMinutesToXmlDateTime,
+  getFieldLabel,
+  isDateTimeFieldName,
 } from "./correction-plan.ts";
 
 function calcDiffMinutes(startStr?: string, endStr?: string): number | null {
@@ -38,43 +40,8 @@ export type CustomRowContext = {
   hoTen: string;
   ngayVao?: string;
   ngayRa?: string;
+  initialField?: string;
 };
-
-const COMMON_LABELS: Record<string, string> = {
-  STT: "Số thứ tự",
-  MA_LK: "Mã liên kết",
-  MA_BN: "Mã bệnh nhân",
-  HO_TEN: "Họ và tên",
-  MA_DICH_VU: "Mã dịch vụ kỹ thuật",
-  TEN_DICH_VU: "Tên dịch vụ kỹ thuật",
-  MA_THUOC: "Mã thuốc",
-  TEN_THUOC: "Tên thuốc",
-  MA_VAT_TU: "Mã vật tư y tế",
-  TEN_VAT_TU: "Tên vật tư y tế",
-  MA_NHOM: "Mã nhóm BHYT",
-  NGAY_YL: "Ngày giờ y lệnh",
-  NGAY_TH_YL: "Ngày giờ thực hiện y lệnh",
-  NGAY_KQ: "Ngày giờ có kết quả",
-  MA_MAY: "Mã máy thực hiện",
-  TT_THAU: "Thông tin thầu",
-  KET_LUAN: "Kết luận cận lâm sàng",
-  GIA_TRI: "Chỉ số / Giá trị kết quả",
-  SO_CCCD: "Số CCCD / Định danh",
-  NGAY_TTOAN: "Ngày thanh toán",
-  NGOAITRU_TUNGAY: "Ngoại trú từ ngày",
-  NGOAITRU_DENNGAY: "Ngoại trú đến ngày",
-  SO_NGAY_NGHI: "Số ngày nghỉ ngoại trú",
-  NGAY_VAO: "Ngày giờ vào viện",
-  NGAY_RA: "Ngày giờ ra viện",
-  CHAN_DOAN_RV: "Chẩn đoán ra viện",
-  PP_DIEUTRI: "Phương pháp điều trị",
-  MA_BS: "Mã bác sĩ",
-  MA_TRUONGKHOA: "Mã trưởng khoa",
-};
-
-function getFieldLabel(key: string): string {
-  return COMMON_LABELS[key.toUpperCase()] || key;
-}
 
 export function DirectEditModal({
   isOpen,
@@ -83,6 +50,7 @@ export function DirectEditModal({
   warning,
   source,
   customRow,
+  initialField,
   correctionPlan,
   onSaveCorrection,
   onResetCorrection,
@@ -93,6 +61,7 @@ export function DirectEditModal({
   warning?: ValidationWarning;
   source: string; // XML1, XML2, XML3, XML4, XML7...
   customRow?: CustomRowContext;
+  initialField?: string;
   correctionPlan?: CorrectionItem[];
   onSaveCorrection: (item: CorrectionItem) => void;
   onResetCorrection?: (maLk: string, tab: string, stt: string, maDichVu?: string) => void;
@@ -143,8 +112,11 @@ export function DirectEditModal({
     [existingPlannedMap],
   );
 
-  // Xác định trường mặc định cần sửa theo loại cảnh báo hoặc ngữ cảnh bảng (ưu tiên trường đã sửa trong kế hoạch)
+  // Xác định trường mặc định cần sửa theo loại cảnh báo hoặc ngữ cảnh bảng (ưu tiên trường được chỉ định trực tiếp hoặc đã sửa trong kế hoạch)
   const defaultField = useMemo(() => {
+    if (initialField) return initialField;
+    if (customRow?.initialField) return customRow.initialField;
+
     if (existingPlannedMap.size > 0) {
       if (existingPlannedMap.has("NGAY_KQ")) return "NGAY_KQ";
       if (existingPlannedMap.has("NGAY_TH_YL")) return "NGAY_TH_YL";
@@ -176,7 +148,12 @@ export function DirectEditModal({
         if (record?.hasTtThauWarning) return "TT_THAU";
         if (record?.NGAY_TH_YL && record?.NGAY_KQ && record.NGAY_TH_YL === record.NGAY_KQ)
           return "NGAY_TH_YL";
-        if (customRow.headers.includes("NGAY_KQ")) return "NGAY_KQ";
+        if (warning) {
+          if (customRow.headers.includes("NGAY_KQ")) return "NGAY_KQ";
+        }
+        // Khi không có cảnh báo: mặc định chọn mã dịch vụ hoặc tên dịch vụ để người dùng sửa thông tin chuyên môn
+        if (customRow.headers.includes("MA_DICH_VU")) return "MA_DICH_VU";
+        if (customRow.headers.includes("TEN_DICH_VU")) return "TEN_DICH_VU";
       }
       const firstCandidate = customRow.headers.find((h) => h !== "MA_LK" && h !== "STT");
       return firstCandidate || customRow.headers[0] || "GIA_TRI";
@@ -201,7 +178,16 @@ export function DirectEditModal({
     if (record?.NGAY_TH_YL && record?.NGAY_KQ && record.NGAY_TH_YL === record.NGAY_KQ)
       return "NGAY_TH_YL";
     return "NGAY_KQ";
-  }, [existingPlannedMap, existingPlannedItems, source, effectiveTab, record, warning, customRow]);
+  }, [
+    initialField,
+    existingPlannedMap,
+    existingPlannedItems,
+    source,
+    effectiveTab,
+    record,
+    warning,
+    customRow,
+  ]);
 
   const [selectedField, setSelectedField] = useState(defaultField);
 
@@ -248,6 +234,14 @@ export function DirectEditModal({
   );
   const isOverDuration = Boolean(durationOldVal !== null && durationOldVal > 70);
 
+  // Chỉ hiển thị bảng đối chiếu 3 mốc thời gian và khối gợi ý thời gian khi sửa đúng trường thời gian của XML3
+  const isXml3TimeField =
+    (source === "XML3" || effectiveTab === "XML3") &&
+    (selectedField === "NGAY_KQ" ||
+      selectedField === "NGAY_TH_YL" ||
+      selectedField === "NGAY_YL") &&
+    Boolean(record || customRow?.row?.NGAY_TH_YL || customRow?.row?.NGAY_KQ);
+
   // Tính gợi ý ngày ra viện + 1 ngày cho XML7
   const xml7NextDaySuggestion = useMemo(() => {
     const rawNgayRa = (ngayRa || customRow?.row?.NGAY_RA || patient?.NGAY_RA || "").trim();
@@ -265,24 +259,31 @@ export function DirectEditModal({
 
   useEffect(() => {
     if (isOpen) {
-      setSelectedField(defaultField);
+      const explicitField = initialField || customRow?.initialField;
+      const targetField = explicitField || defaultField;
+      setSelectedField(targetField);
       let initialVal = "";
       let initialLyDo = "Chỉnh sửa dữ liệu tránh cảnh báo BHYT";
 
-      if (existingPlannedMap.size > 0) {
-        // Hồ sơ này đã có trong kế hoạch sửa (từ sửa hàng loạt hoặc sửa lẻ)
-        const targetField = existingPlannedMap.has(defaultField)
-          ? defaultField
-          : existingPlannedItems[0]?.field || defaultField;
-        setSelectedField(targetField);
-        const planned = existingPlannedMap.get(targetField) || existingPlannedItems[0];
+      if (existingPlannedMap.has(targetField)) {
+        // Trường này đã có trong kế hoạch sửa
+        const planned = existingPlannedMap.get(targetField)!;
+        initialVal = planned.newValue;
+        initialLyDo = planned.lyDo;
+      } else if (explicitField && customRow) {
+        initialVal = customRow.row[explicitField] ?? "";
+        initialLyDo = `Chỉnh sửa trường ${explicitField} bảng ${effectiveTab}`;
+      } else if (existingPlannedMap.size > 0 && !explicitField) {
+        const firstField = existingPlannedItems[0]?.field || targetField;
+        setSelectedField(firstField);
+        const planned = existingPlannedMap.get(firstField) || existingPlannedItems[0];
         if (planned) {
           initialVal = planned.newValue;
           initialLyDo = planned.lyDo;
         }
       } else if (effectiveTab === "XML7" || source === "XML7") {
         const oldNgoaiTru = customRow?.row?.NGOAITRU_TUNGAY || warning?.giaTri || "";
-        if (xml7NextDaySuggestion && defaultField === "NGOAITRU_TUNGAY") {
+        if (xml7NextDaySuggestion && targetField === "NGOAITRU_TUNGAY") {
           const oldTime = oldNgoaiTru.replace(/\D/g, "").slice(8);
           initialVal = oldTime
             ? `${xml7NextDaySuggestion.nextYmd}${oldTime}`
@@ -292,31 +293,37 @@ export function DirectEditModal({
           initialVal = oldNgoaiTru;
         }
       } else if (source === "XML1" || effectiveTab === "XML1") {
-        if (defaultField === "SO_CCCD")
+        if (targetField === "SO_CCCD")
           initialVal = patient?.SO_CCCD || customRow?.row?.SO_CCCD || "";
-        else if (defaultField === "NGAY_TTOAN")
+        else if (targetField === "NGAY_TTOAN")
           initialVal = patient?.NGAY_TTOAN || customRow?.row?.NGAY_TTOAN || "";
-        else if (customRow) initialVal = customRow.row[defaultField] || "";
+        else if (customRow) initialVal = customRow.row[targetField] || "";
         if (warning?.message) initialLyDo = warning.message;
       } else if ((source === "XML3" || effectiveTab === "XML3") && record) {
-        if (isSameExecutionAndResult && record.NGAY_KQ) {
+        if (
+          isSameExecutionAndResult &&
+          record.NGAY_KQ &&
+          (targetField === "NGAY_TH_YL" || targetField === "NGAY_KQ")
+        ) {
           // Ca trùng giờ thực hiện và trả kết quả: tự động gợi ý trừ lùi 10 phút tính từ NGAY_KQ
           initialVal = addMinutesToXmlDateTime(record.NGAY_KQ, -10);
           initialLyDo = `Trừ lùi giờ thực hiện y lệnh 10 phút so với giờ kết quả (${formatShortTime(record.NGAY_KQ)} ➔ ${formatShortTime(initialVal)}) để tránh trùng giờ (0 phút)`;
-        } else if (isOverDuration && record.NGAY_TH_YL && defaultField === "NGAY_KQ") {
+        } else if (isOverDuration && record.NGAY_TH_YL && targetField === "NGAY_KQ") {
           // Ca vượt thời lượng: gợi ý điện tim / nhanh 10 phút tính từ NGAY_TH_YL
           initialVal = addMinutesToXmlDateTime(record.NGAY_TH_YL, 10);
           initialLyDo = `Rút ngắn thời lượng theo chuẩn điện tim/nhanh 10 phút tính từ giờ thực hiện (${formatShortTime(record.NGAY_TH_YL)} ➔ ${formatShortTime(initialVal)})`;
-        } else if (defaultField === "NGAY_KQ") {
+        } else if (targetField === "NGAY_KQ") {
           initialVal = record.NGAY_KQ || "";
-        } else if (defaultField === "NGAY_TH_YL") {
+        } else if (targetField === "NGAY_TH_YL") {
           initialVal = record.NGAY_TH_YL || "";
-        } else if (defaultField === "NGAY_YL") {
+        } else if (targetField === "NGAY_YL") {
           initialVal = record.NGAY_YL || "";
-        } else if (defaultField === "MA_MAY") {
+        } else if (targetField === "MA_MAY") {
           initialVal = record.MA_MAY || "";
-        } else if (defaultField === "TT_THAU") {
+        } else if (targetField === "TT_THAU") {
           initialVal = record.TT_THAU || "";
+        } else if (customRow) {
+          initialVal = customRow.row[targetField] || "";
         }
 
         if (!isSameExecutionAndResult && !isOverDuration) {
@@ -326,14 +333,15 @@ export function DirectEditModal({
           else if (warning?.message) initialLyDo = warning.message;
         }
       } else if (customRow) {
-        initialVal = customRow.row[defaultField] || "";
-        initialLyDo = `Chỉnh sửa trường ${defaultField} bảng ${effectiveTab}`;
+        initialVal = customRow.row[targetField] || "";
+        initialLyDo = `Chỉnh sửa trường ${targetField} bảng ${effectiveTab}`;
       }
       setNewValue(initialVal);
       setLyDo(initialLyDo);
     }
   }, [
     isOpen,
+    initialField,
     defaultField,
     existingPlannedMap,
     existingPlannedItems,
@@ -347,8 +355,6 @@ export function DirectEditModal({
     isSameExecutionAndResult,
     isOverDuration,
   ]);
-
-  if (!isOpen) return null;
 
   // Khi đổi trường chọn
   const handleFieldChange = (f: string) => {
@@ -498,26 +504,111 @@ export function DirectEditModal({
   const durationOld = calcDiffMinutes(thOld, kqOld);
   const durationNew = calcDiffMinutes(thNew, kqNew);
 
-  // Các trường được phép bỏ trống / xóa sạch thông tin (như SO_CCCD khi bệnh nhân chưa có CCCD hoặc sai thông tin)
-  const isFieldEmptyAllowed =
-    selectedField === "SO_CCCD" ||
-    selectedField === "MA_MAY" ||
-    selectedField === "TT_THAU" ||
-    selectedField === "KET_LUAN" ||
-    selectedField === "MA_BENH_KT";
+  // Cho phép bỏ trống / xóa sạch thông tin ở mọi trường dữ liệu khi người dùng muốn xóa trường đó
+  const isFieldEmptyAllowed = true;
+
+  const [columnFilter, setColumnFilter] = useState("");
+
+  const availableColumns = useMemo(() => {
+    if (customRow && customRow.headers && customRow.headers.length > 0) {
+      return customRow.headers;
+    }
+    if (effectiveTab === "XML1")
+      return [
+        "SO_CCCD",
+        "NGAY_TTOAN",
+        "MA_BENH_CHINH",
+        "MA_BENH_KT",
+        "MA_CSKCB",
+        "HO_TEN",
+        "NGAY_SINH",
+        "GIOI_TINH",
+        "DIA_CHI",
+        "MA_THE_BHYT",
+        "MA_DKBD",
+        "GT_THE_TU",
+        "GT_THE_DEN",
+        "NGAY_VAO",
+        "NGAY_RA",
+        "KET_QUA_DTRI",
+        "TINH_TRANG_RV",
+      ];
+    if (effectiveTab === "XML2")
+      return [
+        "MA_THUOC",
+        "TEN_THUOC",
+        "HAM_LUONG",
+        "DON_VI_TINH",
+        "LIEU_DUNG",
+        "SO_DANG_KY",
+        "TT_THAU",
+        "SO_LUONG",
+        "DON_GIA",
+        "TYLE_TT",
+        "THANH_TIEN",
+        "MA_KHOA",
+        "MA_BAC_SI",
+        "NGAY_YL",
+      ];
+    if (effectiveTab === "XML3")
+      return [
+        "MA_DICH_VU",
+        "TEN_DICH_VU",
+        "SO_LUONG",
+        "DON_GIA",
+        "TYLE_TT",
+        "THANH_TIEN",
+        "MA_KHOA",
+        "MA_BAC_SI",
+        "MA_MAY",
+        "TT_THAU",
+        "NGAY_YL",
+        "NGAY_TH_YL",
+        "NGAY_KQ",
+      ];
+    if (effectiveTab === "XML4")
+      return [
+        "MA_DICH_VU",
+        "MA_CHI_SO",
+        "TEN_CHI_SO",
+        "GIA_TRI",
+        "MA_MAY",
+        "MO_TA",
+        "KET_LUAN",
+        "NGAY_KQ",
+      ];
+    if (effectiveTab === "XML5") return ["DIEN_BIEN", "HOI_CHAN", "PHAU_THUAT", "NGAY_YL"];
+    if (effectiveTab === "XML7")
+      return [
+        "NGOAITRU_TUNGAY",
+        "NGOAITRU_DENNGAY",
+        "SO_NGAY_NGHI",
+        "NGAY_RA",
+        "CHAN_DOAN_RV",
+        "MA_TRUONGKHOA",
+        "MA_BS",
+      ];
+    return Object.keys(customRow?.row || {});
+  }, [customRow, effectiveTab]);
+
+  const filteredColumns = useMemo(() => {
+    if (!columnFilter.trim()) return availableColumns;
+    const q = columnFilter.trim().toLowerCase();
+    return availableColumns.filter((col) => {
+      const lbl = getFieldLabel(col).toLowerCase();
+      const val = String(customRow?.row?.[col] ?? "").toLowerCase();
+      return col.toLowerCase().includes(q) || lbl.includes(q) || val.includes(q);
+    });
+  }, [availableColumns, columnFilter, customRow]);
 
   const handleSave = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const trimmedVal = newValue.trim();
-    if (!isFieldEmptyAllowed && !trimmedVal) {
-      alert("Vui lòng nhập giá trị mới cần sửa!");
-      return;
-    }
 
     let finalLyDo = lyDo;
-    if (selectedField === "SO_CCCD" && !trimmedVal) {
+    if (!trimmedVal) {
       if (!finalLyDo || finalLyDo === "Chỉnh sửa dữ liệu tránh cảnh báo BHYT") {
-        finalLyDo = "Bỏ trống trường SO_CCCD (xóa toàn bộ thông tin)";
+        finalLyDo = `Bỏ trống trường ${selectedField} (xóa thông tin)`;
       }
     }
 
@@ -552,6 +643,8 @@ export function DirectEditModal({
   const handleSubmit = (e: React.FormEvent) => {
     handleSave(e);
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
@@ -659,311 +752,415 @@ export function DirectEditModal({
             </div>
           )}
 
-          {/* Bảng đối chiếu 3 mốc thời gian Trước & Sau (Dành cho XML3) */}
-          {(source === "XML3" || effectiveTab === "XML3") &&
-            (record || customRow?.row?.NGAY_TH_YL) && (
-              <div className="rounded-2xl border border-teal-200 bg-teal-50/40 p-3.5 space-y-2.5">
-                <div className="flex items-center justify-between text-xs font-bold text-teal-900">
-                  <span className="flex items-center gap-1.5">
-                    <span>🕒</span> Bảng đối chiếu 3 mốc thời gian (Trước & Sau chỉnh sửa):
+          {/* Bảng đối chiếu 3 mốc thời gian Trước & Sau (Chỉ hiển thị khi sửa trường thời gian của XML3) */}
+          {isXml3TimeField ? (
+            <div className="rounded-2xl border border-teal-200 bg-teal-50/40 p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between text-xs font-bold text-teal-900">
+                <span className="flex items-center gap-1.5">
+                  <span>🕒</span> Bảng đối chiếu 3 mốc thời gian (Trước & Sau chỉnh sửa):
+                </span>
+                {isExamGroup13 && (
+                  <span className="rounded bg-teal-100 text-teal-800 text-[10px] px-2 py-0.5 font-bold">
+                    🩺 Công khám (nhóm 13)
                   </span>
-                  {isExamGroup13 && (
-                    <span className="rounded bg-teal-100 text-teal-800 text-[10px] px-2 py-0.5 font-bold">
-                      🩺 Công khám (nhóm 13)
-                    </span>
-                  )}
-                </div>
+                )}
+              </div>
 
-                <div className="overflow-hidden rounded-xl border border-teal-200/80 bg-white shadow-xs">
-                  <table className="w-full text-xs text-left border-collapse">
-                    <thead className="bg-slate-50 text-[11px] font-bold text-slate-600 border-b border-slate-200">
-                      <tr>
-                        <th className="px-3 py-1.5 w-32">Mốc thời gian</th>
-                        <th className="px-3 py-1.5 w-40">Trước (Hiện tại)</th>
-                        <th className="px-3 py-1.5 w-40 bg-teal-50/50 text-teal-900">
-                          Sau (Dự kiến)
-                        </th>
-                        <th className="px-2 py-1.5 text-center w-24">Chọn sửa</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-[11px]">
-                      {/* NGAY_YL */}
-                      <tr className={selectedField === "NGAY_YL" ? "bg-amber-50/60" : ""}>
-                        <td className="px-3 py-1.5 font-bold text-slate-700">
-                          1. NGAY_YL (Y lệnh)
-                        </td>
-                        <td className="px-3 py-1.5 font-mono text-slate-600">
-                          <div>{ylOld || "—"}</div>
-                          <div className="text-[10px] text-slate-400">
-                            {formatDisplayDateTime(ylOld)}
-                          </div>
-                        </td>
-                        <td className="px-3 py-1.5 font-mono font-bold text-teal-800 bg-teal-50/30">
-                          <div>{ylNew || "—"}</div>
-                          <div className="text-[10px] text-teal-600">
-                            {formatDisplayDateTime(ylNew)}
-                          </div>
-                        </td>
-                        <td className="px-2 py-1.5 text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleFieldChange("NGAY_YL")}
-                            className={`rounded px-2 py-0.5 text-[10px] font-bold transition ${
-                              selectedField === "NGAY_YL"
-                                ? "bg-amber-500 text-white shadow-xs"
-                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                            }`}
-                          >
-                            {selectedField === "NGAY_YL" ? "Đang sửa" : "Sửa ô này"}
-                          </button>
-                        </td>
-                      </tr>
+              <div className="overflow-hidden rounded-xl border border-teal-200/80 bg-white shadow-xs">
+                <table className="w-full text-xs text-left border-collapse">
+                  <thead className="bg-slate-50 text-[11px] font-bold text-slate-600 border-b border-slate-200">
+                    <tr>
+                      <th className="px-3 py-1.5 w-32">Mốc thời gian</th>
+                      <th className="px-3 py-1.5 w-40">Trước (Hiện tại)</th>
+                      <th className="px-3 py-1.5 w-40 bg-teal-50/50 text-teal-900">
+                        Sau (Dự kiến)
+                      </th>
+                      <th className="px-2 py-1.5 text-center w-24">Chọn sửa</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-[11px]">
+                    {/* NGAY_YL */}
+                    <tr className={selectedField === "NGAY_YL" ? "bg-amber-50/60" : ""}>
+                      <td className="px-3 py-1.5 font-bold text-slate-700">1. NGAY_YL (Y lệnh)</td>
+                      <td className="px-3 py-1.5 font-mono text-slate-600">
+                        <div>{ylOld || "—"}</div>
+                        <div className="text-[10px] text-slate-400">
+                          {formatDisplayDateTime(ylOld)}
+                        </div>
+                      </td>
+                      <td className="px-3 py-1.5 font-mono font-bold text-teal-800 bg-teal-50/30">
+                        <div>{ylNew || "—"}</div>
+                        <div className="text-[10px] text-teal-600">
+                          {formatDisplayDateTime(ylNew)}
+                        </div>
+                      </td>
+                      <td className="px-2 py-1.5 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleFieldChange("NGAY_YL")}
+                          className={`rounded px-2 py-0.5 text-[10px] font-bold transition ${
+                            selectedField === "NGAY_YL"
+                              ? "bg-amber-500 text-white shadow-xs"
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          }`}
+                        >
+                          {selectedField === "NGAY_YL" ? "Đang sửa" : "Sửa ô này"}
+                        </button>
+                      </td>
+                    </tr>
 
-                      {/* NGAY_TH_YL */}
-                      <tr className={selectedField === "NGAY_TH_YL" ? "bg-amber-50/60" : ""}>
-                        <td className="px-3 py-1.5 font-bold text-slate-700">
-                          2. NGAY_TH_YL (Thực hiện)
-                        </td>
-                        <td className="px-3 py-1.5 font-mono text-slate-600">
-                          <div>{thOld || "—"}</div>
-                          <div className="text-[10px] text-slate-400">
-                            {formatDisplayDateTime(thOld)}
-                          </div>
-                        </td>
-                        <td className="px-3 py-1.5 font-mono font-bold text-teal-800 bg-teal-50/30">
-                          <div>{thNew || "—"}</div>
-                          <div className="text-[10px] text-teal-600">
-                            {formatDisplayDateTime(thNew)}
-                          </div>
-                        </td>
-                        <td className="px-2 py-1.5 text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleFieldChange("NGAY_TH_YL")}
-                            className={`rounded px-2 py-0.5 text-[10px] font-bold transition ${
-                              selectedField === "NGAY_TH_YL"
-                                ? "bg-amber-500 text-white shadow-xs"
-                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                            }`}
-                          >
-                            {selectedField === "NGAY_TH_YL" ? "Đang sửa" : "Sửa ô này"}
-                          </button>
-                        </td>
-                      </tr>
+                    {/* NGAY_TH_YL */}
+                    <tr className={selectedField === "NGAY_TH_YL" ? "bg-amber-50/60" : ""}>
+                      <td className="px-3 py-1.5 font-bold text-slate-700">
+                        2. NGAY_TH_YL (Thực hiện)
+                      </td>
+                      <td className="px-3 py-1.5 font-mono text-slate-600">
+                        <div>{thOld || "—"}</div>
+                        <div className="text-[10px] text-slate-400">
+                          {formatDisplayDateTime(thOld)}
+                        </div>
+                      </td>
+                      <td className="px-3 py-1.5 font-mono font-bold text-teal-800 bg-teal-50/30">
+                        <div>{thNew || "—"}</div>
+                        <div className="text-[10px] text-teal-600">
+                          {formatDisplayDateTime(thNew)}
+                        </div>
+                      </td>
+                      <td className="px-2 py-1.5 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleFieldChange("NGAY_TH_YL")}
+                          className={`rounded px-2 py-0.5 text-[10px] font-bold transition ${
+                            selectedField === "NGAY_TH_YL"
+                              ? "bg-amber-500 text-white shadow-xs"
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          }`}
+                        >
+                          {selectedField === "NGAY_TH_YL" ? "Đang sửa" : "Sửa ô này"}
+                        </button>
+                      </td>
+                    </tr>
 
-                      {/* NGAY_KQ */}
-                      <tr className={selectedField === "NGAY_KQ" ? "bg-amber-50/60" : ""}>
-                        <td className="px-3 py-1.5 font-bold text-slate-700">
-                          3. NGAY_KQ (Kết quả)
-                        </td>
-                        <td className="px-3 py-1.5 font-mono text-slate-600">
-                          <div>{kqOld || "—"}</div>
-                          <div className="text-[10px] text-slate-400">
-                            {formatDisplayDateTime(kqOld)}
-                          </div>
-                        </td>
-                        <td className="px-3 py-1.5 font-mono font-bold text-teal-800 bg-teal-50/30">
-                          <div>{kqNew || "—"}</div>
-                          <div className="text-[10px] text-teal-600">
-                            {formatDisplayDateTime(kqNew)}
-                          </div>
-                        </td>
-                        <td className="px-2 py-1.5 text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleFieldChange("NGAY_KQ")}
-                            className={`rounded px-2 py-0.5 text-[10px] font-bold transition ${
-                              selectedField === "NGAY_KQ"
-                                ? "bg-amber-500 text-white shadow-xs"
-                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                            }`}
-                          >
-                            {selectedField === "NGAY_KQ" ? "Đang sửa" : "Sửa ô này"}
-                          </button>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+                    {/* NGAY_KQ */}
+                    <tr className={selectedField === "NGAY_KQ" ? "bg-amber-50/60" : ""}>
+                      <td className="px-3 py-1.5 font-bold text-slate-700">3. NGAY_KQ (Kết quả)</td>
+                      <td className="px-3 py-1.5 font-mono text-slate-600">
+                        <div>{kqOld || "—"}</div>
+                        <div className="text-[10px] text-slate-400">
+                          {formatDisplayDateTime(kqOld)}
+                        </div>
+                      </td>
+                      <td className="px-3 py-1.5 font-mono font-bold text-teal-800 bg-teal-50/30">
+                        <div>{kqNew || "—"}</div>
+                        <div className="text-[10px] text-teal-600">
+                          {formatDisplayDateTime(kqNew)}
+                        </div>
+                      </td>
+                      <td className="px-2 py-1.5 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleFieldChange("NGAY_KQ")}
+                          className={`rounded px-2 py-0.5 text-[10px] font-bold transition ${
+                            selectedField === "NGAY_KQ"
+                              ? "bg-amber-500 text-white shadow-xs"
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          }`}
+                        >
+                          {selectedField === "NGAY_KQ" ? "Đang sửa" : "Sửa ô này"}
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
 
-                {/* Đánh giá khoảng thời gian Trước -> Sau */}
-                <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
-                  <div className="rounded-xl border border-slate-200 bg-white p-2">
-                    <div className="text-slate-500 font-semibold mb-0.5">
-                      ⏱️ Chờ thực hiện (TH_YL - YL):
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span
-                        className={
-                          waitOld !== null && (isExamGroup13 ? waitOld < 0 : waitOld <= 0)
-                            ? "text-rose-600 font-bold"
-                            : "text-slate-700"
-                        }
-                      >
-                        Trước: {waitOld !== null ? `${waitOld}p` : "—"}
-                      </span>
-                      <span>➔</span>
-                      <span
-                        className={
-                          waitNew !== null && (isExamGroup13 ? waitNew >= 0 : waitNew > 0)
-                            ? "text-emerald-700 font-bold"
-                            : "text-rose-600 font-bold"
-                        }
-                      >
-                        Sau: {waitNew !== null ? `${waitNew}p` : "—"}{" "}
-                        {waitNew !== null && (isExamGroup13 ? waitNew >= 0 : waitNew > 0)
-                          ? "✓"
-                          : "⚠️"}
-                      </span>
-                    </div>
+              {/* Đánh giá khoảng thời gian Trước -> Sau */}
+              <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                <div className="rounded-xl border border-slate-200 bg-white p-2">
+                  <div className="text-slate-500 font-semibold mb-0.5">
+                    ⏱️ Chờ thực hiện (TH_YL - YL):
                   </div>
+                  <div className="flex items-center justify-between">
+                    <span
+                      className={
+                        waitOld !== null && (isExamGroup13 ? waitOld < 0 : waitOld <= 0)
+                          ? "text-rose-600 font-bold"
+                          : "text-slate-700"
+                      }
+                    >
+                      Trước: {waitOld !== null ? `${waitOld}p` : "—"}
+                    </span>
+                    <span>➔</span>
+                    <span
+                      className={
+                        waitNew !== null && (isExamGroup13 ? waitNew >= 0 : waitNew > 0)
+                          ? "text-emerald-700 font-bold"
+                          : "text-rose-600 font-bold"
+                      }
+                    >
+                      Sau: {waitNew !== null ? `${waitNew}p` : "—"}{" "}
+                      {waitNew !== null && (isExamGroup13 ? waitNew >= 0 : waitNew > 0)
+                        ? "✓"
+                        : "⚠️"}
+                    </span>
+                  </div>
+                </div>
 
-                  <div className="rounded-xl border border-slate-200 bg-white p-2">
-                    <div className="text-slate-500 font-semibold mb-0.5">
-                      ⏱️ Thời lượng (KQ - TH_YL):
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span
-                        className={
-                          durationOld !== null && (durationOld > 70 || durationOld <= 0)
-                            ? "text-rose-600 font-bold"
-                            : "text-slate-700"
-                        }
-                      >
-                        Trước: {durationOld !== null ? `${durationOld}p` : "—"}
-                      </span>
-                      <span>➔</span>
-                      <span
-                        className={
-                          durationNew !== null && durationNew > 0 && durationNew <= 70
-                            ? "text-emerald-700 font-bold"
-                            : "text-rose-600 font-bold"
-                        }
-                      >
-                        Sau: {durationNew !== null ? `${durationNew}p` : "—"}{" "}
-                        {durationNew !== null && durationNew > 0 && durationNew <= 70
-                          ? "✓ (<=70p)"
-                          : "⚠️"}
-                      </span>
-                    </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-2">
+                  <div className="text-slate-500 font-semibold mb-0.5">
+                    ⏱️ Thời lượng (KQ - TH_YL):
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span
+                      className={
+                        durationOld !== null && (durationOld > 70 || durationOld <= 0)
+                          ? "text-rose-600 font-bold"
+                          : "text-slate-700"
+                      }
+                    >
+                      Trước: {durationOld !== null ? `${durationOld}p` : "—"}
+                    </span>
+                    <span>➔</span>
+                    <span
+                      className={
+                        durationNew !== null && durationNew > 0 && durationNew <= 70
+                          ? "text-emerald-700 font-bold"
+                          : "text-rose-600 font-bold"
+                      }
+                    >
+                      Sau: {durationNew !== null ? `${durationNew}p` : "—"}{" "}
+                      {durationNew !== null && durationNew > 0 && durationNew <= 70
+                        ? "✓ (<=70p)"
+                        : "⚠️"}
+                    </span>
                   </div>
                 </div>
               </div>
-            )}
+            </div>
+          ) : (
+            /* Khi sửa các cột khác không phải thời gian XML3 (Mã DV, Tên DV, Số lượng, Đơn giá, Khoa, Bác sĩ...) */
+            <div className="rounded-2xl border border-teal-200 bg-teal-50/40 p-3.5 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">📋</span>
+                  <span className="font-bold text-slate-800">
+                    Cột đang chỉnh sửa:{" "}
+                    <span className="font-mono text-teal-800 bg-white px-2 py-0.5 rounded-lg border border-teal-200 font-black">
+                      {selectedField}
+                    </span>{" "}
+                    <span className="text-teal-900 font-bold">
+                      ({getFieldLabel(selectedField)})
+                    </span>
+                  </span>
+                </div>
+                <span className="rounded-md bg-teal-100 text-teal-800 text-[11px] px-2.5 py-0.5 font-bold">
+                  Bảng {effectiveTab} · Dòng STT {stt}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-slate-600 bg-white/80 rounded-xl px-3 py-1.5 border border-teal-100">
+                <span className="text-slate-500 font-semibold shrink-0">
+                  Giá trị hiện tại trong XML:
+                </span>
+                <span className="font-mono font-bold text-slate-800 break-all">
+                  {currentOldValue !== "" ? (
+                    currentOldValue
+                  ) : (
+                    <span className="text-slate-400 italic font-normal">(đang để trống)</span>
+                  )}
+                </span>
+              </div>
+            </div>
+          )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Trường cần chỉnh sửa:
+          {/* Chọn cột cần sửa (Bộ lọc tìm kiếm, Quick Chips, & Dropdown chi tiết) */}
+          <div className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <span>🎯</span> Chọn cột dữ liệu cần sửa ({availableColumns.length} cột):
               </label>
-              <select
-                value={selectedField}
-                onChange={(e) => handleFieldChange(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-teal-500 focus:outline-none"
-              >
-                {customRow && customRow.headers && customRow.headers.length > 0 ? (
-                  customRow.headers.map((h) => {
-                    const lbl = getFieldLabel(h);
+              <div className="relative">
+                <input
+                  type="text"
+                  value={columnFilter}
+                  onChange={(e) => setColumnFilter(e.target.value)}
+                  placeholder="Lọc cột hoặc giá trị..."
+                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[11px] text-slate-800 placeholder-slate-400 focus:border-teal-500 focus:outline-none w-48 shadow-2xs"
+                />
+                {columnFilter && (
+                  <button
+                    type="button"
+                    onClick={() => setColumnFilter("")}
+                    className="absolute right-2 top-1 text-slate-400 hover:text-slate-600 text-[11px]"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Quick Chips chọn cột nhanh */}
+            <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+              {filteredColumns.map((col) => {
+                const isSelected = selectedField === col;
+                const lbl = getFieldLabel(col);
+                const colVal = customRow ? (customRow.row[col] ?? "") : "";
+                const isColPlanned = existingPlannedMap.has(col);
+                return (
+                  <button
+                    key={col}
+                    type="button"
+                    onClick={() => handleFieldChange(col)}
+                    className={`rounded-lg px-2.5 py-1 text-[11px] font-mono transition flex items-center gap-1 border shadow-2xs cursor-pointer ${
+                      isSelected
+                        ? "bg-teal-700 text-white border-teal-800 font-bold ring-2 ring-teal-300"
+                        : isColPlanned
+                          ? "bg-emerald-50 text-emerald-900 border-emerald-400 font-bold hover:bg-emerald-100"
+                          : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                    }`}
+                    title={`[${col} - ${lbl}]: ${colVal || "(trống)"}${
+                      isColPlanned ? " (Đã có trong kế hoạch sửa)" : ""
+                    }`}
+                  >
+                    {isColPlanned && <span className="text-emerald-600 font-black">✓</span>}
+                    <span className="font-bold">{col}</span>
+                    {lbl !== col && (
+                      <span
+                        className={`text-[10px] font-sans ${
+                          isSelected ? "text-teal-100" : "text-slate-500"
+                        }`}
+                      >
+                        ({lbl})
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Dropdown & Ô xem giá trị cũ */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  Hoặc chọn từ danh sách cột:
+                </label>
+                <select
+                  value={selectedField}
+                  onChange={(e) => handleFieldChange(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-teal-500 focus:outline-none"
+                >
+                  {filteredColumns.map((col) => {
+                    const lbl = getFieldLabel(col);
+                    const val = customRow ? (customRow.row[col] ?? "") : "";
                     return (
-                      <option key={h} value={h}>
-                        {h} {lbl !== h ? `(${lbl})` : ""}
+                      <option key={col} value={col}>
+                        {col} — {lbl}{" "}
+                        {val !== ""
+                          ? `(Hiện tại: "${val.length > 25 ? val.slice(0, 25) + "..." : val}")`
+                          : "(Hiện tại: trống)"}
                       </option>
                     );
-                  })
-                ) : (
-                  <>
-                    {(source === "XML3" || effectiveTab === "XML3") && (
-                      <>
-                        <option value="NGAY_KQ">NGAY_KQ (Thời gian kết quả)</option>
-                        <option value="NGAY_TH_YL">NGAY_TH_YL (Thời gian thực hiện)</option>
-                        <option value="NGAY_YL">NGAY_YL (Thời gian y lệnh)</option>
-                        <option value="MA_MAY">MA_MAY (Mã máy)</option>
-                        <option value="TT_THAU">TT_THAU (Thông tin thầu)</option>
-                        <option value="MA_DICH_VU">MA_DICH_VU (Mã dịch vụ)</option>
-                      </>
-                    )}
-                    {(source === "XML1" || effectiveTab === "XML1") && (
-                      <>
-                        <option value="SO_CCCD">SO_CCCD (Số CCCD / Định danh)</option>
-                        <option value="NGAY_TTOAN">NGAY_TTOAN (Thời gian thanh toán)</option>
-                        <option value="MA_BENH_CHINH">MA_BENH_CHINH (Mã bệnh chính)</option>
-                        <option value="MA_BENH_KT">MA_BENH_KT (Mã bệnh kèm theo)</option>
-                      </>
-                    )}
-                    {(source === "XML4" || effectiveTab === "XML4") && (
-                      <>
-                        <option value="KET_LUAN">KET_LUAN (Kết luận CLS)</option>
-                        <option value="GIA_TRI">GIA_TRI (Chỉ số xét nghiệm)</option>
-                        <option value="NGAY_KQ">NGAY_KQ (Ngày kết quả CLS)</option>
-                      </>
-                    )}
-                    {(source === "XML7" || effectiveTab === "XML7") && (
-                      <>
-                        <option value="NGOAITRU_TUNGAY">
-                          NGOAITRU_TUNGAY (Thời gian ngoại trú từ ngày)
-                        </option>
-                        <option value="NGOAITRU_DENNGAY">
-                          NGOAITRU_DENNGAY (Thời gian ngoại trú đến ngày)
-                        </option>
-                        <option value="SO_NGAY_NGHI">SO_NGAY_NGHI (Số ngày nghỉ ngoại trú)</option>
-                        <option value="NGAY_RA">NGAY_RA (Thời gian ra viện)</option>
-                        <option value="CHAN_DOAN_RV">CHAN_DOAN_RV (Chẩn đoán ra viện)</option>
-                      </>
-                    )}
-                  </>
-                )}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Giá trị hiện tại (cũ):
-              </label>
-              <input
-                type="text"
-                value={currentOldValue}
-                readOnly
-                className="w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-mono text-slate-500 cursor-not-allowed"
-              />
+                  })}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  Giá trị hiện tại trong XML:
+                </label>
+                <input
+                  type="text"
+                  value={currentOldValue}
+                  readOnly
+                  className="w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-mono text-slate-600 cursor-not-allowed"
+                />
+              </div>
             </div>
           </div>
 
+          {/* Ô nhập giá trị mới thay thế */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-bold text-teal-800">Giá trị mới thay thế:</label>
-              {selectedField === "SO_CCCD" && (
-                <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded px-2 py-0.5">
-                  Cho phép để trống (xóa toàn bộ thông tin)
-                </span>
-              )}
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+              <label className="text-xs font-bold text-teal-900 flex items-center gap-1.5">
+                <span>✏️</span> Giá trị mới thay thế cho cột{" "}
+                <span className="font-mono text-teal-800 font-black">{selectedField}</span>:
+              </label>
+              <div className="flex items-center gap-1 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewValue("");
+                    setLyDo(`Bỏ trống trường ${selectedField} (xóa thông tin)`);
+                  }}
+                  className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-2.5 py-1 text-[11px] font-semibold transition shadow-2xs cursor-pointer"
+                  title="Xóa trắng ô này để bỏ trống giá trị trong XML"
+                >
+                  🗑️ Bỏ trống
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewValue(currentOldValue)}
+                  className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-2.5 py-1 text-[11px] font-semibold transition shadow-2xs cursor-pointer"
+                  title="Lấy lại đúng giá trị cũ ban đầu"
+                >
+                  ↺ Giá trị cũ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewValue((prev) => prev.toUpperCase())}
+                  className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-2.5 py-1 text-[11px] font-semibold transition shadow-2xs cursor-pointer"
+                  title="Chuyển sang chữ VIẾT HOA toàn bộ (phù hợp mã ICD-10, mã DV, mã BS...)"
+                >
+                  🔤 VIẾT HOA
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewValue((prev) => prev.trim())}
+                  className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-2.5 py-1 text-[11px] font-semibold transition shadow-2xs cursor-pointer"
+                  title="Cắt bỏ khoảng trắng thừa đầu và cuối"
+                >
+                  ✂️ Cắt khoảng trắng
+                </button>
+              </div>
             </div>
+
             <div className="flex items-center gap-2">
               <input
                 type="text"
                 value={newValue}
                 onChange={(e) => setNewValue(e.target.value)}
-                placeholder={
-                  selectedField === "SO_CCCD"
-                    ? "Để trống ô này để xóa sạch thông tin SO_CCCD..."
-                    : "Nhập giá trị mới (vd: 202611021430, 025221009314...)"
-                }
+                placeholder={`Nhập giá trị mới cho ${selectedField} (hoặc để trống để xóa dữ liệu)...`}
                 className="flex-1 rounded-xl border-2 border-teal-500 bg-teal-50/20 px-3 py-2 text-sm font-semibold text-slate-900 focus:bg-white focus:outline-none"
               />
               <button
                 type="button"
                 onClick={() => handleSave()}
-                disabled={!isFieldEmptyAllowed && !newValue.trim()}
-                className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-teal-700 hover:bg-teal-800 px-4 py-2 text-xs font-bold text-white shadow-md transition disabled:opacity-50 cursor-pointer"
-                title="Lưu ngay giá trị này vào Kế hoạch sửa (không cần cuộn xuống đáy modal)"
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-teal-700 hover:bg-teal-800 px-4 py-2 text-xs font-bold text-white shadow-md transition cursor-pointer"
+                title="Lưu ngay giá trị này vào Kế hoạch sửa"
               >
                 <span>💾</span> Lưu vào kế hoạch sửa
               </button>
             </div>
-            {selectedField === "SO_CCCD" && !newValue.trim() && (
+
+            {/* Trợ giúp hiển thị thời gian nếu trường là ngày giờ */}
+            {isDateTimeFieldName(selectedField) && newValue && (
+              <p className="mt-1 text-[11px] text-teal-800 font-medium flex items-center gap-1">
+                <span>⏱️</span>
+                <span>
+                  Định dạng hiển thị: <b>{formatDisplayDateTime(newValue)}</b>
+                  {newValue.replace(/\D/g, "").length === 12
+                    ? " (chuẩn 12 chữ số YYYYMMDDHHmm)"
+                    : newValue.replace(/\D/g, "").length === 8
+                      ? " (chuẩn 8 chữ số YYYYMMDD)"
+                      : ""}
+                </span>
+              </p>
+            )}
+
+            {!newValue.trim() && (
               <p className="mt-1 text-[11px] text-amber-800 font-medium flex items-center gap-1">
                 <span>💡</span>
                 <span>
                   Ô giá trị đang để trống. Nhấn <b>"Lưu vào kế hoạch sửa"</b> để lưu trạng thái xóa
-                  bỏ/bỏ trống thông tin SO_CCCD này.
+                  bỏ / bỏ trống dữ liệu cột <b>{selectedField}</b> này.
                 </span>
               </p>
             )}
@@ -975,21 +1172,23 @@ export function DirectEditModal({
               <span className="flex items-center gap-1">
                 <span>⚡</span> Gợi ý sửa tự động nhanh:
               </span>
-              {source === "XML3" && isSameExecutionAndResult && (
+              {isXml3TimeField && isSameExecutionAndResult && (
                 <span className="text-[10px] font-bold text-rose-700 bg-rose-100 rounded px-1.5 py-0.5">
                   ⚠️ Trùng giờ thực hiện &amp; kết quả (0p)
                 </span>
               )}
             </div>
 
-            {source === "XML3" && record && (
+            {/* Khối gợi ý thời gian XML3 (chỉ hiển thị khi đang sửa trường thời gian XML3) */}
+            {isXml3TimeField && (
               <div className="space-y-2 text-xs">
                 {/* Khối 1: Ca trùng giờ (0 phút) -> Căn cứ NGAY_KQ trừ lùi giờ NGAY_TH_YL */}
                 <div className="rounded-xl border border-rose-200 bg-white p-2.5 space-y-1.5">
                   <div className="text-[10px] uppercase font-bold text-rose-800 flex items-center justify-between">
                     <span>
-                      ⏱️ Trùng giờ (0p): Căn cứ giờ KQ ({formatShortTime(record.NGAY_KQ) || "—"})
-                      trừ lùi giờ TH_YL:
+                      ⏱️ Trùng giờ (0p): Căn cứ giờ KQ (
+                      {formatShortTime(record?.NGAY_KQ || customRow?.row?.NGAY_KQ) || "—"}) trừ lùi
+                      giờ TH_YL:
                     </span>
                     <span className="text-[10px] font-semibold text-rose-600 lowercase bg-rose-50 px-1.5 py-0.5 rounded">
                       (khuyên dùng)
@@ -1000,41 +1199,37 @@ export function DirectEditModal({
                       type="button"
                       onClick={() => applySuggestRewindExecution(10)}
                       className="rounded-lg border border-rose-400 bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-900 hover:bg-rose-100 shadow-xs transition"
-                      title={`Lùi NGAY_TH_YL về 10 phút trước giờ kết quả: ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_KQ, -10))}`}
+                      title="Lùi NGAY_TH_YL về 10 phút trước giờ kết quả"
                     >
                       ⏱️ Lùi TH_YL -10p{" "}
-                      {record.NGAY_KQ &&
-                        `(➔ ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_KQ, -10))})`}
+                      {kqOld && `(➔ ${formatShortTime(addMinutesToXmlDateTime(kqOld, -10))})`}
                     </button>
                     <button
                       type="button"
                       onClick={() => applySuggestRewindExecution(8)}
                       className="rounded-lg border border-rose-400 bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-900 hover:bg-rose-100 shadow-xs transition"
-                      title={`Lùi NGAY_TH_YL về 8 phút trước giờ kết quả: ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_KQ, -8))}`}
+                      title="Lùi NGAY_TH_YL về 8 phút trước giờ kết quả"
                     >
                       ⏱️ Lùi TH_YL -8p{" "}
-                      {record.NGAY_KQ &&
-                        `(➔ ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_KQ, -8))})`}
+                      {kqOld && `(➔ ${formatShortTime(addMinutesToXmlDateTime(kqOld, -8))})`}
                     </button>
                     <button
                       type="button"
                       onClick={() => applySuggestRewindExecution(15)}
                       className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 transition"
-                      title={`Lùi NGAY_TH_YL về 15 phút trước giờ kết quả: ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_KQ, -15))}`}
+                      title="Lùi NGAY_TH_YL về 15 phút trước giờ kết quả"
                     >
                       Lùi TH_YL -15p{" "}
-                      {record.NGAY_KQ &&
-                        `(➔ ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_KQ, -15))})`}
+                      {kqOld && `(➔ ${formatShortTime(addMinutesToXmlDateTime(kqOld, -15))})`}
                     </button>
                     <button
                       type="button"
                       onClick={() => applySuggestRewindExecution(20)}
                       className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 transition"
-                      title={`Lùi NGAY_TH_YL về 20 phút trước giờ kết quả: ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_KQ, -20))}`}
+                      title="Lùi NGAY_TH_YL về 20 phút trước giờ kết quả"
                     >
                       Lùi TH_YL -20p{" "}
-                      {record.NGAY_KQ &&
-                        `(➔ ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_KQ, -20))})`}
+                      {kqOld && `(➔ ${formatShortTime(addMinutesToXmlDateTime(kqOld, -20))})`}
                     </button>
                   </div>
                 </div>
@@ -1043,8 +1238,9 @@ export function DirectEditModal({
                 <div className="rounded-xl border border-teal-200 bg-white p-2.5 space-y-1.5">
                   <div className="text-[10px] uppercase font-bold text-teal-800 flex items-center justify-between">
                     <span>
-                      🕒 Căn cứ giờ TH_YL ({formatShortTime(record.NGAY_TH_YL) || "—"}) để cộng thêm
-                      giờ trả KQ:
+                      🕒 Căn cứ giờ TH_YL (
+                      {formatShortTime(record?.NGAY_TH_YL || customRow?.row?.NGAY_TH_YL) || "—"}) để
+                      cộng thêm giờ trả KQ:
                     </span>
                     <span className="text-[10px] font-semibold text-teal-700">
                       Điện tim / Xét nghiệm nhanh
@@ -1058,9 +1254,7 @@ export function DirectEditModal({
                       title="Đặt NGAY_KQ = NGAY_TH_YL + 8 phút (chuẩn thời lượng nhanh)"
                     >
                       ⭐ Chuẩn (+8p{" "}
-                      {record.NGAY_TH_YL &&
-                        `➔ ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_TH_YL, 8))}`}
-                      )
+                      {thOld && `➔ ${formatShortTime(addMinutesToXmlDateTime(thOld, 8))}`})
                     </button>
                     <button
                       type="button"
@@ -1069,9 +1263,7 @@ export function DirectEditModal({
                       title="Đặt NGAY_KQ = NGAY_TH_YL + 10 phút (chuẩn điện tim/xét nghiệm nhanh)"
                     >
                       ⭐ Điện tim (+10p{" "}
-                      {record.NGAY_TH_YL &&
-                        `➔ ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_TH_YL, 10))}`}
-                      )
+                      {thOld && `➔ ${formatShortTime(addMinutesToXmlDateTime(thOld, 10))}`})
                     </button>
                     <button
                       type="button"
@@ -1079,9 +1271,7 @@ export function DirectEditModal({
                       className="rounded-lg border border-teal-300 bg-teal-50 px-2 py-1 text-[11px] font-semibold text-teal-900 hover:bg-teal-100 transition"
                       title="Đặt NGAY_KQ = NGAY_TH_YL + 15 phút"
                     >
-                      +15p{" "}
-                      {record.NGAY_TH_YL &&
-                        `(➔ ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_TH_YL, 15))})`}
+                      +15p {thOld && `(➔ ${formatShortTime(addMinutesToXmlDateTime(thOld, 15))})`}
                     </button>
                     <button
                       type="button"
@@ -1089,9 +1279,7 @@ export function DirectEditModal({
                       className="rounded-lg border border-teal-300 bg-teal-50 px-2 py-1 text-[11px] font-semibold text-teal-900 hover:bg-teal-100 transition"
                       title="Đặt NGAY_KQ = NGAY_TH_YL + 20 phút"
                     >
-                      +20p{" "}
-                      {record.NGAY_TH_YL &&
-                        `(➔ ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_TH_YL, 20))})`}
+                      +20p {thOld && `(➔ ${formatShortTime(addMinutesToXmlDateTime(thOld, 20))})`}
                     </button>
                     <button
                       type="button"
@@ -1099,9 +1287,7 @@ export function DirectEditModal({
                       className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 transition"
                       title="Đặt NGAY_KQ = NGAY_TH_YL + 30 phút"
                     >
-                      +30p{" "}
-                      {record.NGAY_TH_YL &&
-                        `(➔ ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_TH_YL, 30))})`}
+                      +30p {thOld && `(➔ ${formatShortTime(addMinutesToXmlDateTime(thOld, 30))})`}
                     </button>
                     <button
                       type="button"
@@ -1109,9 +1295,7 @@ export function DirectEditModal({
                       className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 transition"
                       title="Đặt NGAY_KQ = NGAY_TH_YL + 45 phút"
                     >
-                      +45p{" "}
-                      {record.NGAY_TH_YL &&
-                        `(➔ ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_TH_YL, 45))})`}
+                      +45p {thOld && `(➔ ${formatShortTime(addMinutesToXmlDateTime(thOld, 45))})`}
                     </button>
                     <button
                       type="button"
@@ -1119,9 +1303,7 @@ export function DirectEditModal({
                       className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 transition"
                       title="Đặt NGAY_KQ = NGAY_TH_YL + 60 phút"
                     >
-                      +60p{" "}
-                      {record.NGAY_TH_YL &&
-                        `(➔ ${formatShortTime(addMinutesToXmlDateTime(record.NGAY_TH_YL, 60))})`}
+                      +60p {thOld && `(➔ ${formatShortTime(addMinutesToXmlDateTime(thOld, 60))})`}
                     </button>
                   </div>
                 </div>
@@ -1166,35 +1348,33 @@ export function DirectEditModal({
               </div>
             )}
 
-            {(source === "XML7" ||
-              effectiveTab === "XML7" ||
-              (customRow && customRow.headers.includes("NGOAITRU_TUNGAY"))) &&
-              xml7NextDaySuggestion && (
-                <div className="rounded-xl border border-teal-300 bg-teal-50/70 p-2.5 space-y-1.5">
-                  <div className="text-[10px] uppercase font-bold text-teal-900 flex items-center justify-between">
-                    <span>
-                      🏥 Quy tắc XML7: NGOAITRU_TUNGAY không được nhỏ hơn NGAY_RA (Ra viện:{" "}
-                      {xml7NextDaySuggestion.displayNgayRa}):
-                    </span>
-                    <span className="text-[10px] font-semibold text-teal-800 bg-teal-100 px-1.5 py-0.5 rounded">
-                      Gợi ý chuẩn BHYT
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    <button
-                      type="button"
-                      onClick={applySuggestXml7NextDay}
-                      className="rounded-lg border border-teal-500 bg-teal-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-teal-700 shadow-xs transition flex items-center gap-1.5"
-                      title={`Gợi ý chuẩn: Ngày ra viện là ${xml7NextDaySuggestion.displayNgayRa} ➔ Đặt NGOAITRU_TUNGAY = ${xml7NextDaySuggestion.displayNext}`}
-                    >
-                      <span>⚡</span> Đặt +1 ngày sau ra viện (➔ {xml7NextDaySuggestion.displayNext}
-                      )
-                    </button>
-                  </div>
+            {/* Gợi ý cho XML7 (NGOAITRU_TUNGAY) */}
+            {selectedField === "NGOAITRU_TUNGAY" && xml7NextDaySuggestion && (
+              <div className="rounded-xl border border-teal-300 bg-teal-50/70 p-2.5 space-y-1.5">
+                <div className="text-[10px] uppercase font-bold text-teal-900 flex items-center justify-between">
+                  <span>
+                    🏥 Quy tắc XML7: NGOAITRU_TUNGAY không được nhỏ hơn NGAY_RA (Ra viện:{" "}
+                    {xml7NextDaySuggestion.displayNgayRa}):
+                  </span>
+                  <span className="text-[10px] font-semibold text-teal-800 bg-teal-100 px-1.5 py-0.5 rounded">
+                    Gợi ý chuẩn BHYT
+                  </span>
                 </div>
-              )}
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={applySuggestXml7NextDay}
+                    className="rounded-lg border border-teal-500 bg-teal-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-teal-700 shadow-xs transition flex items-center gap-1.5"
+                    title={`Gợi ý chuẩn: Ngày ra viện là ${xml7NextDaySuggestion.displayNgayRa} ➔ Đặt NGOAITRU_TUNGAY = ${xml7NextDaySuggestion.displayNext}`}
+                  >
+                    <span>⚡</span> Đặt +1 ngày sau ra viện (➔ {xml7NextDaySuggestion.displayNext})
+                  </button>
+                </div>
+              </div>
+            )}
 
-            {(source === "XML1" || effectiveTab === "XML1" || selectedField === "SO_CCCD") && (
+            {/* Gợi ý cho SO_CCCD */}
+            {selectedField === "SO_CCCD" && (
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
@@ -1215,7 +1395,8 @@ export function DirectEditModal({
               </div>
             )}
 
-            {source === "XML4" && (
+            {/* Gợi ý cho KET_LUAN */}
+            {selectedField === "KET_LUAN" && (
               <div className="flex flex-wrap gap-1.5 text-xs">
                 {warning?.giaTri ? (
                   <button
@@ -1255,6 +1436,52 @@ export function DirectEditModal({
                 </button>
               </div>
             )}
+
+            {/* Gợi ý cho Mã bệnh ICD-10 */}
+            {(selectedField === "MA_BENH" ||
+              selectedField === "MA_BENH_CHINH" ||
+              selectedField === "MA_BENH_KT") && (
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const clean = newValue.toUpperCase().trim();
+                    setNewValue(clean);
+                    setLyDo(`Chuẩn hóa VIẾT HOA mã bệnh ${selectedField}: ${clean}`);
+                  }}
+                  className="rounded-lg border border-amber-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 shadow-2xs"
+                >
+                  🔤 VIẾT HOA mã bệnh
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const clean = newValue.replace(/\./g, "").toUpperCase().trim();
+                    setNewValue(clean);
+                    setLyDo(`Loại bỏ dấu chấm mã bệnh ${selectedField}: ${clean}`);
+                  }}
+                  className="rounded-lg border border-teal-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-teal-900 hover:bg-teal-100 shadow-2xs"
+                >
+                  ✂️ Bỏ dấu chấm phân cách (vd: I10.0 ➔ I100)
+                </button>
+              </div>
+            )}
+
+            {/* Gợi ý cho các trường khác */}
+            {!isXml3TimeField &&
+              selectedField !== "SO_CCCD" &&
+              selectedField !== "NGOAITRU_TUNGAY" &&
+              selectedField !== "KET_LUAN" &&
+              !selectedField.startsWith("MA_BENH") && (
+                <div className="text-[11px] text-slate-600 bg-white/70 rounded-xl p-2 border border-amber-200/60 flex items-center gap-2">
+                  <span>💡</span>
+                  <span>
+                    Đang chỉnh sửa trường <b>{selectedField}</b> ({getFieldLabel(selectedField)}).
+                    Bạn có thể nhập giá trị mới hoặc bấm nút <b>"Bỏ trống"</b> để xóa trắng dữ liệu
+                    cột này trong XML.
+                  </span>
+                </div>
+              )}
           </div>
 
           <div>

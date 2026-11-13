@@ -332,6 +332,7 @@ export function HomePage() {
     warning?: ValidationWarning;
     source: string;
     customRow?: CustomRowContext;
+    initialField?: string;
   } | null>(null);
   const [showCorrectionPlanModal, setShowCorrectionPlanModal] = useState(false);
 
@@ -1376,6 +1377,7 @@ export function HomePage() {
           warning={directEditTarget.warning}
           source={directEditTarget.source}
           customRow={directEditTarget.customRow}
+          initialField={directEditTarget.initialField}
           correctionPlan={correctionPlan}
           onSaveCorrection={handleSaveCorrectionItem}
           onResetCorrection={handleResetRecordCorrection}

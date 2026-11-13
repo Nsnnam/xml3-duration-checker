@@ -3,12 +3,24 @@ export const APP_META = {
   title: "NsN_XMLcheck",
   description:
     "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, MA_MAY chuẩn XX.3[xxx].Z & trùng thời gian máy, cảnh báo Z00.0/Z30.1 (KHHGĐ) & Hồ sơ 15 bảng BHYT",
-  version: "2.12.0",
-  date: "2026-11-10",
+  version: "2.13.0",
+  date: "2026-11-13",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.13.0",
+      date: "2026-11-13",
+      changes: [
+        "Sửa mọi cột dữ liệu tương ứng với từng tab, từng dòng XML (XML1 - XML15): Không còn giới hạn chỉ sửa riêng thời gian hay bị ép vào bảng đối chiếu 3 mốc thời gian XML3. Cho phép chỉnh sửa hoặc xóa rỗng bất kỳ cột nào của dòng (MA_DICH_VU, TEN_DICH_VU, SO_LUONG, DON_GIA, MA_KHOA, MA_BAC_SI, MA_MAY, TT_THAU, MA_BENH, KET_LUAN, v.v.).",
+        "Click trực tiếp vào bất kỳ ô dữ liệu trên bảng 15 tab XML để sửa nhanh cột đó: Rê chuột hiển thị tooltip cột và click vào ô để mở thẳng hộp thoại chỉnh sửa với đúng cột và giá trị cũ được chọn sẵn.",
+        "Nút 'Sửa cột này' trong cửa sổ chi tiết dòng (RowDetailModal): Bổ sung nút '✏️ Sửa cột này' cạnh nút 'Chép' cho từng trường dữ liệu khi xem toàn bộ thông tin dòng.",
+        "Bộ lọc tìm kiếm cột & Quick Field Chips trong DirectEditModal: Hỗ trợ tìm kiếm nhanh cột dữ liệu, thanh chip chọn 1 chạm để chuyển cột cần sửa ngay lập tức, kèm dropdown hiển thị tên cột, diễn giải tiếng Việt và giá trị hiện tại.",
+        "Thanh tiện ích giá trị mới: Thêm các nút thao tác nhanh '🗑️ Bỏ trống' (cho phép xóa rỗng mọi trường), '↺ Lấy lại giá trị cũ', '🔤 VIẾT HOA', '✂️ Cắt khoảng trắng' và hiển thị xem trước định dạng ngày giờ chuẩn.",
+        "Bảng 3 mốc thời gian thông minh: Tự động chỉ hiển thị bảng đối chiếu 3 mốc thời gian khi chỉnh sửa các trường thời gian XML3 (NGAY_YL, NGAY_TH_YL, NGAY_KQ); tự động ẩn đi và hiển thị thẻ thông tin cột chuyên dụng khi sửa các cột nghiệp vụ khác.",
+      ],
+    },
     {
       version: "2.12.0",
       date: "2026-11-10",

@@ -61,6 +61,138 @@ export function toHisDateString(val?: string): string {
   return `${d}/${m}/${y}`;
 }
 
+export const COMMON_LABELS: Record<string, string> = {
+  // Định danh chung
+  STT: "Số thứ tự",
+  MA_LK: "Mã liên kết",
+  MA_BN: "Mã bệnh nhân",
+  HO_TEN: "Họ và tên",
+  SO_CCCD: "Số CCCD / Định danh",
+  NGAY_SINH: "Ngày sinh",
+  NAM_SINH: "Năm sinh",
+  GIOI_TINH: "Giới tính",
+  DIA_CHI: "Địa chỉ thường trú",
+  MA_THE_BHYT: "Mã thẻ BHYT",
+  MA_THE: "Mã thẻ BHYT",
+  MA_DKBD: "Mã nơi ĐK KCB ban đầu",
+  GT_THE_TU: "Giá trị thẻ từ ngày",
+  GT_THE_DEN: "Giá trị thẻ đến ngày",
+  MIEN_CUNG_CT: "Miễn cùng chi trả từ ngày",
+  NAM_NAM_LIEN_TUC: "Thời điểm đủ 5 năm liên tục",
+  MA_DOITUONG_KCB: "Mã đối tượng KCB",
+  MA_CSKCB: "Mã cơ sở KCB",
+  MA_NOI_CHUYEN: "Mã cơ sở chuyển đến/đi",
+  MA_NOI_DI: "Mã nơi chuyển đi",
+  MA_NOI_DEN: "Mã nơi chuyển đến",
+  MA_TAI_NAN: "Mã tai nạn",
+  NGAY_VAO: "Thời gian vào viện",
+  NGAY_RA: "Thời gian ra viện",
+  SO_NGAY_DTRI: "Số ngày điều trị",
+  MA_KHOA: "Mã khoa chỉ định / điều trị",
+  TEN_KHOA: "Tên khoa",
+  MA_GIUONG: "Mã giường bệnh",
+  KET_QUA_DTRI: "Kết quả điều trị",
+  TINH_TRANG_RV: "Tình trạng ra viện",
+  CHAN_DOAN_VAO: "Chẩn đoán khi vào viện",
+  CHAN_DOAN_RV: "Chẩn đoán khi ra viện",
+  MA_BENH: "Mã bệnh chính (ICD-10)",
+  MA_BENH_CHINH: "Mã bệnh chính (ICD-10)",
+  TEN_BENH: "Tên bệnh chính",
+  MA_BENHKEMTHEO: "Mã bệnh kèm theo",
+  MA_BENH_KT: "Mã bệnh kèm theo",
+  MA_BENH_YHCT: "Mã bệnh YHCT",
+  MA_QUOCTICH: "Mã quốc tịch",
+  MA_DANTOC: "Mã dân tộc",
+  MA_KHUVUC: "Mã khu vực sống",
+  MA_LOAI_KCB: "Mã loại KCB (1:Khám, 2:Ngoại, 3:Nội)",
+  NGHE_NGHIEP: "Nghề nghiệp",
+  NOI_LAM_VIEC: "Nơi làm việc",
+  CAN_NANG: "Cân nặng (kg / gam)",
+  NGAY_TTOAN: "Ngày thanh toán",
+  TIEN_TONGCHI: "Tổng chi phí KCB",
+  TIEN_TONG: "Tổng chi phí KCB",
+  TIEN_BHYT: "Chi phí BHYT thanh toán",
+  TIEN_BHTT: "Tiền BHYT thanh toán",
+  TIEN_BNTT: "Bệnh nhân tự trả",
+  TIEN_BNCT: "Bệnh nhân cùng chi trả",
+  TIEN_NGUONKHAC: "Nguồn kinh phí khác",
+  TIEN_NGOAIDS: "Chi phí ngoài danh mục",
+  NAM_QT: "Năm quyết toán",
+  THANG_QT: "Tháng quyết toán",
+  MA_LOAI_RV: "Mã loại ra viện",
+  NGAY_TAI_KHAM: "Ngày hẹn tái khám",
+
+  // Thuốc & Vật tư y tế & Dịch vụ kỹ thuật
+  MA_DICH_VU: "Mã dịch vụ kỹ thuật",
+  TEN_DICH_VU: "Tên dịch vụ kỹ thuật",
+  MA_THUOC: "Mã thuốc theo BYT",
+  TEN_THUOC: "Tên thuốc",
+  MA_VAT_TU: "Mã vật tư y tế",
+  TEN_VAT_TU: "Tên vật tư y tế",
+  GOI_VTYT: "Tên gói vật tư y tế",
+  MA_NHOM: "Mã nhóm chi phí BHYT",
+  DON_VI_TINH: "Đơn vị tính",
+  HAM_LUONG: "Hàm lượng / nồng độ",
+  DUONG_DUNG: "Đường dùng thuốc",
+  SO_DANG_KY: "Số đăng ký / GPNK",
+  SO_LUONG: "Số lượng",
+  DON_GIA: "Đơn giá thanh toán",
+  DON_GIA_BV: "Đơn giá bệnh viện",
+  TYLE_TT: "Tỷ lệ thanh toán BHYT (%)",
+  THANH_TIEN: "Thành tiền",
+  MA_BAC_SI: "Mã bác sĩ chỉ định",
+  MA_BS: "Mã bác sĩ",
+  NGUOI_THUC_HIEN: "Người thực hiện",
+  NGAY_YL: "Ngày giờ y lệnh",
+  NGAY_TH_YL: "Ngày giờ thực hiện y lệnh",
+  NGAY_KQ: "Ngày giờ có kết quả",
+  MA_PTTT: "Mã phẫu thuật thủ thuật",
+  MA_MAY: "Mã máy thực hiện",
+  MA_HIEU_SP: "Mã hiệu sản phẩm",
+  TT_THAU: "Thông tin thầu",
+  LIEU_DUNG: "Liều dùng / cách dùng",
+  VET_THUONG_TP: "Vết thương thực thể",
+
+  // Cận lâm sàng & Kết quả
+  MA_CHI_SO: "Mã chỉ số xét nghiệm",
+  TEN_CHI_SO: "Tên chỉ số xét nghiệm",
+  GIA_TRI: "Chỉ số / Giá trị kết quả",
+  KET_LUAN: "Kết luận cận lâm sàng",
+  MO_TA: "Mô tả hình ảnh / tổn thương",
+
+  // Hồ sơ, giấy tờ & diễn biến
+  DIEN_BIEN: "Diễn biến bệnh",
+  HOI_CHAN: "Nội dung hội chẩn",
+  PHAU_THUAT: "Quá trình phẫu thuật thủ thuật",
+  TOM_TAT_BA: "Tóm tắt bệnh án",
+  PP_DIEUTRI: "Phương pháp điều trị",
+  SO_SERI: "Số seri chứng từ",
+  SO_KCB: "Số sổ khám chữa bệnh",
+  NGOAITRU_TUNGAY: "Ngoại trú từ ngày",
+  NGOAITRU_DENNGAY: "Ngoại trú đến ngày",
+  SO_NGAY_NGHI: "Số ngày nghỉ ngoại trú",
+  MA_TRUONGKHOA: "Mã trưởng khoa",
+  HO_TEN_CHA: "Họ tên cha / giám hộ",
+  HO_TEN_ME: "Họ tên mẹ",
+};
+
+export function getFieldLabel(key: string): string {
+  return COMMON_LABELS[key.toUpperCase()] || key;
+}
+
+export function isDateTimeFieldName(f: string): boolean {
+  const upper = f.toUpperCase();
+  return (
+    upper.startsWith("NGAY_") ||
+    upper.endsWith("_NGAY") ||
+    upper.includes("_TUNGAY") ||
+    upper.includes("_DENNGAY") ||
+    upper.includes("THOIGIAN") ||
+    upper === "NAM_NAM_LIEN_TUC" ||
+    upper === "MIEN_CUNG_CT"
+  );
+}
+
 /**
  * Cộng thêm hoặc trừ lùi số phút vào chuỗi yyyyMMddHHmm (hoặc yyyyMMddHHmmss)
  * Tuyệt đối dùng getUTC* để không bị lệch múi giờ cục bộ (GMT+7)
