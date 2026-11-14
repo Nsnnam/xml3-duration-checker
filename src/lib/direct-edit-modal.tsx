@@ -190,6 +190,8 @@ export function DirectEditModal({
   ]);
 
   const [selectedField, setSelectedField] = useState(defaultField);
+  const [showColumnPicker, setShowColumnPicker] = useState(false);
+  const [customRewindMins, setCustomRewindMins] = useState<number>(10);
 
   // Giá trị cũ ban đầu của trường đang chọn
   const currentOldValue = useMemo(() => {
@@ -259,6 +261,7 @@ export function DirectEditModal({
 
   useEffect(() => {
     if (isOpen) {
+      setShowColumnPicker(false);
       const explicitField = initialField || customRow?.initialField;
       const targetField = explicitField || defaultField;
       setSelectedField(targetField);
@@ -401,15 +404,15 @@ export function DirectEditModal({
     }
   };
 
-  // 1. Nhóm ca trùng giờ (0 phút): Căn cứ vào giờ trả kết quả (NGAY_KQ) trừ lùi X phút để điền vào NGAY_TH_YL
+  // 1. Nhóm ca trùng giờ (0 phút) hoặc lùi giờ TH: Căn cứ vào giờ kết thúc (NGAY_KQ / NGAY_TH_YL) trừ lùi X phút để điền vào NGAY_TH_YL
   const applySuggestRewindExecution = (offsetMins = 10) => {
-    const base = record?.NGAY_KQ || record?.NGAY_TH_YL || "";
+    const base = kqOld || thOld || record?.NGAY_KQ || record?.NGAY_TH_YL || "";
     if (base) {
       const calculated = addMinutesToXmlDateTime(base, -offsetMins);
       setSelectedField("NGAY_TH_YL");
       setNewValue(calculated);
       setLyDo(
-        `Trừ lùi giờ thực hiện y lệnh ${offsetMins} phút so với giờ kết quả (${formatShortTime(base)} ➔ ${formatShortTime(calculated)}) để tránh trùng giờ`,
+        `Trừ lùi giờ thực hiện y lệnh ${offsetMins} phút so với giờ kết quả (${formatShortTime(base)} ➔ ${formatShortTime(calculated)}) để tránh trùng giờ / sửa thứ tự thời gian`,
       );
     }
   };
@@ -647,63 +650,62 @@ export function DirectEditModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-      <div className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 animate-in fade-in duration-150">
+      <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[95vh]">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-teal-50 to-white px-6 py-4">
+        <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-teal-50 to-white px-4 py-2.5">
           <div className="flex items-center gap-2">
-            <span className="text-xl">✏️</span>
+            <span className="text-lg">✏️</span>
             <div>
-              <h3 className="font-bold text-slate-900 text-base">
+              <h3 className="font-bold text-slate-900 text-sm leading-tight">
                 Sửa trực tiếp & Lập kế hoạch thay đổi
               </h3>
-              <p className="text-xs text-slate-500">
+              <p className="text-[11px] text-slate-500 leading-tight">
                 Lưu vào kế hoạch chỉnh sửa để xuất file nạp tự động vào VNPT-HIS Extension
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="rounded-xl border border-slate-200 p-2 text-slate-400 hover:bg-slate-50 hover:text-slate-700 transition"
+            className="rounded-lg border border-slate-200 p-1.5 text-slate-400 hover:bg-slate-50 hover:text-slate-700 transition cursor-pointer text-xs"
           >
             ✕
           </button>
         </div>
 
-        {/* Thông tin hồ sơ */}
-        <div className="bg-slate-50 border-b border-slate-100 px-6 py-3 text-xs grid grid-cols-2 gap-2">
+        {/* Thông tin hồ sơ gọn gàng */}
+        <div className="bg-slate-50 border-b border-slate-100 px-4 py-1.5 text-[11px] flex flex-wrap items-center gap-x-3 gap-y-0.5 text-slate-600">
           <div>
-            <span className="text-slate-500">Bệnh nhân: </span>
+            <span className="text-slate-400">Bệnh nhân: </span>
             <b className="text-slate-800">{hoTen || "—"}</b>
+            {maBa && <span className="font-mono text-teal-800 font-bold ml-1">({maBa})</span>}
           </div>
           <div>
-            <span className="text-slate-500">Mã Bệnh Án: </span>
-            <b className="font-mono text-teal-800">{maBa || "—"}</b>
-          </div>
-          <div>
-            <span className="text-slate-500">MA_LK: </span>
+            <span className="text-slate-400">MA_LK: </span>
             <span className="font-mono font-bold text-slate-700">{maLk || "—"}</span>
           </div>
           <div>
-            <span className="text-slate-500">Tab / STT: </span>
+            <span className="text-slate-400">Tab / STT: </span>
             <b className="text-teal-700">{effectiveTab}</b> · STT {stt}
           </div>
           {maDichVu && (
-            <div className="col-span-2 truncate">
-              <span className="text-slate-500">Dịch vụ: </span>
-              <span className="font-mono text-[11px] text-slate-700">{maDichVu}</span> —{" "}
-              <span className="text-slate-800 font-medium">{tenDichVu}</span>
+            <div className="truncate max-w-full">
+              <span className="text-slate-400">Dịch vụ: </span>
+              <span className="font-mono text-[10.5px] text-slate-700 font-semibold">
+                {maDichVu}
+              </span>
+              {tenDichVu && <span className="text-slate-800 font-medium ml-1">— {tenDichVu}</span>}
             </div>
           )}
         </div>
 
         {/* Form chỉnh sửa có cuộn nếu dài */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
+        <form onSubmit={handleSubmit} className="px-4 py-2.5 space-y-2 overflow-y-auto flex-1">
           {/* Banner thông báo nếu hồ sơ này đã có trong kế hoạch sửa */}
           {existingPlannedItems.length > 0 && (
-            <div className="rounded-2xl border-2 border-emerald-400 bg-emerald-50/90 p-3.5 shadow-xs flex flex-wrap items-center justify-between gap-3 animate-in fade-in duration-150">
-              <div className="flex items-center gap-2.5">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white text-xs font-black shadow-xs shrink-0">
+            <div className="rounded-xl border-2 border-emerald-400 bg-emerald-50/90 p-2.5 shadow-2xs flex flex-wrap items-center justify-between gap-2 animate-in fade-in duration-150">
+              <div className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-white text-xs font-black shadow-2xs shrink-0">
                   ✓
                 </span>
                 <div>
@@ -734,7 +736,7 @@ export function DirectEditModal({
                         onClose();
                       }
                     }}
-                    className="shrink-0 inline-flex items-center gap-1.5 rounded-xl border border-rose-300 bg-white hover:bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700 shadow-2xs transition cursor-pointer"
+                    className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-rose-300 bg-white hover:bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700 shadow-2xs transition cursor-pointer"
                     title="Hủy kế hoạch sửa của dòng này, khôi phục về dữ liệu XML ban đầu"
                   >
                     <span>↺</span> Khôi phục về ban đầu
@@ -743,7 +745,7 @@ export function DirectEditModal({
                 <button
                   type="button"
                   onClick={() => handleSave()}
-                  className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm transition cursor-pointer"
+                  className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-emerald-700 hover:bg-emerald-800 px-3 py-1 text-xs font-bold text-white shadow-xs transition cursor-pointer"
                   title="Lưu lại cập nhật này vào Kế hoạch sửa"
                 >
                   <span>💾</span> Cập nhật lại kế hoạch
@@ -754,7 +756,7 @@ export function DirectEditModal({
 
           {/* Bảng đối chiếu 3 mốc thời gian Trước & Sau (Chỉ hiển thị khi sửa trường thời gian của XML3) */}
           {isXml3TimeField ? (
-            <div className="rounded-2xl border border-teal-200 bg-teal-50/40 p-3.5 space-y-2.5">
+            <div className="rounded-xl border border-teal-200 bg-teal-50/40 p-2.5 space-y-1.5">
               <div className="flex items-center justify-between text-xs font-bold text-teal-900">
                 <span className="flex items-center gap-1.5">
                   <span>🕒</span> Bảng đối chiếu 3 mốc thời gian (Trước & Sau chỉnh sửa):
@@ -770,35 +772,35 @@ export function DirectEditModal({
                 <table className="w-full text-xs text-left border-collapse">
                   <thead className="bg-slate-50 text-[11px] font-bold text-slate-600 border-b border-slate-200">
                     <tr>
-                      <th className="px-3 py-1.5 w-32">Mốc thời gian</th>
-                      <th className="px-3 py-1.5 w-40">Trước (Hiện tại)</th>
-                      <th className="px-3 py-1.5 w-40 bg-teal-50/50 text-teal-900">
+                      <th className="px-2.5 py-1 w-28">Mốc thời gian</th>
+                      <th className="px-2.5 py-1 w-36">Trước (Hiện tại)</th>
+                      <th className="px-2.5 py-1 w-36 bg-teal-50/50 text-teal-900">
                         Sau (Dự kiến)
                       </th>
-                      <th className="px-2 py-1.5 text-center w-24">Chọn sửa</th>
+                      <th className="px-2 py-1 text-center w-20">Chọn sửa</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-[11px]">
                     {/* NGAY_YL */}
                     <tr className={selectedField === "NGAY_YL" ? "bg-amber-50/60" : ""}>
-                      <td className="px-3 py-1.5 font-bold text-slate-700">1. NGAY_YL (Y lệnh)</td>
-                      <td className="px-3 py-1.5 font-mono text-slate-600">
+                      <td className="px-2.5 py-1 font-bold text-slate-700">1. NGAY_YL (Y lệnh)</td>
+                      <td className="px-2.5 py-1 font-mono text-slate-600">
                         <div>{ylOld || "—"}</div>
                         <div className="text-[10px] text-slate-400">
                           {formatDisplayDateTime(ylOld)}
                         </div>
                       </td>
-                      <td className="px-3 py-1.5 font-mono font-bold text-teal-800 bg-teal-50/30">
+                      <td className="px-2.5 py-1 font-mono font-bold text-teal-800 bg-teal-50/30">
                         <div>{ylNew || "—"}</div>
                         <div className="text-[10px] text-teal-600">
                           {formatDisplayDateTime(ylNew)}
                         </div>
                       </td>
-                      <td className="px-2 py-1.5 text-center">
+                      <td className="px-2 py-1 text-center">
                         <button
                           type="button"
                           onClick={() => handleFieldChange("NGAY_YL")}
-                          className={`rounded px-2 py-0.5 text-[10px] font-bold transition ${
+                          className={`rounded px-2 py-0.5 text-[10px] font-bold transition cursor-pointer ${
                             selectedField === "NGAY_YL"
                               ? "bg-amber-500 text-white shadow-xs"
                               : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -811,26 +813,26 @@ export function DirectEditModal({
 
                     {/* NGAY_TH_YL */}
                     <tr className={selectedField === "NGAY_TH_YL" ? "bg-amber-50/60" : ""}>
-                      <td className="px-3 py-1.5 font-bold text-slate-700">
+                      <td className="px-2.5 py-1 font-bold text-slate-700">
                         2. NGAY_TH_YL (Thực hiện)
                       </td>
-                      <td className="px-3 py-1.5 font-mono text-slate-600">
+                      <td className="px-2.5 py-1 font-mono text-slate-600">
                         <div>{thOld || "—"}</div>
                         <div className="text-[10px] text-slate-400">
                           {formatDisplayDateTime(thOld)}
                         </div>
                       </td>
-                      <td className="px-3 py-1.5 font-mono font-bold text-teal-800 bg-teal-50/30">
+                      <td className="px-2.5 py-1 font-mono font-bold text-teal-800 bg-teal-50/30">
                         <div>{thNew || "—"}</div>
                         <div className="text-[10px] text-teal-600">
                           {formatDisplayDateTime(thNew)}
                         </div>
                       </td>
-                      <td className="px-2 py-1.5 text-center">
+                      <td className="px-2 py-1 text-center">
                         <button
                           type="button"
                           onClick={() => handleFieldChange("NGAY_TH_YL")}
-                          className={`rounded px-2 py-0.5 text-[10px] font-bold transition ${
+                          className={`rounded px-2 py-0.5 text-[10px] font-bold transition cursor-pointer ${
                             selectedField === "NGAY_TH_YL"
                               ? "bg-amber-500 text-white shadow-xs"
                               : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -843,24 +845,24 @@ export function DirectEditModal({
 
                     {/* NGAY_KQ */}
                     <tr className={selectedField === "NGAY_KQ" ? "bg-amber-50/60" : ""}>
-                      <td className="px-3 py-1.5 font-bold text-slate-700">3. NGAY_KQ (Kết quả)</td>
-                      <td className="px-3 py-1.5 font-mono text-slate-600">
+                      <td className="px-2.5 py-1 font-bold text-slate-700">3. NGAY_KQ (Kết quả)</td>
+                      <td className="px-2.5 py-1 font-mono text-slate-600">
                         <div>{kqOld || "—"}</div>
                         <div className="text-[10px] text-slate-400">
                           {formatDisplayDateTime(kqOld)}
                         </div>
                       </td>
-                      <td className="px-3 py-1.5 font-mono font-bold text-teal-800 bg-teal-50/30">
+                      <td className="px-2.5 py-1 font-mono font-bold text-teal-800 bg-teal-50/30">
                         <div>{kqNew || "—"}</div>
                         <div className="text-[10px] text-teal-600">
                           {formatDisplayDateTime(kqNew)}
                         </div>
                       </td>
-                      <td className="px-2 py-1.5 text-center">
+                      <td className="px-2 py-1 text-center">
                         <button
                           type="button"
                           onClick={() => handleFieldChange("NGAY_KQ")}
-                          className={`rounded px-2 py-0.5 text-[10px] font-bold transition ${
+                          className={`rounded px-2 py-0.5 text-[10px] font-bold transition cursor-pointer ${
                             selectedField === "NGAY_KQ"
                               ? "bg-amber-500 text-white shadow-xs"
                               : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -875,8 +877,8 @@ export function DirectEditModal({
               </div>
 
               {/* Đánh giá khoảng thời gian Trước -> Sau */}
-              <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
-                <div className="rounded-xl border border-slate-200 bg-white p-2">
+              <div className="grid grid-cols-2 gap-2 text-[10.5px]">
+                <div className="rounded-lg border border-slate-200 bg-white p-1.5">
                   <div className="text-slate-500 font-semibold mb-0.5">
                     ⏱️ Chờ thực hiện (TH_YL - YL):
                   </div>
@@ -906,7 +908,7 @@ export function DirectEditModal({
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-slate-200 bg-white p-2">
+                <div className="rounded-lg border border-slate-200 bg-white p-1.5">
                   <div className="text-slate-500 font-semibold mb-0.5">
                     ⏱️ Thời lượng (KQ - TH_YL):
                   </div>
@@ -939,7 +941,7 @@ export function DirectEditModal({
             </div>
           ) : (
             /* Khi sửa các cột khác không phải thời gian XML3 (Mã DV, Tên DV, Số lượng, Đơn giá, Khoa, Bác sĩ...) */
-            <div className="rounded-2xl border border-teal-200 bg-teal-50/40 p-3.5 space-y-2">
+            <div className="rounded-xl border border-teal-200 bg-teal-50/40 p-2.5 space-y-1.5">
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                 <div className="flex items-center gap-2">
                   <span className="text-base">📋</span>
@@ -953,11 +955,11 @@ export function DirectEditModal({
                     </span>
                   </span>
                 </div>
-                <span className="rounded-md bg-teal-100 text-teal-800 text-[11px] px-2.5 py-0.5 font-bold">
+                <span className="rounded-md bg-teal-100 text-teal-800 text-[10.5px] px-2 py-0.5 font-bold">
                   Bảng {effectiveTab} · Dòng STT {stt}
                 </span>
               </div>
-              <div className="flex items-center gap-2 text-xs text-slate-600 bg-white/80 rounded-xl px-3 py-1.5 border border-teal-100">
+              <div className="flex items-center gap-2 text-xs text-slate-600 bg-white/80 rounded-xl px-2.5 py-1 border border-teal-100">
                 <span className="text-slate-500 font-semibold shrink-0">
                   Giá trị hiện tại trong XML:
                 </span>
@@ -972,113 +974,156 @@ export function DirectEditModal({
             </div>
           )}
 
-          {/* Chọn cột cần sửa (Bộ lọc tìm kiếm, Quick Chips, & Dropdown chi tiết) */}
-          <div className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <span>🎯</span> Chọn cột dữ liệu cần sửa ({availableColumns.length} cột):
+          {/* Chọn cột cần sửa: Mặc định ẩn, chỉ xổ khi tích hoặc bấm toggle */}
+          {!showColumnPicker ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-700 select-none">
+                <input
+                  type="checkbox"
+                  checked={showColumnPicker}
+                  onChange={(e) => setShowColumnPicker(e.target.checked)}
+                  className="rounded border-slate-300 text-teal-600 focus:ring-teal-500 w-4 h-4 cursor-pointer"
+                />
+                <span>🎯 Chọn cột khác cần sửa ({availableColumns.length} cột)</span>
               </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={columnFilter}
-                  onChange={(e) => setColumnFilter(e.target.value)}
-                  placeholder="Lọc cột hoặc giá trị..."
-                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[11px] text-slate-800 placeholder-slate-400 focus:border-teal-500 focus:outline-none w-48 shadow-2xs"
-                />
-                {columnFilter && (
-                  <button
-                    type="button"
-                    onClick={() => setColumnFilter("")}
-                    className="absolute right-2 top-1 text-slate-400 hover:text-slate-600 text-[11px]"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Quick Chips chọn cột nhanh */}
-            <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
-              {filteredColumns.map((col) => {
-                const isSelected = selectedField === col;
-                const lbl = getFieldLabel(col);
-                const colVal = customRow ? (customRow.row[col] ?? "") : "";
-                const isColPlanned = existingPlannedMap.has(col);
-                return (
-                  <button
-                    key={col}
-                    type="button"
-                    onClick={() => handleFieldChange(col)}
-                    className={`rounded-lg px-2.5 py-1 text-[11px] font-mono transition flex items-center gap-1 border shadow-2xs cursor-pointer ${
-                      isSelected
-                        ? "bg-teal-700 text-white border-teal-800 font-bold ring-2 ring-teal-300"
-                        : isColPlanned
-                          ? "bg-emerald-50 text-emerald-900 border-emerald-400 font-bold hover:bg-emerald-100"
-                          : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
-                    }`}
-                    title={`[${col} - ${lbl}]: ${colVal || "(trống)"}${
-                      isColPlanned ? " (Đã có trong kế hoạch sửa)" : ""
-                    }`}
-                  >
-                    {isColPlanned && <span className="text-emerald-600 font-black">✓</span>}
-                    <span className="font-bold">{col}</span>
-                    {lbl !== col && (
-                      <span
-                        className={`text-[10px] font-sans ${
-                          isSelected ? "text-teal-100" : "text-slate-500"
-                        }`}
-                      >
-                        ({lbl})
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Dropdown & Ô xem giá trị cũ */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                  Hoặc chọn từ danh sách cột:
-                </label>
-                <select
-                  value={selectedField}
-                  onChange={(e) => handleFieldChange(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-teal-500 focus:outline-none"
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="text-slate-500">Đang chọn:</span>
+                <span className="font-mono font-bold text-teal-800 bg-white border border-teal-200 px-2 py-0.5 rounded shadow-2xs">
+                  {selectedField}
+                </span>
+                <span className="text-slate-600 font-medium">({getFieldLabel(selectedField)})</span>
+                <button
+                  type="button"
+                  onClick={() => setShowColumnPicker(true)}
+                  className="rounded-lg bg-teal-50 border border-teal-300 text-[11px] font-bold text-teal-800 hover:bg-teal-100 px-2 py-0.5 cursor-pointer ml-1"
                 >
-                  {filteredColumns.map((col) => {
-                    const lbl = getFieldLabel(col);
-                    const val = customRow ? (customRow.row[col] ?? "") : "";
-                    return (
-                      <option key={col} value={col}>
-                        {col} — {lbl}{" "}
-                        {val !== ""
-                          ? `(Hiện tại: "${val.length > 25 ? val.slice(0, 25) + "..." : val}")`
-                          : "(Hiện tại: trống)"}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                  Giá trị hiện tại trong XML:
-                </label>
-                <input
-                  type="text"
-                  value={currentOldValue}
-                  readOnly
-                  className="w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-mono text-slate-600 cursor-not-allowed"
-                />
+                  ▼ Đổi cột
+                </button>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/80 p-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-800 text-xs select-none">
+                  <input
+                    type="checkbox"
+                    checked={showColumnPicker}
+                    onChange={(e) => setShowColumnPicker(e.target.checked)}
+                    className="rounded border-slate-300 text-teal-600 focus:ring-teal-500 w-4 h-4 cursor-pointer"
+                  />
+                  <span>🎯 Chọn cột dữ liệu cần sửa ({availableColumns.length} cột):</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={columnFilter}
+                      onChange={(e) => setColumnFilter(e.target.value)}
+                      placeholder="Lọc cột hoặc giá trị..."
+                      className="rounded-lg border border-slate-300 bg-white px-2 py-0.5 text-[11px] text-slate-800 placeholder-slate-400 focus:border-teal-500 focus:outline-none w-44 shadow-2xs"
+                    />
+                    {columnFilter && (
+                      <button
+                        type="button"
+                        onClick={() => setColumnFilter("")}
+                        className="absolute right-2 top-0.5 text-slate-400 hover:text-slate-600 text-[11px]"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowColumnPicker(false)}
+                    className="rounded-lg border border-slate-200 bg-white hover:bg-slate-100 px-2 py-0.5 text-[10.5px] font-semibold text-slate-600 cursor-pointer"
+                  >
+                    ▲ Thu gọn
+                  </button>
+                </div>
+              </div>
+
+              {/* Quick Chips chọn cột nhanh */}
+              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+                {filteredColumns.map((col) => {
+                  const isSelected = selectedField === col;
+                  const lbl = getFieldLabel(col);
+                  const colVal = customRow ? (customRow.row[col] ?? "") : "";
+                  const isColPlanned = existingPlannedMap.has(col);
+                  return (
+                    <button
+                      key={col}
+                      type="button"
+                      onClick={() => handleFieldChange(col)}
+                      className={`rounded-lg px-2 py-0.5 text-[11px] font-mono transition flex items-center gap-1 border shadow-2xs cursor-pointer ${
+                        isSelected
+                          ? "bg-teal-700 text-white border-teal-800 font-bold ring-2 ring-teal-300"
+                          : isColPlanned
+                            ? "bg-emerald-50 text-emerald-900 border-emerald-400 font-bold hover:bg-emerald-100"
+                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                      }`}
+                      title={`[${col} - ${lbl}]: ${colVal || "(trống)"}${
+                        isColPlanned ? " (Đã có trong kế hoạch sửa)" : ""
+                      }`}
+                    >
+                      {isColPlanned && <span className="text-emerald-600 font-black">✓</span>}
+                      <span className="font-bold">{col}</span>
+                      {lbl !== col && (
+                        <span
+                          className={`text-[10px] font-sans ${
+                            isSelected ? "text-teal-100" : "text-slate-500"
+                          }`}
+                        >
+                          ({lbl})
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Dropdown & Ô xem giá trị cũ */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
+                <div>
+                  <label className="block text-[10.5px] font-bold text-slate-600 mb-0.5">
+                    Hoặc chọn từ danh sách cột:
+                  </label>
+                  <select
+                    value={selectedField}
+                    onChange={(e) => handleFieldChange(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 focus:border-teal-500 focus:outline-none"
+                  >
+                    {filteredColumns.map((col) => {
+                      const lbl = getFieldLabel(col);
+                      const val = customRow ? (customRow.row[col] ?? "") : "";
+                      return (
+                        <option key={col} value={col}>
+                          {col} — {lbl}{" "}
+                          {val !== ""
+                            ? `(Hiện tại: "${val.length > 25 ? val.slice(0, 25) + "..." : val}")`
+                            : "(Hiện tại: trống)"}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10.5px] font-bold text-slate-600 mb-0.5">
+                    Giá trị hiện tại trong XML:
+                  </label>
+                  <input
+                    type="text"
+                    value={currentOldValue}
+                    readOnly
+                    className="w-full rounded-lg border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-mono text-slate-600 cursor-not-allowed"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Ô nhập giá trị mới thay thế */}
           <div>
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-1.5 mb-1">
               <label className="text-xs font-bold text-teal-900 flex items-center gap-1.5">
                 <span>✏️</span> Giá trị mới thay thế cho cột{" "}
                 <span className="font-mono text-teal-800 font-black">{selectedField}</span>:
@@ -1090,7 +1135,7 @@ export function DirectEditModal({
                     setNewValue("");
                     setLyDo(`Bỏ trống trường ${selectedField} (xóa thông tin)`);
                   }}
-                  className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-2.5 py-1 text-[11px] font-semibold transition shadow-2xs cursor-pointer"
+                  className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-2 py-0.5 text-[10.5px] font-semibold transition shadow-2xs cursor-pointer"
                   title="Xóa trắng ô này để bỏ trống giá trị trong XML"
                 >
                   🗑️ Bỏ trống
@@ -1098,7 +1143,7 @@ export function DirectEditModal({
                 <button
                   type="button"
                   onClick={() => setNewValue(currentOldValue)}
-                  className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-2.5 py-1 text-[11px] font-semibold transition shadow-2xs cursor-pointer"
+                  className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-2 py-0.5 text-[10.5px] font-semibold transition shadow-2xs cursor-pointer"
                   title="Lấy lại đúng giá trị cũ ban đầu"
                 >
                   ↺ Giá trị cũ
@@ -1106,7 +1151,7 @@ export function DirectEditModal({
                 <button
                   type="button"
                   onClick={() => setNewValue((prev) => prev.toUpperCase())}
-                  className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-2.5 py-1 text-[11px] font-semibold transition shadow-2xs cursor-pointer"
+                  className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-2 py-0.5 text-[10.5px] font-semibold transition shadow-2xs cursor-pointer"
                   title="Chuyển sang chữ VIẾT HOA toàn bộ (phù hợp mã ICD-10, mã DV, mã BS...)"
                 >
                   🔤 VIẾT HOA
@@ -1114,7 +1159,7 @@ export function DirectEditModal({
                 <button
                   type="button"
                   onClick={() => setNewValue((prev) => prev.trim())}
-                  className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-2.5 py-1 text-[11px] font-semibold transition shadow-2xs cursor-pointer"
+                  className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-2 py-0.5 text-[10.5px] font-semibold transition shadow-2xs cursor-pointer"
                   title="Cắt bỏ khoảng trắng thừa đầu và cuối"
                 >
                   ✂️ Cắt khoảng trắng
@@ -1128,12 +1173,12 @@ export function DirectEditModal({
                 value={newValue}
                 onChange={(e) => setNewValue(e.target.value)}
                 placeholder={`Nhập giá trị mới cho ${selectedField} (hoặc để trống để xóa dữ liệu)...`}
-                className="flex-1 rounded-xl border-2 border-teal-500 bg-teal-50/20 px-3 py-2 text-sm font-semibold text-slate-900 focus:bg-white focus:outline-none"
+                className="flex-1 rounded-xl border-2 border-teal-500 bg-teal-50/20 px-3 py-1.5 text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none"
               />
               <button
                 type="button"
                 onClick={() => handleSave()}
-                className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-teal-700 hover:bg-teal-800 px-4 py-2 text-xs font-bold text-white shadow-md transition cursor-pointer"
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-teal-700 hover:bg-teal-800 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs transition cursor-pointer"
                 title="Lưu ngay giá trị này vào Kế hoạch sửa"
               >
                 <span>💾</span> Lưu vào kế hoạch sửa
@@ -1142,7 +1187,7 @@ export function DirectEditModal({
 
             {/* Trợ giúp hiển thị thời gian nếu trường là ngày giờ */}
             {isDateTimeFieldName(selectedField) && newValue && (
-              <p className="mt-1 text-[11px] text-teal-800 font-medium flex items-center gap-1">
+              <p className="mt-1 text-[10.5px] text-teal-800 font-medium flex items-center gap-1">
                 <span>⏱️</span>
                 <span>
                   Định dạng hiển thị: <b>{formatDisplayDateTime(newValue)}</b>
@@ -1156,7 +1201,7 @@ export function DirectEditModal({
             )}
 
             {!newValue.trim() && (
-              <p className="mt-1 text-[11px] text-amber-800 font-medium flex items-center gap-1">
+              <p className="mt-1 text-[10.5px] text-amber-800 font-medium flex items-center gap-1">
                 <span>💡</span>
                 <span>
                   Ô giá trị đang để trống. Nhấn <b>"Lưu vào kế hoạch sửa"</b> để lưu trạng thái xóa
@@ -1167,7 +1212,7 @@ export function DirectEditModal({
           </div>
 
           {/* Gợi ý thông minh */}
-          <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-3.5 space-y-2.5">
+          <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-2.5 space-y-1.5">
             <div className="text-[11px] font-bold text-amber-900 flex items-center justify-between">
               <span className="flex items-center gap-1">
                 <span>⚡</span> Gợi ý sửa tự động nhanh:
@@ -1181,61 +1226,65 @@ export function DirectEditModal({
 
             {/* Khối gợi ý thời gian XML3 (chỉ hiển thị khi đang sửa trường thời gian XML3) */}
             {isXml3TimeField && (
-              <div className="space-y-2 text-xs">
-                {/* Khối 1: Ca trùng giờ (0 phút) -> Căn cứ NGAY_KQ trừ lùi giờ NGAY_TH_YL */}
-                <div className="rounded-xl border border-rose-200 bg-white p-2.5 space-y-1.5">
+              <div className="space-y-1.5 text-xs">
+                {/* Khối 1: Ca trùng giờ (0 phút) hoặc lùi giờ TH -> Căn cứ giờ kết thúc trừ lùi giờ TH_YL */}
+                <div className="rounded-xl border border-rose-200 bg-white p-2 space-y-1">
                   <div className="text-[10px] uppercase font-bold text-rose-800 flex items-center justify-between">
                     <span>
-                      ⏱️ Trùng giờ (0p): Căn cứ giờ KQ (
-                      {formatShortTime(record?.NGAY_KQ || customRow?.row?.NGAY_KQ) || "—"}) trừ lùi
-                      giờ TH_YL:
+                      ⏱️ Trùng giờ (0p) / Lùi giờ TH: Căn cứ giờ kết thúc (
+                      {formatShortTime(kqOld || thOld) || "—"}) trừ lùi giờ TH_YL:
                     </span>
                     <span className="text-[10px] font-semibold text-rose-600 lowercase bg-rose-50 px-1.5 py-0.5 rounded">
                       (khuyên dùng)
                     </span>
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => applySuggestRewindExecution(10)}
-                      className="rounded-lg border border-rose-400 bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-900 hover:bg-rose-100 shadow-xs transition"
-                      title="Lùi NGAY_TH_YL về 10 phút trước giờ kết quả"
-                    >
-                      ⏱️ Lùi TH_YL -10p{" "}
-                      {kqOld && `(➔ ${formatShortTime(addMinutesToXmlDateTime(kqOld, -10))})`}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => applySuggestRewindExecution(8)}
-                      className="rounded-lg border border-rose-400 bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-900 hover:bg-rose-100 shadow-xs transition"
-                      title="Lùi NGAY_TH_YL về 8 phút trước giờ kết quả"
-                    >
-                      ⏱️ Lùi TH_YL -8p{" "}
-                      {kqOld && `(➔ ${formatShortTime(addMinutesToXmlDateTime(kqOld, -8))})`}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => applySuggestRewindExecution(15)}
-                      className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 transition"
-                      title="Lùi NGAY_TH_YL về 15 phút trước giờ kết quả"
-                    >
-                      Lùi TH_YL -15p{" "}
-                      {kqOld && `(➔ ${formatShortTime(addMinutesToXmlDateTime(kqOld, -15))})`}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => applySuggestRewindExecution(20)}
-                      className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 transition"
-                      title="Lùi NGAY_TH_YL về 20 phút trước giờ kết quả"
-                    >
-                      Lùi TH_YL -20p{" "}
-                      {kqOld && `(➔ ${formatShortTime(addMinutesToXmlDateTime(kqOld, -20))})`}
-                    </button>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {[8, 10, 15, 20].map((mins) => (
+                      <button
+                        key={mins}
+                        type="button"
+                        onClick={() => {
+                          setCustomRewindMins(mins);
+                          applySuggestRewindExecution(mins);
+                        }}
+                        className={`rounded-lg px-2 py-0.5 text-[11px] font-bold transition shadow-2xs cursor-pointer border ${
+                          customRewindMins === mins
+                            ? "bg-rose-600 text-white border-rose-700"
+                            : "border-rose-300 bg-rose-50 text-rose-900 hover:bg-rose-100"
+                        }`}
+                        title={`Lùi NGAY_TH_YL về ${mins} phút trước giờ kết quả`}
+                      >
+                        ⏱️ -{mins}p{" "}
+                        {kqOld && `(➔ ${formatShortTime(addMinutesToXmlDateTime(kqOld, -mins))})`}
+                      </button>
+                    ))}
+                    <div className="flex items-center gap-1 border-l border-rose-200 pl-1.5">
+                      <input
+                        type="number"
+                        min={1}
+                        max={180}
+                        value={customRewindMins}
+                        onChange={(e) =>
+                          setCustomRewindMins(Math.max(1, parseInt(e.target.value) || 1))
+                        }
+                        className="w-12 rounded border border-rose-300 bg-white px-1 py-0.5 text-center text-[11px] font-bold text-rose-950"
+                        title="Nhập số phút tùy chọn để trừ lùi"
+                      />
+                      <span className="text-[10px] text-rose-800 font-semibold">phút</span>
+                      <button
+                        type="button"
+                        onClick={() => applySuggestRewindExecution(customRewindMins)}
+                        className="rounded-lg bg-rose-700 hover:bg-rose-800 px-2 py-0.5 text-[11px] font-bold text-white shadow-2xs flex items-center gap-1 cursor-pointer"
+                        title={`Áp dụng trừ lùi giờ thực hiện -${customRewindMins} phút từ giờ kết quả`}
+                      >
+                        <span>⚡</span> Trừ lùi TH
+                      </button>
+                    </div>
                   </div>
                 </div>
 
                 {/* Khối 2: Ca vượt thời lượng -> Căn cứ NGAY_TH_YL cộng thêm giờ KQ */}
-                <div className="rounded-xl border border-teal-200 bg-white p-2.5 space-y-1.5">
+                <div className="rounded-xl border border-teal-200 bg-white p-2 space-y-1">
                   <div className="text-[10px] uppercase font-bold text-teal-800 flex items-center justify-between">
                     <span>
                       🕒 Căn cứ giờ TH_YL (
@@ -1250,7 +1299,7 @@ export function DirectEditModal({
                     <button
                       type="button"
                       onClick={() => applySuggestAddDurationFromThYl(8, "⭐ Chuẩn nhanh")}
-                      className="rounded-lg border border-emerald-500 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-900 hover:bg-emerald-100 shadow-xs transition"
+                      className="rounded-lg border border-emerald-500 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-900 hover:bg-emerald-100 shadow-xs transition"
                       title="Đặt NGAY_KQ = NGAY_TH_YL + 8 phút (chuẩn thời lượng nhanh)"
                     >
                       ⭐ Chuẩn (+8p{" "}
@@ -1259,7 +1308,7 @@ export function DirectEditModal({
                     <button
                       type="button"
                       onClick={() => applySuggestAddDurationFromThYl(10, "⭐ Điện tim / CLS nhanh")}
-                      className="rounded-lg border border-emerald-500 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-900 hover:bg-emerald-100 shadow-xs transition"
+                      className="rounded-lg border border-emerald-500 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-900 hover:bg-emerald-100 shadow-xs transition"
                       title="Đặt NGAY_KQ = NGAY_TH_YL + 10 phút (chuẩn điện tim/xét nghiệm nhanh)"
                     >
                       ⭐ Điện tim (+10p{" "}
@@ -1268,7 +1317,7 @@ export function DirectEditModal({
                     <button
                       type="button"
                       onClick={() => applySuggestAddDurationFromThYl(15)}
-                      className="rounded-lg border border-teal-300 bg-teal-50 px-2 py-1 text-[11px] font-semibold text-teal-900 hover:bg-teal-100 transition"
+                      className="rounded-lg border border-teal-300 bg-teal-50 px-2 py-0.5 text-[11px] font-semibold text-teal-900 hover:bg-teal-100 transition"
                       title="Đặt NGAY_KQ = NGAY_TH_YL + 15 phút"
                     >
                       +15p {thOld && `(➔ ${formatShortTime(addMinutesToXmlDateTime(thOld, 15))})`}
@@ -1276,7 +1325,7 @@ export function DirectEditModal({
                     <button
                       type="button"
                       onClick={() => applySuggestAddDurationFromThYl(20)}
-                      className="rounded-lg border border-teal-300 bg-teal-50 px-2 py-1 text-[11px] font-semibold text-teal-900 hover:bg-teal-100 transition"
+                      className="rounded-lg border border-teal-300 bg-teal-50 px-2 py-0.5 text-[11px] font-semibold text-teal-900 hover:bg-teal-100 transition"
                       title="Đặt NGAY_KQ = NGAY_TH_YL + 20 phút"
                     >
                       +20p {thOld && `(➔ ${formatShortTime(addMinutesToXmlDateTime(thOld, 20))})`}
@@ -1284,7 +1333,7 @@ export function DirectEditModal({
                     <button
                       type="button"
                       onClick={() => applySuggestAddDurationFromThYl(30)}
-                      className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 transition"
+                      className="rounded-lg border border-amber-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 transition"
                       title="Đặt NGAY_KQ = NGAY_TH_YL + 30 phút"
                     >
                       +30p {thOld && `(➔ ${formatShortTime(addMinutesToXmlDateTime(thOld, 30))})`}
@@ -1292,7 +1341,7 @@ export function DirectEditModal({
                     <button
                       type="button"
                       onClick={() => applySuggestAddDurationFromThYl(45)}
-                      className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 transition"
+                      className="rounded-lg border border-amber-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 transition"
                       title="Đặt NGAY_KQ = NGAY_TH_YL + 45 phút"
                     >
                       +45p {thOld && `(➔ ${formatShortTime(addMinutesToXmlDateTime(thOld, 45))})`}
@@ -1300,7 +1349,7 @@ export function DirectEditModal({
                     <button
                       type="button"
                       onClick={() => applySuggestAddDurationFromThYl(60)}
-                      className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 transition"
+                      className="rounded-lg border border-amber-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 transition"
                       title="Đặt NGAY_KQ = NGAY_TH_YL + 60 phút"
                     >
                       +60p {thOld && `(➔ ${formatShortTime(addMinutesToXmlDateTime(thOld, 60))})`}
@@ -1314,7 +1363,7 @@ export function DirectEditModal({
                     <button
                       type="button"
                       onClick={applySuggestExamSync}
-                      className="rounded-lg border border-teal-500 bg-teal-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-teal-700 shadow-xs"
+                      className="rounded-lg border border-teal-500 bg-teal-600 px-2 py-0.5 text-[11px] font-bold text-white hover:bg-teal-700 shadow-xs"
                       title="Gán NGAY_YL = NGAY_TH_YL (ở công khám nhóm 13 hai thời gian này được phép trùng nhau)"
                     >
                       🩺 [Công khám 13] Đồng bộ NGAY_YL = NGAY_TH_YL
@@ -1323,7 +1372,7 @@ export function DirectEditModal({
                   <button
                     type="button"
                     onClick={applySuggestFixOrder}
-                    className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 shadow-xs"
+                    className="rounded-lg border border-amber-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 shadow-xs"
                     title="Đặt NGAY_YL trước NGAY_TH_YL 5 phút"
                   >
                     🕒 Sửa thứ tự y lệnh
@@ -1331,7 +1380,7 @@ export function DirectEditModal({
                   <button
                     type="button"
                     onClick={() => applySuggestShiftExecution(5)}
-                    className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 shadow-xs"
+                    className="rounded-lg border border-amber-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 shadow-xs"
                     title="Dịch NGAY_TH_YL thêm 5 phút tránh trùng máy"
                   >
                     🔀 Dịch máy +5p
@@ -1339,7 +1388,7 @@ export function DirectEditModal({
                   <button
                     type="button"
                     onClick={() => applySuggestShiftExecution(10)}
-                    className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 shadow-xs"
+                    className="rounded-lg border border-amber-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 shadow-xs"
                     title="Dịch NGAY_TH_YL thêm 10 phút tránh trùng máy"
                   >
                     🔀 Dịch máy +10p
@@ -1350,7 +1399,7 @@ export function DirectEditModal({
 
             {/* Gợi ý cho XML7 (NGOAITRU_TUNGAY) */}
             {selectedField === "NGOAITRU_TUNGAY" && xml7NextDaySuggestion && (
-              <div className="rounded-xl border border-teal-300 bg-teal-50/70 p-2.5 space-y-1.5">
+              <div className="rounded-xl border border-teal-300 bg-teal-50/70 p-2 space-y-1">
                 <div className="text-[10px] uppercase font-bold text-teal-900 flex items-center justify-between">
                   <span>
                     🏥 Quy tắc XML7: NGOAITRU_TUNGAY không được nhỏ hơn NGAY_RA (Ra viện:{" "}
@@ -1364,7 +1413,7 @@ export function DirectEditModal({
                   <button
                     type="button"
                     onClick={applySuggestXml7NextDay}
-                    className="rounded-lg border border-teal-500 bg-teal-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-teal-700 shadow-xs transition flex items-center gap-1.5"
+                    className="rounded-lg border border-teal-500 bg-teal-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-teal-700 shadow-xs transition flex items-center gap-1.5"
                     title={`Gợi ý chuẩn: Ngày ra viện là ${xml7NextDaySuggestion.displayNgayRa} ➔ Đặt NGOAITRU_TUNGAY = ${xml7NextDaySuggestion.displayNext}`}
                   >
                     <span>⚡</span> Đặt +1 ngày sau ra viện (➔ {xml7NextDaySuggestion.displayNext})
@@ -1402,7 +1451,7 @@ export function DirectEditModal({
                   <button
                     type="button"
                     onClick={applySuggestFromGiaTri}
-                    className="rounded-lg border border-teal-500 bg-teal-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-teal-700 shadow-xs"
+                    className="rounded-lg border border-teal-500 bg-teal-600 px-2 py-0.5 text-[11px] font-bold text-white hover:bg-teal-700 shadow-xs"
                     title="Copy trực tiếp từ ô GIA_TRI trong XML4 của BA đó xuống ô KET_LUAN"
                   >
                     📋 Lấy từ ô GIA_TRI: "
@@ -1419,7 +1468,7 @@ export function DirectEditModal({
                       "Trên phiến đồ nền hồng cầu thấy nhiều lympho bào nằm phân tán hoặc đứng thành các đám, trong đó lympho bào nhỏ chiếm đa số, kèm rải rác đại thực bào.",
                     )
                   }
-                  className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100"
+                  className="rounded-lg border border-amber-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-900 hover:bg-amber-100"
                 >
                   🔬 Mẫu kết luận hạch / TB
                 </button>
@@ -1430,7 +1479,7 @@ export function DirectEditModal({
                       "Các tế bào biểu mô có hình thái bình thường, không thấy tế bào ác tính.",
                     )
                   }
-                  className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100"
+                  className="rounded-lg border border-amber-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-900 hover:bg-amber-100"
                 >
                   🔬 Mẫu TB bình thường
                 </button>
@@ -1485,14 +1534,14 @@ export function DirectEditModal({
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
+            <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
               Lý do chỉnh sửa / Ghi chú đối soát:
             </label>
             <input
               type="text"
               value={lyDo}
               onChange={(e) => setLyDo(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 focus:border-teal-500 focus:outline-none"
+              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-teal-500 focus:outline-none"
             />
           </div>
 
@@ -1509,7 +1558,7 @@ export function DirectEditModal({
                       onClose();
                     }
                   }}
-                  className="rounded-xl border border-rose-300 bg-rose-50 px-3.5 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
                   title="Hủy kế hoạch sửa của dòng này, khôi phục về dữ liệu gốc XML ban đầu"
                 >
                   <span>↺</span> Khôi phục về ban đầu
@@ -1520,14 +1569,14 @@ export function DirectEditModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                className="rounded-lg border border-slate-200 px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
               >
                 Hủy bỏ
               </button>
               <button
                 type="submit"
                 disabled={!isFieldEmptyAllowed && !newValue.trim()}
-                className="rounded-xl bg-teal-700 px-5 py-2 text-xs font-bold text-white hover:bg-teal-800 shadow-md transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                className="rounded-lg bg-teal-700 px-4 py-1.5 text-xs font-bold text-white hover:bg-teal-800 shadow-md transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
               >
                 <span>💾</span> Lưu vào kế hoạch sửa
               </button>

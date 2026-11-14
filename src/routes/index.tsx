@@ -1635,6 +1635,7 @@ function CheckerView({
 
   const [selectedXml3Keys, setSelectedXml3Keys] = useState<Set<string>>(new Set());
   const [batchDurationMins, setBatchDurationMins] = useState<number>(30);
+  const [batchRewindMins, setBatchRewindMins] = useState<number>(10);
 
   const handleToggleSelectAllXml3 = () => {
     if (selectedXml3Keys.size >= displayRecords.length && displayRecords.length > 0) {
@@ -2713,15 +2714,52 @@ function CheckerView({
                           <span>🎯</span> Theo cấu hình quy tắc từng DV
                         </button>
 
-                        {/* Nút lùi giờ thực hiện cho ca trùng giờ */}
-                        <button
-                          type="button"
-                          onClick={() => handleBatchRewindThYl(10)}
-                          className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-[11px] font-bold text-amber-950 hover:bg-amber-100 shadow-xs flex items-center gap-1"
-                          title="Trừ lùi giờ thực hiện (NGAY_TH_YL) 10 phút so với giờ kết quả để xử lý các ca trùng giờ (0 phút)"
-                        >
-                          <span>⏱️</span> Trừ lùi giờ TH (-10p)
-                        </button>
+                        {/* Khối trừ lùi giờ thực hiện theo số phút tùy chọn (lấy giờ kết thúc để trừ) */}
+                        <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50/90 px-2 py-1 shadow-xs">
+                          <span className="text-[11px] font-bold text-amber-950 flex items-center gap-1">
+                            <span>⏱️</span> Trừ lùi giờ TH (từ giờ KQ):
+                          </span>
+                          {[8, 10, 15, 20].map((mins) => (
+                            <button
+                              key={mins}
+                              type="button"
+                              onClick={() => {
+                                setBatchRewindMins(mins);
+                                handleBatchRewindThYl(mins);
+                              }}
+                              className={`rounded px-1.5 py-0.5 text-[10px] font-bold transition shadow-2xs cursor-pointer ${
+                                batchRewindMins === mins
+                                  ? "bg-amber-600 text-white"
+                                  : "bg-white text-amber-950 border border-amber-300 hover:bg-amber-100"
+                              }`}
+                              title={`Trừ lùi giờ thực hiện -${mins} phút so với giờ kết quả`}
+                            >
+                              -{mins}p
+                            </button>
+                          ))}
+                          <div className="flex items-center gap-1 border-l border-amber-300/80 pl-1.5">
+                            <input
+                              type="number"
+                              min={1}
+                              max={180}
+                              value={batchRewindMins}
+                              onChange={(e) =>
+                                setBatchRewindMins(Math.max(1, parseInt(e.target.value) || 1))
+                              }
+                              className="w-12 rounded border border-amber-300 bg-white px-1 py-0.5 text-center text-[11px] font-bold text-amber-950"
+                              title="Nhập số phút tùy ý để trừ lùi so với giờ kết quả"
+                            />
+                            <span className="text-[10px] text-amber-800 font-semibold">phút</span>
+                            <button
+                              type="button"
+                              onClick={() => handleBatchRewindThYl(batchRewindMins)}
+                              className="rounded-lg bg-amber-700 hover:bg-amber-800 px-2.5 py-1 text-[11px] font-bold text-white shadow-xs flex items-center gap-1 cursor-pointer"
+                              title={`Áp dụng trừ lùi giờ thực hiện -${batchRewindMins} phút tính từ giờ kết quả`}
+                            >
+                              <span>⚡</span> Trừ lùi TH
+                            </button>
+                          </div>
+                        </div>
 
                         {/* Nút đồng bộ công khám */}
                         <button

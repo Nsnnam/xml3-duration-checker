@@ -3,12 +3,21 @@ export const APP_META = {
   title: "NsN_XMLcheck",
   description:
     "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, MA_MAY chuẩn XX.3[xxx].Z & trùng thời gian máy, cảnh báo Z00.0/Z30.1 (KHHGĐ) & Hồ sơ 15 bảng BHYT",
-  version: "2.13.0",
-  date: "2026-11-13",
+  version: "2.13.1",
+  date: "2026-11-14",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.13.1",
+      date: "2026-11-14",
+      changes: [
+        "Chức năng trừ lùi giờ thực hiện (lấy giờ kết thúc NGAY_KQ trừ lùi ra NGAY_TH_YL) theo số phút tùy chọn: Hỗ trợ chọn nhanh -8p, -10p, -15p, -20p hoặc nhập số phút tùy ý cả trên thanh Bulk Action Toolbar XML3 và trong modal Sửa trực tiếp (DirectEditModal).",
+        "Mặc định ẩn phần 'Chọn cột dữ liệu cần sửa' trong DirectEditModal: Thu gọn thành thanh 1 dòng tinh gọn có checkbox toggle và hiển thị ngay tên cột đang chọn; chỉ khi tích chọn mới xổ ra bộ lọc và danh sách cột, tiết kiệm 180-200px chiều cao.",
+        "Tối ưu giao diện DirectEditModal siêu gọn gàng, hạn chế tối đa cuộn trang: Thu gọn thông tin hồ sơ bệnh nhân thành thanh ngang 1 dòng flex, tinh giản khoảng cách header, bảng 3 mốc thời gian và khối gợi ý giúp toàn bộ modal vừa vặn trên màn hình.",
+      ],
+    },
     {
       version: "2.13.0",
       date: "2026-11-13",
