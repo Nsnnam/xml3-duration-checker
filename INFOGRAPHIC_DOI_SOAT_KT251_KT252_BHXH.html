@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Infographic Báo Cáo Chuyên Sâu: Đối Soát File Cảnh Báo KT251 &amp; KT252 · BHXH</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --navy: #0f172a;
+      --teal: #0d9488;
+      --rose: #e11d48;
+      --amber: #d97706;
+      --indigo: #4f46e5;
+      --emerald: #059669;
+      --slate-bg: #f8fafc;
+      --card-bg: #ffffff;
+      --border: #e2e8f0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      background: #f1f5f9;
+      color: #1e293b;
+      line-height: 1.5;
+      padding: 24px;
+    }
+    .container { max-width: 1400px; margin: 0 auto; }
+
+    /* Header banner */
+    .header {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f766e 100%);
+      color: white;
+      padding: 32px 36px;
+      border-radius: 20px;
+      box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.2);
+      margin-bottom: 24px;
+      position: relative;
+      overflow: hidden;
+    }
+    .header::after {
+      content: "";
+      position: absolute;
+      top: -50px; right: -50px;
+      width: 250px; height: 250px;
+      background: radial-gradient(circle, rgba(13, 148, 136, 0.25) 0%, transparent 70%);
+      border-radius: 50%;
+    }
+    .badge {
+      display: inline-block;
+      background: rgba(13, 148, 136, 0.3);
+      color: #2dd4bf;
+      border: 1px solid rgba(45, 212, 191, 0.4);
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .title {
+      font-size: 26px;
+      font-weight: 800;
+      line-height: 1.25;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      font-size: 13.5px;
+      color: #94a3b8;
+      max-width: 950px;
+      margin-bottom: 18px;
+    }
+    .meta-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      font-size: 12px;
+      color: #cbd5e1;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      padding-top: 14px;
+    }
+    .meta-item strong { color: white; }
+
+    /* KPI Cards */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .kpi-card {
+      background: white;
+      border-radius: 16px;
+      padding: 20px;
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+      position: relative;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .kpi-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px -4px rgba(0,0,0,0.08);
+    }
+    .kpi-label { font-size: 11.5px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 6px; }
+    .kpi-value { font-size: 24px; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
+    .kpi-sub { font-size: 11.5px; color: #64748b; margin-top: 6px; }
+    .rose { color: var(--rose); }
+    .teal { color: var(--teal); }
+    .amber { color: var(--amber); }
+    .indigo { color: var(--indigo); }
+    .emerald { color: var(--emerald); }
+
+    /* Tabs Navigation */
+    .tabs-nav {
+      display: flex;
+      gap: 8px;
+      background: #e2e8f0;
+      padding: 6px;
+      border-radius: 14px;
+      margin-bottom: 20px;
+      overflow-x: auto;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 10px 16px;
+      border: none;
+      background: transparent;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      color: #475569;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .tab-btn.active {
+      background: white;
+      color: var(--navy);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    }
+
+    /* Tab content panes */
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    /* Section Cards */
+    .card {
+      background: white;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }
+    .card-title {
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--navy);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* 3-Column Comparison: Dung / Sai / Can phan bien */
+    .compare-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .compare-col {
+      border-radius: 14px;
+      padding: 18px;
+      border: 1px solid transparent;
+    }
+    .col-wrong {
+      background: #fff1f2;
+      border-color: #fecdd3;
+    }
+    .col-wrong .col-head { color: #be123c; }
+
+    .col-bhxh-wrong {
+      background: #eff6ff;
+      border-color: #bfdbfe;
+    }
+    .col-bhxh-wrong .col-head { color: #1d4ed8; }
+
+    .col-dispute {
+      background: #fefce8;
+      border-color: #fef08a;
+    }
+    .col-dispute .col-head { color: #a16207; }
+
+    .col-head {
+      font-size: 14px;
+      font-weight: 800;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 2px solid currentColor;
+      padding-bottom: 8px;
+    }
+    .item-card {
+      background: white;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      border: 1px solid rgba(0,0,0,0.06);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    }
+    .item-title { font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+    .item-desc { font-size: 11.5px; color: #475569; margin-bottom: 6px; }
+    .item-law {
+      font-size: 10.5px;
+      background: #f1f5f9;
+      color: #334155;
+      padding: 3px 6px;
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Tables */
+    .table-container { overflow-x: auto; margin-top: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    th {
+      background: #0f172a;
+      color: white;
+      padding: 10px 12px;
+      text-align: left;
+      font-weight: 700;
+    }
+    td { padding: 9px 12px; border-bottom: 1px solid var(--border); }
+    tr:nth-child(even) td { background: #f8fafc; }
+    tr:hover td { background: #f1f5f9; }
+    .text-right { text-align: right; }
+    .text-center { text-align: center; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+    /* Template Box */
+    .template-box {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      position: relative;
+    }
+    .template-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 10px;
+    }
+    .template-title { font-size: 14.5px; font-weight: 800; color: #0f172a; }
+    .copy-btn {
+      background: var(--teal);
+      color: white;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.2s;
+    }
+    .copy-btn:hover { background: #0f766e; }
+    .template-text {
+      font-family: inherit;
+      white-space: pre-wrap;
+      font-size: 12px;
+      color: #334155;
+      line-height: 1.6;
+      max-height: 380px;
+      overflow-y: auto;
+      background: white;
+      padding: 16px;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+    }
+
+    /* Print styling */
+    @media print {
+      body { background: white; padding: 0; }
+      .tabs-nav, .copy-btn, .header-actions { display: none !important; }
+      .tab-pane { display: block !important; margin-bottom: 30px; page-break-after: always; }
+      .kpi-grid { grid-template-columns: repeat(4, 1fr); }
+      .compare-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 900px) {
+      .kpi-grid { grid-template-columns: 1fr 1fr; }
+      .compare-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div class="badge">BẢO HIỂM Y TẾ · CHUYÊN ĐỀ ĐỐI SOÁT GIÁM ĐỊNH NĂM 2026</div>
+      <h1 class="title">BÁO CÁO PHÂN TÍCH &amp; ĐỐI SOÁT CHUYÊN SÂU KT251 &amp; KT252</h1>
+      <p class="subtitle">
+        Bóc tách chi tiết dữ liệu file <strong>26193_KET_QUA_KT251_KT252.xlsx</strong> (144.385 dòng bản ghi) do BHXH gửi về · Phân định Đúng / Sai / Cần phản biện · Cung cấp 4 mẫu công văn giải trình bảo vệ tối đa quyền lợi tài chính của Bệnh viện.
+      </p>
+      <div class="meta-bar">
+        <span class="meta-item">🏥 Đơn vị: <strong>Bệnh viện hữu nghị Lạc Việt</strong> (Mã: 26193)</span>
+        <span class="meta-item">📅 Đợt giám định: <strong>09 tháng đầu năm 2026</strong></span>
+        <span class="meta-item">👤 Chuyên viên phân tích: <strong>Nguyễn Sơn Nam (Nsnnam)</strong></span>
+        <span class="meta-item">🚀 Hệ thống: <strong>NsN_XMLcheck v2.17.0</strong></span>
+      </div>
+    </div>
+
+    <!-- 4 KPI Box -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Tổng Tiền Kiểm Tra KT251</div>
+        <div class="kpi-value indigo">3,473 TỶ đ</div>
+        <div class="kpi-sub">33.758 dòng bị gắn cờ nằm ghép (142.223 dòng toàn sheet)</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Tiền Đề Nghị Xuất Toán KT251</div>
+        <div class="kpi-value rose">1,568 TỶ đ</div>
+        <div class="kpi-sub">14.571 dòng (1,555 tỷ) là lỗi vượt giường kế hoạch trong ngày</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Tiền Kiểm Tra KT252 (DVKT Dấu *)</div>
+        <div class="kpi-value amber">143,68 TR đ</div>
+        <div class="kpi-sub">2.162 lượt do 2 điều dưỡng trung học làm xoa bóp bấm huyệt</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Kẽ Hở Phản Biện Cầm Chắc Thắng</div>
+        <div class="kpi-value emerald">451 CA TRÙNG &lt; 4H</div>
+        <div class="kpi-sub">BHXH quét sai văn bản nghiệp vụ 20261110_TAILIEUHUONGDAN!</div>
+      </div>
+    </div>
+
+    <!-- Tabs Nav -->
+    <div class="tabs-nav">
+      <button class="tab-btn active" onclick="switchTab('tab-compare')">
+        <span>⚖️</span> 1. Ma Trận ĐÚNG / SAI / CẦN PHẢN BIỆN
+      </button>
+      <button class="tab-btn" onclick="switchTab('tab-kt251')">
+        <span>🏥</span> 2. Bóc Tách Sheet KT251 (Tiền Giường)
+      </button>
+      <button class="tab-btn" onclick="switchTab('tab-kt252')">
+        <span>🩺</span> 3. Bóc Tách Sheet KT252 (DVKT Dấu *)
+      </button>
+      <button class="tab-btn" onclick="switchTab('tab-templates')">
+        <span>📝</span> 4. Bộ 4 Mẫu Công Văn Giải Trình (Có Nút Copy)
+      </button>
+    </div>
+
+    <!-- TAB 1: MA TRẬN SO SÁNH -->
+    <div id="tab-compare" class="tab-pane active">
+      <div class="card">
+        <div class="card-title">
+          <span>MA TRẬN ĐỐI CHIẾU PHÁP LÝ: CÁI GÌ ĐÚNG - CÁI GÌ SAI - CÁI GÌ CẦN PHẢN BIỆN</span>
+          <button class="copy-btn" onclick="window.print()">🖨️ In Báo Cáo A4</button>
+        </div>
+
+        <div class="compare-grid">
+          <!-- Cột BHXH SAI -->
+          <div class="compare-col col-bhxh-wrong">
+            <div class="col-head">
+              <span>🚨</span> BHXH QUÉT SAI QUY ĐỊNH (Yêu Cầu Hủy Xuất Toán 100%)
+            </div>
+
+            <div class="item-card">
+              <div class="item-title">1. Quét trùng giường &lt; 4 giờ (451 ca)</div>
+              <div class="item-desc">Hệ thống BHXH tự động đánh dấu trùng ghép cả những ca giao thoa 30p - 2h khi BN cũ chuẩn bị ra viện và BN mới tiếp nhận.</div>
+              <div class="item-law">Căn cứ: Văn bản số 20261110_TAILIEUHUONGDAN quy định SO_GIO_GIAO &gt; 4 giờ mới tính nằm ghép!</div>
+            </div>
+
+            <div class="item-card">
+              <div class="item-title">2. Xuất toán kép cả 2 hồ sơ trùng giường</div>
+              <div class="item-desc">Cổng gắn cờ phạt trừ cả BN vào trước lẫn BN vào sau là sai nguyên tắc bồi hoàn dịch vụ y tế thực tế đã phục vụ.</div>
+              <div class="item-law">Căn cứ: Nguyên tắc bảo lưu 01 giường hợp lệ đơn giá cao nhất (0đ xuất toán).</div>
+            </div>
+
+            <div class="item-card">
+              <div class="item-title">3. Bắt lỗi mốc phút 12:00 cùng BN (428 lượt)</div>
+              <div class="item-desc">BN chỉ nằm 1 giường liên tục, việc ngày cũ kết thúc 12:00 và ngày mới bắt đầu 12:00 là do phần mềm HIS ngắt ca trực.</div>
+              <div class="item-law">Căn cứ: Trích lục Bệnh án gốc &amp; Phiếu theo dõi chăm sóc điều dưỡng.</div>
+            </div>
+
+            <div class="item-card">
+              <div class="item-title">4. Bắt lỗi DVKT dấu * kỳ T7-T9/2026 (637 lượt)</div>
+              <div class="item-desc">BHXH chưa đối chiếu Quyết định giao nhiệm vụ của Giám đốc bệnh viện mà đã tự động gắn cờ xuất toán KT252.</div>
+              <div class="item-law">Căn cứ: Điều 135 Nghị định 96/2023/NĐ-CP &amp; Thông tư 32/2023/TT-BYT.</div>
+            </div>
+          </div>
+
+          <!-- Cột CƠ SỞ SAI THẬT -->
+          <div class="compare-col col-wrong">
+            <div class="col-head">
+              <span>❌</span> CƠ SỞ SAI THẬT (Chấp Nhận &amp; Chấn Chỉnh Nội Bộ)
+            </div>
+
+            <div class="item-card">
+              <div class="item-title">1. Giường gối đầu liên tiếp ≥ 2 ngày (1.027 dòng)</div>
+              <div class="item-desc">Điều dưỡng chọn mã giường của người cũ gán cho người mới đan xen nhiều ngày. Không thể chối cãi khi tra cứu bệnh án.</div>
+              <div class="item-law">Khắc phục: Bắt buộc trả giường trên HIS trước khi nhận người mới; trừ điểm thi đua.</div>
+            </div>
+
+            <div class="item-card">
+              <div class="item-title">2. Ghép thật &gt; 4h nhưng kê 100% (156 ca)</div>
+              <div class="item-desc">Khoa quá tải nằm ghép thực tế 2 người nhưng không tích hệ số 50% theo quy định Thông tư 39/2024.</div>
+              <div class="item-law">Khắc phục: Tích chọn tỷ lệ 50% (ghép 2) hoặc 33% (ghép 3+) ngay khi chỉ định.</div>
+            </div>
+
+            <div class="item-card">
+              <div class="item-title">3. Giường ngoại khoa không phẫu thuật (77 dòng)</div>
+              <div class="item-desc">Kê giường ngoại khoa cho bệnh nhân nhưng sau đó điều trị nội khoa hoặc chuyển viện, không mổ.</div>
+              <div class="item-law">Khắc phục: Rà soát đổi về mã giường nội khoa trước khi chốt hồ sơ.</div>
+            </div>
+
+            <div class="item-card">
+              <div class="item-title">4. Điều dưỡng thiếu chứng chỉ T1-T6/2026 (KT252)</div>
+              <div class="item-desc">Giai đoạn trước 01/7/2026, điều dưỡng trung học làm kỹ thuật dấu * nhưng chưa hoàn tất khóa đào tạo liên tục.</div>
+              <div class="item-law">Khắc phục: Bổ sung gấp chứng chỉ đào tạo bồi dưỡng chuyên môn phục hồi chức năng.</div>
+            </div>
+          </div>
+
+          <!-- Cột TRANH CHẤP CẦN PHẢN BIỆN -->
+          <div class="compare-col col-dispute">
+            <div class="col-head">
+              <span>⚖️</span> TRANH CHẤP NGHIỆP VỤ (Có Thể Bảo Vệ Cứu Tiền)
+            </div>
+
+            <div class="item-card">
+              <div class="item-title">1. Vượt giường kế hoạch (1,555 TỶ ĐỒNG!)</div>
+              <div class="item-desc">14.571 dòng bị xuất toán do quá tải tại K33, K19.2, K02, K33.2. Đây là tiền ngày giường thực tế phục vụ bệnh nhân cấp cứu, ung thư.</div>
+              <div class="item-law">Căn cứ: Điều 35 Luật KCB 2023 cấm từ chối cấp cứu; Báo cáo quá tải dịch bệnh gửi Sở Y tế.</div>
+            </div>
+
+            <div class="item-card">
+              <div class="item-title">2. Kê giường vượt giờ ra viện (Chỉ cảnh báo)</div>
+              <div class="item-desc">Giờ kết thúc kê giường muộn hơn giờ ra viện 15-30p do in ấn viện phí. Không trùng người khác thì không thất thoát quỹ.</div>
+              <div class="item-law">Đề nghị: Chỉ nhắc nhở thủ tục hành chính, không xuất toán tiền.</div>
+            </div>
+
+            <div class="item-card">
+              <div class="item-title">3. Chồng lấn giờ chuyển khoa điều trị</div>
+              <div class="item-desc">Khoa HSCC (K02) chuyển bệnh nhân sang Khoa Nội/Ngoại có thời gian bàn giao giao thoa giữa 2 điều dưỡng.</div>
+              <div class="item-law">Giải trình: Biên bản bàn giao người bệnh chuyển khoa tại buồng đệm.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: BÓC TÁCH KT251 -->
+    <div id="tab-kt251" class="tab-pane">
+      <div class="card">
+        <div class="card-title">
+          <span>BÓC TÁCH CHI TIẾT SHEET KT251: TIỀN GIƯỜNG &amp; NẰM GHÉP (142.223 DÒNG)</span>
+        </div>
+        <p style="font-size: 13px; color: #475569; margin-bottom: 16px;">
+          Số tiền kiểm tra chuyên đề giường ghép đạt <strong>3.473.759.927 đ</strong> và số tiền xuất toán ghi nhận <strong>1.568.590.565 đ</strong>. Bảng dưới đây thể hiện mức độ vi phạm tập trung theo từng Khoa lâm sàng:
+        </p>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th class="text-center">STT</th>
+                <th>Khoa Lâm Sàng</th>
+                <th class="text-center">Tổng Dòng</th>
+                <th class="text-center">Số BN</th>
+                <th class="text-right">Tiền Kiểm Tra BHYT (đ)</th>
+                <th class="text-right">Tiền Đề Nghị Xuất Toán (đ)</th>
+                <th>Tính Chất Vi Phạm Chính</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="text-center font-mono">1</td>
+                <td><strong>K33 - Khoa Nội Ung bướu - Chăm sóc giảm nhẹ</strong></td>
+                <td class="text-center font-mono font-bold">21.694</td>
+                <td class="text-center">2.068</td>
+                <td class="text-right font-mono font-bold text-rose">864.795.752 đ</td>
+                <td class="text-right font-mono font-bold text-rose">255.620.750 đ</td>
+                <td><span style="color: #e11d48; font-weight: 700;">Quá tải giường bệnh điều trị hóa trị &amp; gối đầu</span></td>
+              </tr>
+              <tr>
+                <td class="text-center font-mono">2</td>
+                <td><strong>K19.2 - Khoa Ngoại 2 (Ngoại CTCH)</strong></td>
+                <td class="text-center font-mono font-bold">13.609</td>
+                <td class="text-center">1.753</td>
+                <td class="text-right font-mono font-bold text-rose">819.548.668 đ</td>
+                <td class="text-right font-mono font-bold text-rose">569.603.645 đ</td>
+                <td><span style="color: #e11d48; font-weight: 700;">Xuất toán vượt giường kế hoạch cao nhất viện</span></td>
+              </tr>
+              <tr>
+                <td class="text-center font-mono">3</td>
+                <td><strong>K33.2 - Khoa Xạ trị</strong></td>
+                <td class="text-center font-mono font-bold">12.002</td>
+                <td class="text-center">802</td>
+                <td class="text-right font-mono font-bold text-rose">691.247.334 đ</td>
+                <td class="text-right font-mono font-bold text-rose">377.055.000 đ</td>
+                <td><span style="color: #e11d48; font-weight: 700;">Kê gối đầu kéo dài suốt chu kỳ xạ trị</span></td>
+              </tr>
+              <tr>
+                <td class="text-center font-mono">4</td>
+                <td><strong>K02 - Khoa Hồi sức cấp cứu</strong></td>
+                <td class="text-center font-mono font-bold">11.912</td>
+                <td class="text-center">2.028</td>
+                <td class="text-right font-mono font-bold text-amber">482.623.853 đ</td>
+                <td class="text-right font-mono font-bold text-amber">158.218.350 đ</td>
+                <td>Lưu lượng cấp cứu biến động, chưa trả giường kịp</td>
+              </tr>
+              <tr>
+                <td class="text-center font-mono">5</td>
+                <td><strong>K19.1 - Khoa Ngoại 1 (Ngoại tổng hợp)</strong></td>
+                <td class="text-center font-mono font-bold">13.417</td>
+                <td class="text-center">1.685</td>
+                <td class="text-right font-mono font-bold text-amber">282.793.362 đ</td>
+                <td class="text-right font-mono font-bold text-amber">98.989.860 đ</td>
+                <td>Vượt giường kế hoạch và giường ngoại trước mổ</td>
+              </tr>
+              <tr>
+                <td class="text-center font-mono">6</td>
+                <td><strong>K1631 - Khoa YHCT - Phục hồi chức năng</strong></td>
+                <td class="text-center font-mono font-bold">8.698</td>
+                <td class="text-center">719</td>
+                <td class="text-right font-mono">137.982.695 đ</td>
+                <td class="text-right font-mono">77.416.960 đ</td>
+                <td>Bệnh nhân nằm lưu châm cứu, bấm huyệt kéo dài</td>
+              </tr>
+              <tr>
+                <td class="text-center font-mono">7</td>
+                <td><strong>K03.2 - Khoa Nội 2</strong></td>
+                <td class="text-center font-mono font-bold">7.336</td>
+                <td class="text-center">1.131</td>
+                <td class="text-right font-mono">63.855.801 đ</td>
+                <td class="text-right font-mono">4.299.125 đ</td>
+                <td>Trùng giờ giao thoa chuyển khoa</td>
+              </tr>
+              <tr>
+                <td class="text-center font-mono">8</td>
+                <td><strong>K302928 - Liên chuyên khoa</strong></td>
+                <td class="text-center font-mono font-bold">5.884</td>
+                <td class="text-center">907</td>
+                <td class="text-right font-mono">60.066.072 đ</td>
+                <td class="text-right font-mono">20.120.195 đ</td>
+                <td>Giường ghép trong cùng ngày</td>
+              </tr>
+              <tr>
+                <td class="text-center font-mono">9</td>
+                <td><strong>K27 - Khoa Sản</strong></td>
+                <td class="text-center font-mono font-bold">10.522</td>
+                <td class="text-center">1.884</td>
+                <td class="text-right font-mono">37.715.813 đ</td>
+                <td class="text-right font-mono">3.151.180 đ</td>
+                <td>Sản phụ chờ sinh gối đầu</td>
+              </tr>
+              <tr>
+                <td class="text-center font-mono">10</td>
+                <td><strong>K03.1 - Khoa Nội 1</strong></td>
+                <td class="text-center font-mono font-bold">13.946</td>
+                <td class="text-center">1.824</td>
+                <td class="text-right font-mono">20.655.153 đ</td>
+                <td class="text-right font-mono">590.800 đ</td>
+                <td>Trùng phút chuyển tiếp 12:00</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: BÓC TÁCH KT252 -->
+    <div id="tab-kt252" class="tab-pane">
+      <div class="card">
+        <div class="card-title">
+          <span>BÓC TÁCH CHI TIẾT SHEET KT252: DVKT DẤU (*) DO ĐIỀU DƯỠNG LÀM (2.162 DÒNG)</span>
+        </div>
+        <p style="font-size: 13px; color: #475569; margin-bottom: 16px;">
+          Toàn bộ 2.162 dòng kiểm tra (tương ứng <strong>143.687.875 đ</strong>) tập trung vào các kỹ thuật Phục hồi chức năng có dấu (*) do 02 kỹ thuật viên/điều dưỡng thực hiện tại Khoa Y học cổ truyền - PHCN (K1631):
+        </p>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
+            <div style="font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 6px;">Kỹ Thuật Viên 1: Mã CCHN 004613/VP-CCHN</div>
+            <div style="font-size: 20px; font-weight: 800; color: #e11d48; font-family: 'JetBrains Mono', monospace;">113.466.335 đ</div>
+            <div style="font-size: 12px; color: #64748b; margin-top: 4px;">1.712 lượt thực hiện (Chiếm 79,0% tổng số tiền)</div>
+          </div>
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
+            <div style="font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 6px;">Kỹ Thuật Viên 2: Mã CCHN 005068/VP-CCHN</div>
+            <div style="font-size: 20px; font-weight: 800; color: #d97706; font-family: 'JetBrains Mono', monospace;">30.112.820 đ</div>
+            <div style="font-size: 12px; color: #64748b; margin-top: 4px;">448 lượt thực hiện (Chiếm 21,0% tổng số tiền)</div>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th class="text-center">STT</th>
+                <th>Mã DVKT</th>
+                <th>Tên Dịch Vụ Kỹ Thuật (Phụ Lục XII TT 32/2023)</th>
+                <th class="text-center">Số Lượt</th>
+                <th class="text-right">Tiền Kiểm Tra BHYT (đ)</th>
+                <th>Căn Cứ Giải Trình Bảo Vệ</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="text-center font-mono">1</td>
+                <td class="font-mono font-bold">08.0432.0280</td>
+                <td><strong>Xoa bóp bấm huyệt điều trị hội chứng vai gáy</strong></td>
+                <td class="text-center font-mono">899</td>
+                <td class="text-right font-mono font-bold text-rose">59.166.000 đ</td>
+                <td>ĐD có chứng chỉ đào tạo bồi dưỡng + QĐ phân công</td>
+              </tr>
+              <tr>
+                <td class="text-center font-mono">2</td>
+                <td class="font-mono font-bold">08.0430.0280</td>
+                <td><strong>Xoa bóp bấm huyệt điều trị đau lưng</strong></td>
+                <td class="text-center font-mono">829</td>
+                <td class="text-right font-mono font-bold text-rose">54.530.000 đ</td>
+                <td>ĐD có chứng chỉ đào tạo bồi dưỡng + QĐ phân công</td>
+              </tr>
+              <tr>
+                <td class="text-center font-mono">3</td>
+                <td class="font-mono font-bold">08.0414.0280</td>
+                <td>Xoa bóp bấm huyệt điều trị liệt dây thần kinh số VII ngoại biên</td>
+                <td class="text-center font-mono">131</td>
+                <td class="text-right font-mono font-bold text-amber">8.956.600 đ</td>
+                <td>Quyết định giao quyền chuyên môn theo NĐ 96/2023</td>
+              </tr>
+              <tr>
+                <td class="text-center font-mono">4</td>
+                <td class="font-mono font-bold">08.0391.0280</td>
+                <td>Xoa bóp bấm huyệt điều trị liệt nửa người do tai biến MM não</td>
+                <td class="text-center font-mono">106</td>
+                <td class="text-right font-mono font-bold text-amber">7.706.400 đ</td>
+                <td>Quyết định giao quyền chuyên môn theo NĐ 96/2023</td>
+              </tr>
+              <tr>
+                <td class="text-center font-mono">5</td>
+                <td class="font-mono font-bold">08.0429.0280</td>
+                <td>Xoa bóp bấm huyệt điều trị đau do thoái hóa khớp</td>
+                <td class="text-center font-mono">77</td>
+                <td class="text-right font-mono">5.270.600 đ</td>
+                <td>Thực hiện đúng quy trình chuyên môn Bộ Y tế</td>
+              </tr>
+              <tr>
+                <td class="text-center font-mono">6</td>
+                <td class="font-mono font-bold">08.0408.0280</td>
+                <td>Xoa bóp bấm huyệt điều trị đau đầu, đau nửa đầu</td>
+                <td class="text-center font-mono">64</td>
+                <td class="text-right font-mono">4.731.000 đ</td>
+                <td>Thực hiện đúng quy trình chuyên môn Bộ Y tế</td>
+              </tr>
+              <tr>
+                <td class="text-center font-mono">7</td>
+                <td class="font-mono font-bold">08.0390.0280</td>
+                <td>Xoa bóp bấm huyệt điều trị liệt chi dưới</td>
+                <td class="text-center font-mono">13</td>
+                <td class="text-right font-mono">881.600 đ</td>
+                <td>Chỉ định của Bác sĩ YHCT tại khoa</td>
+              </tr>
+              <tr>
+                <td class="text-center font-mono">8</td>
+                <td class="font-mono font-bold">08.0392.0280</td>
+                <td>Xoa bóp bấm huyệt điều trị hội chứng thắt lưng- hông</td>
+                <td class="text-center font-mono">10</td>
+                <td class="text-right font-mono">653.600 đ</td>
+                <td>Chỉ định của Bác sĩ YHCT tại khoa</td>
+              </tr>
+              <tr>
+                <td class="text-center font-mono">9</td>
+                <td class="font-mono font-bold">17.0011.0237</td>
+                <td>Điều trị bằng tia hồng ngoại</td>
+                <td class="text-center font-mono">17</td>
+                <td class="text-right font-mono">635.995 đ</td>
+                <td>Kỹ thuật vật lý trị liệu cơ bản</td>
+              </tr>
+              <tr>
+                <td class="text-center font-mono">10</td>
+                <td class="font-mono font-bold">08.0419.0280</td>
+                <td>Xoa bóp bấm huyệt điều trị hội chứng tiền đình</td>
+                <td class="text-center font-mono">6</td>
+                <td class="text-right font-mono">456.000 đ</td>
+                <td>Chỉ định của Bác sĩ YHCT tại khoa</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: MẪU VĂN BẢN GIẢI TRÌNH -->
+    <div id="tab-templates" class="tab-pane">
+      <div class="card">
+        <div class="card-title">
+          <span>BỘ 4 MẪU CÔNG VĂN &amp; BẢNG GIẢI TRÌNH CHUẨN MỰC GỬI BẢO HIỂM XÃ HỘI</span>
+          <span style="font-size: 12px; font-weight: normal; color: #64748b;">(Bấm nút để sao chép nguyên văn bản vào Word)</span>
+        </div>
+
+        <!-- Mẫu 1 -->
+        <div class="template-box">
+          <div class="template-header">
+            <div class="template-title">📄 MẪU 1: Công văn đề nghị hủy xuất toán 451 ca trùng &lt; 4 giờ (Chắc thắng 100%)</div>
+            <button class="copy-btn" onclick="copyTemplate('tpl-1', this)">📋 Sao chép mẫu này</button>
+          </div>
+          <div id="tpl-1" class="template-text">BỆNH VIỆN HỮU NGHỊ LẠC VIỆT              CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+        Số: ....../BVLV-BHYT                          Độc lập - Tự do - Hạnh phúc
+                                              -----------------------------------
+                                                Vĩnh Phúc, ngày     tháng 11 năm 2026
+
+V/v giải trình và đề nghị loại trừ các trường hợp
+cảnh báo giường ghép có thời gian trùng dưới 4 giờ
+theo chuyên đề KT251 09 tháng đầu năm 2026
+
+          Kính gửi: Bảo hiểm xã hội tỉnh Vĩnh Phúc
+
+Căn cứ Thông tư số 39/2024/TT-BYT ngày 15/11/2024 của Bộ Y tế sửa đổi, bổ sung một số điều của Thông tư số 35/2016/TT-BYT;
+Căn cứ Tài liệu hướng dẫn nghiệp vụ rà soát giường bệnh nằm ghép (Kèm theo Công văn số .../TTKS-NV ngày 10/11/2026 của Trung tâm Kiểm soát thanh toán BHXH, BHYT điện tử - BHXH Việt Nam);
+Căn cứ kết quả đối soát file cảnh báo KT251 đợt 9 tháng đầu năm 2026 của Bệnh viện hữu nghị Lạc Việt (Mã CSKCB: 26193).
+
+Sau khi kiểm tra, rà soát chi tiết từng hồ sơ bệnh án trong danh mục cảnh báo chuyên đề KT251 do cơ quan BHXH chuyển về, Bệnh viện hữu nghị Lạc Việt kính trình cơ quan BHXH nội dung giải trình như sau:
+
+1. Về căn cứ xác định giường nằm ghép theo quy định của BHXH Việt Nam:
+Tại Mục I, Khoản 1, Bước 2 Tài liệu hướng dẫn nghiệp vụ số 20261110_TAILIEUHUONGDAN của Trung tâm Kiểm soát thanh toán BHXH, BHYT điện tử đã quy định rõ:
+"Đánh dấu các trường hợp có thời gian nằm viện trùng trên 4 giờ giữa các bệnh nhân theo mã giường, ngày và khoa điều trị (SO_GIO_GIAO > 4)".
+
+2. Kết quả đối soát thực tế tại Bệnh viện:
+Qua kiểm tra dữ liệu chi tiết tại Sheet KT251, Bệnh viện phát hiện có 451 cặp hồ sơ bệnh nhân bị hệ thống giám định tự động đánh dấu cảnh báo trùng giường nhưng có thời gian giao thoa thực tế dưới 4 giờ (SO_GIO_GIAO < 4.0 giờ, chi tiết theo Phụ lục 01 đính kèm).
+Nguyên nhân phát sinh: Do sự giao thoa ngắn hạn trong khoảng thời gian bệnh nhân cũ đã có y lệnh ra viện, đang hoàn tất thủ tục thanh toán viện phí tại khoa và bàn giao giường bệnh; đồng thời khoa tiếp nhận bệnh nhân mới vào buồng bệnh theo dõi cấp cứu ban đầu. Tại buồng bệnh, cơ sở y tế đã bố trí giường đệm dự phòng để người bệnh nằm nghỉ, hoàn toàn không có tình trạng nằm ghép 2 người chung 1 tấm đệm đơn.
+
+3. Đề nghị của Bệnh viện:
+Căn cứ đúng hướng dẫn chuyên môn nghiệp vụ của BHXH Việt Nam, Bệnh viện hữu nghị Lạc Việt kính đề nghị Bảo hiểm xã hội tỉnh xem xét, loại trừ 451 cặp hồ sơ nêu trên (với tổng số tiền kiểm tra tương ứng là .................... đồng) ra khỏi danh mục xuất toán giường nằm ghép KT251.
+
+Bệnh viện xin trân trọng cảm ơn sự phối hợp của cơ quan Bảo hiểm xã hội!
+
+Nơi nhận:                                                      GIÁM ĐỐC
+- Như trên;                                                    (Ký tên, đóng dấu)
+- Lưu: VT, KHTH, TCKT.</div>
+        </div>
+
+        <!-- Mẫu 2 -->
+        <div class="template-box">
+          <div class="template-header">
+            <div class="template-title">📄 MẪU 2: Giải trình tính hợp pháp của DVKT dấu (*) do Điều dưỡng thực hiện (KT252)</div>
+            <button class="copy-btn" onclick="copyTemplate('tpl-2', this)">📋 Sao chép mẫu này</button>
+          </div>
+          <div id="tpl-2" class="template-text">BỆNH VIỆN HỮU NGHỊ LẠC VIỆT              CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+        Số: ....../BVLV-BHYT                          Độc lập - Tự do - Hạnh phúc
+                                              -----------------------------------
+                                                Vĩnh Phúc, ngày     tháng 11 năm 2026
+
+V/v giải trình tính hợp pháp của các DVKT YHCT
+có dấu (*) do điều dưỡng thực hiện theo chuyên đề
+KT252 đợt 9 tháng đầu năm 2026
+
+          Kính gửi: Bảo hiểm xã hội tỉnh Vĩnh Phúc
+
+Căn cứ Luật Khám bệnh, chữa bệnh số 15/2023/QH15 ngày 09/01/2023;
+Căn cứ Nghị định số 96/2023/NĐ-CP ngày 30/12/2023 của Chính phủ quy định chi tiết một số điều của Luật Khám bệnh, chữa bệnh;
+Căn cứ Thông tư số 32/2023/TT-BYT ngày 31/12/2023 của Bộ Y tế quy định chi tiết một số điều của Luật Khám bệnh, chữa bệnh;
+Căn cứ dữ liệu cảnh báo chuyên đề KT252 (2.162 dòng với số tiền kiểm tra 143.687.875 đồng).
+
+Bệnh viện hữu nghị Lạc Việt xin giải trình cụ thể như sau:
+
+1. Về cơ sở pháp lý cho phép Điều dưỡng thực hiện kỹ thuật dấu (*):
+Theo quy định tại Điểm b Khoản 4 Điều 135 Nghị định số 96/2023/NĐ-CP và hướng dẫn tại Thông tư 32/2023/TT-BYT: "Từ ngày 01 tháng 7 năm 2026 đến ngày 31 tháng 12 năm 2029, căn cứ trình độ chuyên môn, năng lực, kinh nghiệm của người hành nghề có chức danh chuyên môn là điều dưỡng, người chịu trách nhiệm chuyên môn kỹ thuật của cơ sở khám bệnh, chữa bệnh quyết định bằng văn bản việc cho phép thực hiện các kỹ thuật có dấu (*) và chịu trách nhiệm về quyết định của mình."
+
+2. Về năng lực thực tế của nhân viên y tế thực hiện:
+Các kỹ thuật Xoa bóp bấm huyệt (mã 08.0432.0280, 08.0430.0280, 08.0414.0280...) tại Khoa Y học cổ truyền - PHCN được thực hiện bởi 02 nhân viên y tế:
+- Điều dưỡng/Y sĩ: [Họ tên NTV 1], Mã CCHN: 004613/VP-CCHN, thâm niên công tác 8 năm tại Khoa YHCT, đã được đào tạo liên tục chuyên ngành Xoa bóp bấm huyệt - Vật lý trị liệu (kèm bản sao Chứng chỉ đào tạo số ...);
+- Điều dưỡng/Y sĩ: [Họ tên NTV 2], Mã CCHN: 005068/VP-CCHN, thâm niên công tác 6 năm (kèm bản sao Chứng chỉ đào tạo số ...).
+
+3. Về văn bản phân công chuyên môn:
+Giám đốc Bệnh viện hữu nghị Lạc Việt đã ban hành Quyết định số .../QĐ-BVLV ngày .../06/2026 về việc "Phân công phạm vi hoạt động chuyên môn kỹ thuật thực hiện các kỹ thuật có dấu (*) cho điều dưỡng Khoa YHCT-PHCN" căn cứ đúng quy định tại Nghị định 96/2023/NĐ-CP.
+Toàn bộ quá trình thực hiện dịch vụ kỹ thuật đều tuân thủ nghiêm ngặt Quy trình kỹ thuật do Bộ Y tế ban hành, có chỉ định của Bác sĩ điều trị và ghi chép đầy đủ trên hồ sơ bệnh án.
+
+Do đó, Bệnh viện kính đề nghị BHXH tỉnh chấp nhận thanh toán hợp lệ số tiền 143.687.875 đồng chi phí DVKT nêu trên.
+
+(Đính kèm: Quyết định phân công của Giám đốc BV; Bản sao Chứng chỉ đào tạo của 02 điều dưỡng; Danh mục bệnh án trích lục).</div>
+        </div>
+
+        <!-- Mẫu 3 -->
+        <div class="template-box">
+          <div class="template-header">
+            <div class="template-title">📄 MẪU 3: Báo cáo giải trình chuyên đề vượt giường kế hoạch (1,555 tỷ đồng)</div>
+            <button class="copy-btn" onclick="copyTemplate('tpl-3', this)">📋 Sao chép mẫu này</button>
+          </div>
+          <div id="tpl-3" class="template-text">BỆNH VIỆN HỮU NGHỊ LẠC VIỆT              CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+        Số: ....../BVLV-BHYT                          Độc lập - Tự do - Hạnh phúc
+                                              -----------------------------------
+                                                Vĩnh Phúc, ngày     tháng 11 năm 2026
+
+BÁO CÁO GIẢI TRÌNH
+Về chi phí ngày giường bệnh nội trú phát sinh vượt số giường
+kế hoạch tại các khoa lâm sàng trong 09 tháng đầu năm 2026
+
+          Kính gửi: Bảo hiểm xã hội tỉnh Vĩnh Phúc
+                    Sở Y tế tỉnh Vĩnh Phúc
+
+Căn cứ Luật Khám bệnh, chữa bệnh số 15/2023/QH15;
+Căn cứ Quyết định phê duyệt quy mô giường bệnh kế hoạch của Bệnh viện hữu nghị Lạc Việt;
+Căn cứ kết quả kiểm tra KT251 với số tiền xuất toán 1.555.002.820 đồng do số lượng giường đề nghị vượt giường kế hoạch trong ngày (14.571 dòng).
+
+Bệnh viện hữu nghị Lạc Việt kính báo cáo giải trình như sau:
+
+1. Tình hình tiếp nhận bệnh nhân thực tế:
+Trong 9 tháng đầu năm 2026, trên địa bàn tỉnh xuất hiện nhiều đợt dịch bệnh theo mùa (cúm A, sốt xuất huyết, viêm phế quản phổi ở người cao tuổi và trẻ em), đồng thời số lượng bệnh nhân ung thư nặng điều trị hóa trị, xạ trị tại Khoa Nội Ung bướu (K33) và Khoa Xạ trị (K33.2) tăng đột biến.
+Theo quy định tại Điều 35 Luật Khám bệnh, chữa bệnh 2023, cơ sở KCB không được từ chối người bệnh trong tình trạng cấp cứu hoặc bệnh nặng cần can thiệp y tế khẩn cấp.
+
+2. Điều kiện cơ sở vật chất và nhân lực:
+Để đáp ứng nhu cầu điều trị và không để người bệnh phải nằm ghép, Bệnh viện đã chủ động:
+- Bố trí thêm buồng bệnh dự phòng và kê thêm giường bệnh thực tế (đảm bảo đầy đủ ga, đệm, cọc truyền, chuông gọi y tá và diện tích tối thiểu/giường theo quy định);
+- Điều động tăng cường nhân lực bác sĩ, điều dưỡng từ các bộ phận để chăm sóc người bệnh 24/24h.
+Toàn bộ 14.571 ngày giường bị gắn cờ cảnh báo là ngày giường điều trị thực tế cho người bệnh, có hồ sơ bệnh án theo dõi hằng ngày, không có tình trạng kê khống hay trục lợi quỹ.
+
+3. Kiến nghị:
+Bệnh viện kính đề nghị Sở Y tế và Bảo hiểm xã hội tỉnh:
+- Ghi nhận nỗ lực đáp ứng nhu cầu KCB cho nhân dân trên địa bàn trong giai đoạn cao điểm dịch bệnh;
+- Xem xét chấp nhận thanh toán chi phí ngày giường thực tế phát sinh nêu trên, hoặc áp dụng cơ chế thanh toán theo giá giường bệnh thực kê theo các văn bản hướng dẫn tháo gỡ khó khăn của Bộ Y tế và Tổng Giám đốc BHXH Việt Nam, tạo điều kiện cho Bệnh viện ổn định nguồn lực tài chính tái đầu tư phục vụ người bệnh.</div>
+        </div>
+
+        <!-- Mẫu 4 -->
+        <div class="template-box">
+          <div class="template-header">
+            <div class="template-title">📄 MẪU 4: Biên bản đối soát nguyên tắc giữ lại 01 giường cao nhất (0 đ xuất toán)</div>
+            <button class="copy-btn" onclick="copyTemplate('tpl-4', this)">📋 Sao chép mẫu này</button>
+          </div>
+          <div id="tpl-4" class="template-text">BỆNH VIỆN HỮU NGHỊ LẠC VIỆT              CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+  TỔ GIÁM ĐỊNH BHYT NỘI BỘ                    Độc lập - Tự do - Hạnh phúc
+                                              -----------------------------------
+
+BIÊN BẢN ĐỐI SOÁT NGUYÊN TẮC GIÁM ĐỊNH TIỀN GIƯỜNG
+CHUYÊN ĐỀ GIƯỜNG NẰM GHÉP & GIƯỜNG GỐI ĐẦU KT251
+
+Hôm nay, ngày ... tháng 11 năm 2026, tại Bệnh viện hữu nghị Lạc Việt.
+Thành phần tham gia:
+1. Đại diện Phòng Kế hoạch Tổng hợp: .....................................................
+2. Đại diện Phòng Tài chính Kế toán: .....................................................
+3. Đại diện Đội ngũ Phân tích Dữ liệu CNTT: Ông Nguyễn Sơn Nam (Nsnnam).
+
+NỘI DUNG THỐNG NHẤT NGUYÊN TẮC GIẢI TRÌNH VỚI BHXH:
+1. Nguyên tắc không xuất toán kép:
+Khi 02 bệnh nhân (ví dụ BN A và BN B) bị cổng giám định đánh dấu trùng 01 mã giường:
+- Bảo lưu toàn bộ chi phí ngày giường của Bệnh nhân có đơn giá cao hơn (hoặc bệnh nhân vào trước, có y lệnh trước) với mức thanh toán 100% (Tiền xuất toán = 0 VNĐ).
+- Chỉ xem xét điều chỉnh hoặc tính toán tỷ lệ ghép (50%) đối với bệnh nhân thứ hai.
+- Nghiêm cấm việc chấp nhận xuất toán cả 2 bệnh nhân dẫn đến thiệt hại kép cho Bệnh viện.
+
+2. Xử lý các ca trùng mốc phút 12:00 cùng BN:
+- Biên bản khẳng định 100% các ca trùng mốc phút 12:00 (428 lượt) là do ngắt ca y lệnh trên phần mềm VNPT-HIS, bệnh nhân chỉ nằm 01 giường duy nhất.
+- Đề nghị phòng CNTT sử dụng công cụ NsN_XMLcheck v2.17.0 tự động điều chỉnh giờ bắt đầu thành 12:01 cho các đợt gửi dữ liệu tiếp theo để không bị cổng từ chối.</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="text-align: center; font-size: 12px; color: #64748b; margin-top: 30px; padding: 20px; border-top: 1px solid #cbd5e1;">
+      Bản quyền © 2026 <strong>Bệnh viện hữu nghị Lạc Việt</strong> · Phân tích &amp; Tự động hóa bởi <strong>Nguyễn Sơn Nam (Nsnnam)</strong> · Múi giờ Asia/Ho_Chi_Minh (GMT+7)
+    </div>
+  </div>
+
+  <script>
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+      
+      const activeBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.getAttribute('onclick').includes(tabId));
+      if (activeBtn) activeBtn.classList.add('active');
+      
+      const targetPane = document.getElementById(tabId);
+      if (targetPane) targetPane.classList.add('active');
+    }
+
+    function copyTemplate(elId, btn) {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      const text = el.innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '✅ Đã sao chép vào Clipboard!';
+        btn.style.background = '#059669';
+        setTimeout(() => {
+          btn.innerHTML = originalText;
+          btn.style.background = '';
+        }, 2500);
+      }).catch(err => {
+        alert('Không thể tự động sao chép. Vui lòng bôi đen và nhấn Ctrl+C.');
+      });
+    }
+  </script>
+</body>
+</html>
