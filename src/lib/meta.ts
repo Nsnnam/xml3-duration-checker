@@ -1,8 +1,7 @@
 export const APP_META = {
   name: "NsN_XMLcheck",
   title: "NsN_XMLcheck",
-  description:
-    "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, MA_MAY chuẩn XX.3[xxx].Z & trùng thời gian máy, cảnh báo Z00.0/Z30.1 (KHHGĐ) & Hồ sơ 15 bảng BHYT",
+  description: "Tổng hợp công cụ xử lý XML_Namns",
   version: "2.17.0",
   date: "2026-11-20",
   author: "Nguyễn Sơn Nam (Nsnnam)",
@@ -13,6 +12,11 @@ export const APP_META = {
       version: "2.17.0",
       date: "2026-11-20",
       changes: [
+        "Khắc phục triệt để lỗi không sao chép được thông tin: Bỏ thuộc tính ngăn bôi đen (select-none) trên toàn bộ bảng cảnh báo và dữ liệu XML, cho phép người dùng bôi đen, chọn văn bản và sao chép (Ctrl+C) linh hoạt mọi trường dữ liệu.",
+        "Tinh gọn thanh phân loại lỗi: Chuyển nút 'Đổi màu cảnh báo' vào giao diện Cấu hình & Backup và Thư viện quy tắc để tiết kiệm không gian và tránh rối mắt.",
+        "Cập nhật mô tả tiêu đề trang thành 'Tổng hợp công cụ xử lý XML_Namns'.",
+        "Tối ưu khu vực nạp file XML 15 bảng: Căn chỉnh lại độ rộng văn bản không bị ngắt dòng giữa chừng, giúp giao diện gọn gàng, thoáng đãng.",
+        "Bổ sung nút 'Xóa tất cả file' ngay trên đầu danh sách file đã chọn, giúp xóa nhanh và nạp lại tiện lợi mà không phải cuộn trang.",
         "Hoàn thiện chuẩn quy tắc giám định xuất toán tiền giường (KT251): Tự động gom các cụm bệnh nhân trùng giường cùng ngày, giữ lại 01 giường có chi phí cao nhất (hoặc vào trước) với 0 đ xuất toán (✅ GIỮ LẠI), chỉ xuất toán các giường thứ 2 trở đi (🚨 XUẤT TOÁN), giúp phản ánh trung thực thực tế giám định BHYT và giảm thiểu thiệt hại tài chính.",
         "Phân định rõ cảnh báo thủ tục hành chính: Lỗi giờ kết thúc kê giường vượt quá giờ ra viện (bed-exceeds-discharge) và trùng mốc phút 12:00 cùng BN được phân loại là cảnh báo thủ tục hành chính (0 đ xuất toán trực tiếp), tránh tính trùng hoặc phạt kép.",
         "Phân tích chuyên sâu đối soát file KT251 của BHXH: Đối chiếu toàn bộ 142.223 dòng trong file cảnh báo KT251 thực tế của BHXH (1,568 tỷ VNĐ xuất toán), phát hiện 451 ca trùng dưới 4 giờ bị cơ quan BHXH gắn cờ sai quy định nghiệp vụ công văn hướng dẫn; đưa ra 4 giải pháp giải trình giảm thiểu hàng trăm triệu đồng xuất toán cho Bệnh viện.",

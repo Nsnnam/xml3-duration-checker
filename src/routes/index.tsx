@@ -1246,6 +1246,7 @@ export function HomePage() {
             onExportTemplate={exportLibraryTemplate}
             onExportToExcel={() => exportLibraryToExcel(serviceRules, drugRules, machineRules)}
             onImportExcel={handleImportExcel}
+            onOpenColorModal={() => setShowColorModal(true)}
           />
         )}
 
@@ -1253,6 +1254,7 @@ export function HomePage() {
           <SettingsBackupView
             telegramConfig={telegramConfig}
             columnsConfig={columnsConfig}
+            onOpenColorModal={() => setShowColorModal(true)}
             onSaveTelegramConfig={(cfg) => {
               setTelegramConfig(cfg);
               saveTelegramConfig(cfg);
@@ -2214,13 +2216,13 @@ function CheckerView({
             </span>
           </summary>
           <div className="rounded-3xl border border-teal-100 bg-white p-6 shadow-sm md:p-8">
-            <div className="mb-5 flex items-start gap-4">
+            <div className="mb-4 flex items-start gap-4">
               <div className="grid h-12 w-12 shrink-0 place-content-center rounded-2xl bg-teal-50 text-2xl">
                 📤
               </div>
-              <div>
+              <div className="min-w-0 flex-1">
                 <h2 className="text-lg font-bold text-slate-900">Nạp file XML chứa 15 bảng</h2>
-                <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
+                <p className="mt-1 text-xs md:text-sm text-slate-500 leading-relaxed">
                   Công cụ giải mã nội dung <b>NOIDUNGFILE</b> theo Base64, lấy riêng <b>XML3</b>{" "}
                   (CHI_TIET_DVKT), kiểm tra thời gian (tối thiểu & tối đa), thông tin thầu{" "}
                   <b>XML2</b> (cột 15 TT_THAU) và <b>XML3</b> (MA_NHOM 10/11 bắt buộc có TT_THAU).
@@ -2233,8 +2235,8 @@ function CheckerView({
                 Chọn hoặc thêm file XML hoặc Excel XML3 (.xlsx, .xls)
               </span>
               <span className="mt-1 text-xs text-slate-500">
-                Hỗ trợ XML1–XML15 Base64 và file Excel xuất XML3 · Xử lý hoàn toàn trên trình duyệt
-                local
+                Hỗ trợ XML1–XML15 Base64 và file Excel xuất XML3 · Xử lý hoàn toàn offline trên
+                trình duyệt
               </span>
               <input
                 type="file"
@@ -2247,6 +2249,32 @@ function CheckerView({
                 }}
               />
             </label>
+
+            {files.length > 0 && (
+              <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-teal-200 bg-teal-50/70 px-3.5 py-2 text-xs">
+                <div className="flex items-center gap-2 text-teal-900 font-medium">
+                  <span>
+                    📁 Đã chọn <strong>{files.length}</strong> file
+                  </span>
+                  <span className="hidden sm:inline text-teal-700">
+                    (
+                    {files
+                      .map((f) => f.name)
+                      .slice(0, 2)
+                      .join(", ")}
+                    {files.length > 2 ? ` và ${files.length - 2} file khác` : ""})
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={onClear}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-rose-300 bg-white px-3 py-1 text-xs font-bold text-rose-600 hover:bg-rose-50 hover:text-rose-700 transition shadow-2xs shrink-0"
+                  title="Xóa nhanh toàn bộ file đã chọn để import lại từ đầu"
+                >
+                  <span>🗑️ Xóa tất cả file để nạp lại</span>
+                </button>
+              </div>
+            )}
             <details className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <summary className="cursor-pointer list-none text-xs font-bold uppercase tracking-wide text-slate-500 flex items-center justify-between">
                 <span>
@@ -2313,8 +2341,18 @@ function CheckerView({
 
             {files.length > 0 && (
               <div className="mt-4 space-y-2">
-                <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">
-                  Danh sách file đã chọn ({files.length}):
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                    Danh sách file đã chọn ({files.length}):
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onClear}
+                    className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition"
+                    title="Xóa tất cả file"
+                  >
+                    🗑️ Xóa tất cả file
+                  </button>
                 </div>
                 <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
                   {files.map((file) => (
@@ -2776,14 +2814,6 @@ function CheckerView({
                   );
                 })}
               </div>
-              <button
-                type="button"
-                onClick={onOpenColorModal}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-purple-300 bg-purple-50 px-2.5 py-1 text-xs font-bold text-purple-800 hover:bg-purple-100 shadow-xs transition shrink-0"
-                title="Tùy chỉnh màu sắc riêng cho từng loại cảnh báo"
-              >
-                <span>🎨 Đổi màu cảnh báo</span>
-              </button>
             </div>
 
             {alertTab === "XML3" ? (
@@ -3369,7 +3399,7 @@ function WarningRow({
           onToggleSelect?.(e);
         }
       }}
-      className={`border-t border-slate-200/70 align-top transition-colors select-none ${
+      className={`border-t border-slate-200/70 align-top transition-colors select-text ${
         isSelected
           ? "bg-teal-50 hover:bg-teal-100/80"
           : isPlanned
@@ -4353,7 +4383,7 @@ function ValidationTable({
                           handleToggleSelectWarning(warnKey, index, e);
                         }
                       }}
-                      className={`border-t border-slate-100 align-top transition-colors select-none ${
+                      className={`border-t border-slate-100 align-top transition-colors select-text ${
                         isSelected
                           ? "bg-indigo-50 hover:bg-indigo-100/80"
                           : isPlanned
@@ -4756,6 +4786,7 @@ function LibraryView({
   onExportTemplate,
   onExportToExcel,
   onImportExcel,
+  onOpenColorModal,
 }: {
   serviceRules: ServiceRule[];
   drugRules: DrugRule[];
@@ -4776,6 +4807,7 @@ function LibraryView({
   onExportTemplate: () => Promise<void>;
   onExportToExcel: () => Promise<void>;
   onImportExcel: (file: File, mode: "merge" | "overwrite") => Promise<void>;
+  onOpenColorModal?: () => void;
 }) {
   const [subTab, setSubTab] = useState<"service" | "drug" | "machine">("service");
 
@@ -5161,6 +5193,16 @@ function LibraryView({
               <option value="merge">Chế độ: Gộp (Merge)</option>
               <option value="overwrite">Chế độ: Ghi đè (Overwrite)</option>
             </select>
+            {onOpenColorModal && (
+              <button
+                type="button"
+                onClick={onOpenColorModal}
+                className="rounded-xl border border-purple-300 bg-purple-50 px-3.5 py-2 text-xs font-bold text-purple-800 hover:bg-purple-100 shadow-sm flex items-center gap-1.5 transition"
+                title="Tùy chỉnh màu sắc riêng cho từng loại cảnh báo & báo cáo"
+              >
+                <span>🎨 Đổi màu cảnh báo</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -6193,6 +6235,7 @@ function SettingsBackupView({
   hasAnalysis,
   onRestoreBackup,
   onResetAllDefaults,
+  onOpenColorModal,
 }: {
   telegramConfig: TelegramConfig;
   columnsConfig: AllTabsColumnConfig;
@@ -6211,6 +6254,7 @@ function SettingsBackupView({
   hasAnalysis: boolean;
   onRestoreBackup: (parsed: ParsedBackupResult) => void;
   onResetAllDefaults: () => void;
+  onOpenColorModal?: () => void;
 }) {
   const [botToken, setBotToken] = useState(telegramConfig.botToken);
   const [chatId, setChatId] = useState(telegramConfig.chatId);
@@ -6441,6 +6485,33 @@ function SettingsBackupView({
           >
             ↺ Đặt lại toàn bộ cột 4 tab về mặc định
           </button>
+        </div>
+      </div>
+
+      {/* Tùy chỉnh màu sắc cảnh báo */}
+      <div className="rounded-3xl border border-purple-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="grid h-10 w-10 place-content-center rounded-2xl bg-purple-100 text-xl text-purple-700">
+              🎨
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-900">Màu sắc cảnh báo & Giao diện báo cáo</h3>
+              <p className="text-xs text-slate-500">
+                Tự do tùy chỉnh mã màu viền, màu nền và màu chữ cho từng loại lỗi XML3, XML1, XML2,
+                XML4.
+              </p>
+            </div>
+          </div>
+          {onOpenColorModal && (
+            <button
+              type="button"
+              onClick={onOpenColorModal}
+              className="rounded-xl border border-purple-300 bg-purple-50 px-4 py-2.5 text-xs font-bold text-purple-800 hover:bg-purple-100 shadow-sm transition flex items-center gap-2"
+            >
+              <span>🎨 Mở bảng đổi màu cảnh báo</span>
+            </button>
+          )}
         </div>
       </div>
 
