@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Infographic: Hướng dẫn Kê Giường Bệnh & Chống Xuất Toán BHYT (KT251)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #0f172a;
+      --primary-light: #1e293b;
+      --teal: #0d9488;
+      --teal-light: #ccfbf1;
+      --rose: #e11d48;
+      --rose-light: #ffe4e6;
+      --amber: #d97706;
+      --amber-light: #fef3c7;
+      --emerald: #059669;
+      --emerald-light: #d1fae5;
+      --purple: #7c3aed;
+      --purple-light: #f3e8ff;
+      --slate: #64748b;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --border: #e2e8f0;
+      --radius: 14px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--primary);
+      line-height: 1.5;
+      padding: 24px;
+    }
+
+    .infographic-wrapper {
+      max-width: 1040px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border-radius: 20px;
+      box-shadow: 0 10px 40px rgba(15, 23, 42, 0.08);
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    /* HEADER */
+    .header {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0d9488 100%);
+      color: white;
+      padding: 36px 40px;
+      position: relative;
+    }
+    .header-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(13, 148, 136, 0.3);
+      border: 1px solid rgba(45, 212, 191, 0.4);
+      color: #5eead4;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      margin-bottom: 14px;
+    }
+    .header-title {
+      font-size: 28px;
+      font-weight: 800;
+      line-height: 1.25;
+      margin-bottom: 10px;
+      color: #ffffff;
+    }
+    .header-subtitle {
+      font-size: 15px;
+      color: #cbd5e1;
+      max-width: 820px;
+      font-weight: 400;
+    }
+    .header-meta {
+      margin-top: 18px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      font-size: 13px;
+      color: #94a3b8;
+    }
+    .header-meta span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* BODY CONTAINER */
+    .content {
+      padding: 32px 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+
+    /* METRIC BANNER */
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+    .metric-card {
+      padding: 18px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: #fafaf9;
+      position: relative;
+      overflow: hidden;
+    }
+    .metric-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+    }
+    .metric-card.rose::before { background: var(--rose); }
+    .metric-card.amber::before { background: var(--amber); }
+    .metric-card.teal::before { background: var(--teal); }
+    .metric-card.purple::before { background: var(--purple); }
+
+    .metric-val {
+      font-size: 26px;
+      font-weight: 800;
+      line-height: 1.1;
+      margin-top: 4px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .metric-val.rose { color: var(--rose); }
+    .metric-val.amber { color: var(--amber); }
+    .metric-val.teal { color: var(--teal); }
+    .metric-val.purple { color: var(--purple); }
+
+    .metric-lbl {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--slate);
+    }
+    .metric-sub {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 4px;
+    }
+
+    /* SECTION TITLE */
+    .section-title {
+      font-size: 19px;
+      font-weight: 800;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      border-bottom: 2px solid #f1f5f9;
+      padding-bottom: 8px;
+    }
+    .section-title .icon {
+      font-size: 22px;
+    }
+
+    /* 4 GOLDEN RULES */
+    .rules-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+    .rule-box {
+      border-radius: var(--radius);
+      padding: 22px;
+      border: 1.5px solid var(--border);
+      background: #ffffff;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+    }
+    .rule-box.highlight {
+      border-color: #0d9488;
+      background: #f0fdfa;
+    }
+    .rule-box-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .rule-number {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--teal);
+      color: white;
+      font-weight: 800;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .rule-box.rose-box .rule-number { background: var(--rose); }
+    .rule-box.amber-box .rule-number { background: var(--amber); }
+    .rule-box.purple-box .rule-number { background: var(--purple); }
+
+    .rule-name {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+    .rule-desc {
+      font-size: 13.5px;
+      color: #334155;
+      line-height: 1.55;
+    }
+
+    /* DO & DON'T COMPARISON */
+    .compare-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 8px;
+    }
+    .compare-box {
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 13px;
+    }
+    .compare-box.correct {
+      background: var(--emerald-light);
+      border: 1px solid #86efac;
+      color: #065f46;
+    }
+    .compare-box.wrong {
+      background: var(--rose-light);
+      border: 1px solid #fca5a5;
+      color: #9f1239;
+    }
+    .compare-tag {
+      font-weight: 800;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: 4px;
+    }
+    .compare-code {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      background: rgba(255,255,255,0.7);
+      padding: 2px 6px;
+      border-radius: 4px;
+      display: inline-block;
+      margin-top: 4px;
+    }
+
+    /* PROCESS STEPS */
+    .process-flow {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      position: relative;
+    }
+    .step-card {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 16px;
+      position: relative;
+    }
+    .step-num {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      background: var(--primary);
+      color: white;
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+    .step-card:nth-child(1) .step-num { background: #0f172a; }
+    .step-card:nth-child(2) .step-num { background: #0d9488; }
+    .step-card:nth-child(3) .step-num { background: #d97706; }
+    .step-card:nth-child(4) .step-num { background: #059669; }
+
+    .step-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 6px;
+    }
+    .step-text {
+      font-size: 12.5px;
+      color: #475569;
+      line-height: 1.45;
+    }
+
+    /* TOOL SHORTCUTS BANNER */
+    .tool-banner {
+      background: linear-gradient(135deg, #f0fdfa 0%, #e0f2fe 100%);
+      border: 1.5px solid #99f6e4;
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+    .tool-banner-info {
+      flex: 1;
+    }
+    .tool-banner-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: #0f766e;
+      margin-bottom: 4px;
+    }
+    .tool-banner-text {
+      font-size: 13px;
+      color: #134e4a;
+    }
+    .tool-badge-group {
+      display: flex;
+      gap: 10px;
+    }
+    .tool-chip {
+      background: white;
+      border: 1px solid #2dd4bf;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #0f766e;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      white-space: nowrap;
+    }
+
+    /* FOOTER */
+    .footer {
+      background: #0f172a;
+      color: #94a3b8;
+      padding: 20px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12.5px;
+    }
+    .footer strong {
+      color: #f8fafc;
+    }
+
+    /* PRINT STYLES FOR A4 */
+    @media print {
+      body {
+        background: white;
+        padding: 0;
+      }
+      .infographic-wrapper {
+        box-shadow: none;
+        border: none;
+        max-width: 100%;
+      }
+      .header {
+        padding: 24px 30px;
+      }
+      .content {
+        padding: 20px 30px;
+        gap: 20px;
+      }
+      .metric-grid {
+        gap: 10px;
+      }
+      .rules-grid {
+        gap: 12px;
+      }
+      .rule-box {
+        padding: 14px;
+      }
+      .tool-banner {
+        padding: 14px 18px;
+      }
+      .footer {
+        padding: 14px 30px;
+      }
+    }
+
+    @media (max-width: 768px) {
+      body { padding: 10px; }
+      .header { padding: 24px 20px; }
+      .content { padding: 20px; }
+      .metric-grid { grid-template-columns: 1fr 1fr; }
+      .rules-grid { grid-template-columns: 1fr; }
+      .compare-container { grid-template-columns: 1fr; }
+      .process-flow { grid-template-columns: 1fr; }
+      .tool-banner { flex-direction: column; align-items: flex-start; }
+      .footer { flex-direction: column; gap: 8px; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="infographic-wrapper">
+
+    <!-- HEADER -->
+    <div class="header">
+      <div class="header-badge">📋 HƯỚNG DẪN QUẢN LÝ CHẤT LƯỢNG BHYT 2026</div>
+      <h1 class="header-title">CẨM NANG KÊ GIƯỜNG BỆNH & CHỐNG XUẤT TOÁN KT251</h1>
+      <p class="header-subtitle">
+        Hướng dẫn chuẩn hóa quy trình kê giường bệnh nội trú, kiểm soát giường nằm ghép & mốc thời gian chuyển tiếp dành cho Điều dưỡng trưởng và khối Chuyên môn Lâm sàng.
+      </p>
+      <div class="header-meta">
+        <span>🏥 Bệnh viện Đa khoa</span>
+        <span>⏱️ Múi giờ: Asia/Ho_Chi_Minh (GMT+7)</span>
+        <span>👤 Thực hiện: Nguyễn Sơn Nam (Nsnnam)</span>
+        <span>🚀 Ứng dụng: NsN_XMLcheck v2.15.0</span>
+      </div>
+    </div>
+
+    <!-- CONTENT -->
+    <div class="content">
+
+      <!-- TOP METRICS -->
+      <div>
+        <div class="section-title">
+          <span class="icon">🚨</span> SỐ LIỆU RÀ SOÁT THỰC TẾ 19 NGÀY ĐẦU THÁNG 11/2026
+        </div>
+        <div class="metric-grid">
+          <div class="metric-card rose">
+            <div class="metric-lbl">Nguy cơ xuất toán KT251</div>
+            <div class="metric-val rose">125.246.140 đ</div>
+            <div class="metric-sub">Chỉ riêng trong 19 ngày</div>
+          </div>
+          <div class="metric-card amber">
+            <div class="metric-lbl">Giường gối đầu liên tiếp (≥2N)</div>
+            <div class="metric-val amber">1.020 dòng</div>
+            <div class="metric-sub">Chiếm 90,9% tổng số vi phạm</div>
+          </div>
+          <div class="metric-card purple">
+            <div class="metric-lbl">Trùng mốc phút chuyển tiếp</div>
+            <div class="metric-val purple">428 lượt</div>
+            <div class="metric-sub">12:00 kết thúc → 12:00 bắt đầu</div>
+          </div>
+          <div class="metric-card teal">
+            <div class="metric-lbl">Số BN nội trú liên đới</div>
+            <div class="metric-val teal">394 BN</div>
+            <div class="metric-sub">Tập trung K33, K02, K33.2</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4 GOLDEN RULES -->
+      <div>
+        <div class="section-title">
+          <span class="icon">⭐</span> 4 QUY TẮC VÀNG ĐIỀU DƯỠNG CẦN TUÂN THỦ TUYỆT ĐỐI
+        </div>
+
+        <div class="rules-grid">
+
+          <!-- RULE 1 -->
+          <div class="rule-box highlight">
+            <div class="rule-box-header">
+              <div class="rule-number">1</div>
+              <div class="rule-name">Quy Tắc 1 Phút Chuyển Tiếp Giữa 2 Ngày</div>
+            </div>
+            <div class="rule-desc">
+              Khi kê ngày giường tiếp theo cho cùng một bệnh nhân, mốc bắt đầu ngày mới <strong>bắt buộc phải cách 1 phút</strong> so với mốc kết thúc ngày cũ để không bị tính trùng phút.
+            </div>
+            <div class="compare-container">
+              <div class="compare-box correct">
+                <div class="compare-tag">✅ KÊ ĐÚNG</div>
+                Ngày 1: <span class="compare-code">...12:00</span><br>
+                Ngày 2: <span class="compare-code">...12:01</span> (+1 phút)
+              </div>
+              <div class="compare-box wrong">
+                <div class="compare-tag">❌ SAI (XUẤT TOÁN)</div>
+                Ngày 1: <span class="compare-code">...12:00</span><br>
+                Ngày 2: <span class="compare-code">...12:00</span> (Trùng phút)
+              </div>
+            </div>
+          </div>
+
+          <!-- RULE 2 -->
+          <div class="rule-box rose-box">
+            <div class="rule-box-header">
+              <div class="rule-number">2</div>
+              <div class="rule-name">Tuyệt Đối Không Chọn Nhầm Mã Giường Gối Đầu</div>
+            </div>
+            <div class="rule-desc">
+              Trước khi gán mã giường cho bệnh nhân mới, phải kiểm tra sơ đồ buồng giường. Không được chọn mã giường đang có bệnh nhân khác nằm điều trị chưa làm thủ tục xuất viện.
+            </div>
+            <div class="compare-container">
+              <div class="compare-box correct">
+                <div class="compare-tag">✅ KÊ ĐÚNG</div>
+                BN A nằm <span class="compare-code">H001</span><br>
+                BN B vào xếp <span class="compare-code">H002</span> (Trống)
+              </div>
+              <div class="compare-box wrong">
+                <div class="compare-tag">❌ SAI (XUẤT TOÁN)</div>
+                BN A nằm <span class="compare-code">H001</span> (01-10/11)<br>
+                BN B cũng gán <span class="compare-code">H001</span> (04-15/11)
+              </div>
+            </div>
+          </div>
+
+          <!-- RULE 3 -->
+          <div class="rule-box amber-box">
+            <div class="rule-box-header">
+              <div class="rule-number">3</div>
+              <div class="rule-name">Quy Trình Chuyển Khoa / Đổi Buồng Giường</div>
+            </div>
+            <div class="rule-desc">
+              Khoa chuyển đi phải chốt giờ kết thúc trước. Khoa chuyển đến chỉ được kê giường mới từ phút tiếp theo. Tuyệt đối không để xảy ra thời gian giao thoa giữa 2 khoa.
+            </div>
+            <div class="compare-container">
+              <div class="compare-box correct">
+                <div class="compare-tag">✅ KÊ ĐÚNG</div>
+                Khoa K02 chốt: <span class="compare-code">10:30</span><br>
+                Khoa K33 nhận: <span class="compare-code">10:31</span>
+              </div>
+              <div class="compare-box wrong">
+                <div class="compare-tag">❌ SAI (XUẤT TOÁN)</div>
+                Khoa K02 chốt: <span class="compare-code">10:30</span><br>
+                Khoa K33 kê từ: <span class="compare-code">09:15</span> (Chồng 75p)
+              </div>
+            </div>
+          </div>
+
+          <!-- RULE 4 -->
+          <div class="rule-box purple-box">
+            <div class="rule-box-header">
+              <div class="rule-number">4</div>
+              <div class="rule-name">Nằm Ghép Bất Khả Kháng Phải Áp Tỷ Lệ 50%</div>
+            </div>
+            <div class="rule-desc">
+              Trường hợp bệnh nhân quá tải buộc phải nằm ghép thật, điều dưỡng phải tích chọn tỷ lệ thanh toán theo Thông tư 22/2023/TT-BYT (Ghép 2 người: 50%, Ghép 3 người: 33%).
+            </div>
+            <div class="compare-container">
+              <div class="compare-box correct">
+                <div class="compare-tag">✅ KÊ ĐÚNG</div>
+                Nằm ghép 2 người:<br>
+                Áp tỷ lệ <span class="compare-code">TYLE_TT = 50%</span>
+              </div>
+              <div class="compare-box wrong">
+                <div class="compare-tag">❌ SAI (XUẤT TOÁN)</div>
+                Nằm ghép thực tế nhưng<br>
+                Vẫn giữ nguyên <span class="compare-code">TYLE_TT = 100%</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- WORKFLOW DIAGRAM -->
+      <div>
+        <div class="section-title">
+          <span class="icon">🔄</span> QUY TRÌNH TIẾP NHẬN & KÊ GIƯỜNG 4 BƯỚC CHUẨN HÓA
+        </div>
+        <div class="process-flow">
+          <div class="step-card">
+            <div class="step-num">BƯỚC 1</div>
+            <div class="step-title">Kiểm tra Giường trống</div>
+            <div class="step-text">Mở sơ đồ buồng giường trên HIS, chọn đúng vị trí giường thực tế còn trống. Không gán giường theo thói quen.</div>
+          </div>
+          <div class="step-card">
+            <div class="step-num">BƯỚC 2</div>
+            <div class="step-title">Kê mốc Giờ tiếp nhận</div>
+            <div class="step-text">Giờ bắt đầu tính từ thời điểm bệnh nhân vào nằm tại buồng bệnh (<code>NGAY_TH_YL</code>).</div>
+          </div>
+          <div class="step-card">
+            <div class="step-num">BƯỚC 3</div>
+            <div class="step-title">Áp dụng Quy tắc 1 Phút</div>
+            <div class="step-text">Kê giường các ngày kế tiếp: Giờ bắt đầu ngày sau = Giờ kết thúc ngày trước + 1 phút (Ví dụ: 12:00 chốt -> 12:01 bắt đầu).</div>
+          </div>
+          <div class="step-card">
+            <div class="step-num">BƯỚC 4</div>
+            <div class="step-title">Chốt Giường & Chuyển Khoa</div>
+            <div class="step-text">Khi ra viện hoặc chuyển khoa, chốt đúng phút kết thúc. Khoa nhận tiếp tục kê từ phút tiếp theo.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TOOL BANNER -->
+      <div class="tool-banner">
+        <div class="tool-banner-info">
+          <div class="tool-banner-title">⚡ TÍNH NĂNG HỖ TRỢ TRÊN NsN_XMLcheck v2.15.0</div>
+          <div class="tool-banner-text">Hệ thống đã tích hợp bộ lọc cảnh báo KT251, phát hiện giường gối đầu nhiều ngày, đối chiếu chéo tên hồ sơ trùng và nút bấm sửa tự động 1 phút không cần gõ phím.</div>
+        </div>
+        <div class="tool-badge-group">
+          <div class="tool-chip">⏱️ +1p vào TH_YL</div>
+          <div class="tool-chip">⏱️ -1p ở NGAY_KQ</div>
+          <div class="tool-chip">🔍 Xem hồ sơ trùng</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- FOOTER -->
+    <div class="footer">
+      <div>
+        <strong>NsN_XMLcheck v2.15.0</strong> — Hệ thống kiểm tra dữ liệu BHYT & Rà soát chuyên sâu KT251
+      </div>
+      <div>
+        Bản quyền © 2026 <strong>Nguyễn Sơn Nam (Nsnnam)</strong> · Lưu hành nội bộ Bệnh viện
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>
