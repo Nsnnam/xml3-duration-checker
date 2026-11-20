@@ -29,7 +29,9 @@
 | Tùy chỉnh màu| Tùy chỉnh bảng màu riêng biệt cho từng loại cảnh báo (12 nhóm), kèm Color picker, Palette mẫu và lưu `localStorage` |
 | Bộ lọc lỗi  | Thanh Filter Chips lọc theo 12 nhóm cảnh báo, hiển thị swatch màu tùy chỉnh và tự động chuyển tab tương ứng |
 | XML4        | Với XML3 `MA_NHOM=2`, đối chiếu `MA_DICH_VU`/`NGAY_KQ`, cảnh báo thiếu `KET_LUAN`/`NGAY_KQ`, kèm mã và tên dịch vụ                             |
-| Giường      | Cảnh báo khi cùng `MA_LK`, `MA_BN` có nhiều hơn một `MA_GIUONG` trong một ngày                                                                 |
+| Giường      | Cảnh báo KT251: phát hiện giường nằm ghép (> 4 giờ), giường gối đầu liên tiếp (≥ 2 ngày), trùng mốc phút chuyển tiếp (12:00 ➔ 12:00), kê giường vượt giờ ra viện (`NGAY_KQ > NGAY_RA`), thiếu `MA_GIUONG` |
+| Báo cáo KT251| Nút **📊 Báo cáo & Infographics**: tùy chỉnh tên đơn vị (mặc định: **Bệnh viện hữu nghị Lạc Việt**), xuất Infographic HTML tương tác (click xem chi tiết từng ca vi phạm), xuất Báo cáo chuyên đề Markdown (.md), tải Slide PowerPoint (.pptx) và xuất bảng đối chiếu Excel |
+| Đa chọn Shift/Ctrl| Giữ phím `Shift` để chọn hàng loạt dải dòng (range selection) hoặc phím `Ctrl` để thêm/bớt chọn linh hoạt trên bảng dữ liệu XML3 và bảng cảnh báo |
 | Tùy biến cột| Tùy chỉnh ẩn/hiện cột và kéo thả viền cột (resizable) trên **TẤT CẢ các tab** (XML1, XML2, XML3, XML4); tự động lưu cấu hình vào localStorage|
 | Thư viện    | Quản lý quy tắc DVKT (thời gian tối thiểu & tối đa), Thuốc loại trừ XML2 và **3,471 DVKT bắt buộc mã máy** kèm Simulator kiểm tra nhanh      |
 | Excel Import| Hỗ trợ **nhập file Excel** (.xlsx) nạp danh mục thư viện nhanh với 2 chế độ Gộp (Merge) hoặc Ghi đè (Overwrite)                                |

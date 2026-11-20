@@ -1493,6 +1493,22 @@ export function DirectEditModal({
                       ⏱️ -1p ở NGAY_KQ ({addMinutesToXmlDateTime(record.NGAY_KQ, -1).slice(-4)})
                     </button>
                   )}
+                  {patient?.NGAY_RA && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedField("NGAY_KQ");
+                        setNewValue(
+                          patient.NGAY_RA ? patient.NGAY_RA.replace(/\D/g, "").slice(0, 12) : "",
+                        );
+                      }}
+                      className="rounded-lg border border-rose-500 bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-800 hover:bg-rose-100 shadow-xs transition"
+                      title={`Đặt NGAY_KQ bằng đúng thời gian ra viện (${patient.NGAY_RA}) để tránh lỗi kê giường vượt quá giờ ra viện`}
+                    >
+                      🏥 Đặt NGAY_KQ = Giờ ra viện (
+                      {formatShortTime(patient.NGAY_RA) || patient.NGAY_RA})
+                    </button>
+                  )}
                 </div>
               </div>
             )}

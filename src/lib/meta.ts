@@ -3,12 +3,23 @@ export const APP_META = {
   title: "NsN_XMLcheck",
   description:
     "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, MA_MAY chuẩn XX.3[xxx].Z & trùng thời gian máy, cảnh báo Z00.0/Z30.1 (KHHGĐ) & Hồ sơ 15 bảng BHYT",
-  version: "2.15.0",
+  version: "2.16.0",
   date: "2026-11-20",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.16.0",
+      date: "2026-11-20",
+      changes: [
+        "Chức năng riêng biệt Xuất Báo cáo & Infographics KT251: Bổ sung nút '📊 Báo cáo & Infographics' trực tiếp trên thanh công cụ, cho phép tùy chọn/sửa Tên Bệnh viện (mặc định: 'Bệnh viện hữu nghị Lạc Việt'), xem tổng quan số liệu thực tế, xuất báo cáo chuyên đề Markdown (.md), tải slide PowerPoint (.pptx) và xuất bảng đối chiếu Excel.",
+        "Xuất Infographic HTML Tương Tác: Tạo file HTML infographic độc lập tự chứa dữ liệu (self-contained), cho phép người dùng click trực tiếp vào các thẻ loại lỗi hoặc từng khoa lâm sàng để lọc và xem danh sách chi tiết các ca bệnh vi phạm, tìm kiếm nhanh và in ấn chuẩn khổ A4.",
+        "Đa chọn nhiều dòng hồ sơ bằng phím Shift và Ctrl: Hỗ trợ giữ phím Shift để chọn hàng loạt dải dòng (range selection) hoặc phím Ctrl để thêm/bớt chọn linh hoạt trên cả bảng dữ liệu XML3 và bảng Cảnh báo.",
+        "Kiểm tra lỗi Kê giường vượt quá thời gian ra viện của bệnh nhân (bed-exceeds-discharge): Đối soát thời gian kết thúc kê giường NGAY_KQ với ngày giờ ra viện NGAY_RA, gắn cờ cảnh báo nhãn 'VƯỢT GIỜ RA' và cung cấp nút sửa nhanh '🏥 Đặt NGAY_KQ = Giờ ra viện' trong modal Sửa trực tiếp.",
+        "Cập nhật phân tích dữ liệu thực tế 20 ngày tháng 11/2026: Phân tích 55.458 dòng XML3 (5.643 tiền giường, 1.371 BN nội trú), phát hiện 1.183 dòng vi phạm KT251 (1.027 dòng gối đầu liên tiếp, 428 lượt trùng phút 12:00, nguy cơ xuất toán 139.565.450 VNĐ).",
+      ],
+    },
     {
       version: "2.15.0",
       date: "2026-11-20",

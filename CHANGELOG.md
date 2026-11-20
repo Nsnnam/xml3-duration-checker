@@ -1,5 +1,29 @@
 # Changelog
 
+## [2.16.0] — 2026-11-20
+
+- **Chức năng riêng biệt Xuất Báo cáo & Infographics KT251**: Bổ sung nút `📊 Báo cáo & Infographics` trực tiếp trên thanh công cụ, mở modal giao diện chuyên nghiệp cho phép tùy chỉnh Tên Đơn vị / Bệnh viện (mặc định: `Bệnh viện hữu nghị Lạc Việt`), xem thống kê thực tế, xuất Báo cáo chuyên đề Markdown (.md), tải slide PowerPoint (.pptx) và xuất file Excel đối chiếu.
+- **Xuất Infographic HTML Tương Tác (Interactive HTML Infographic)**: Tự động tạo file infographic độc lập nhúng sẵn dữ liệu, cho phép người dùng click trực tiếp vào các thẻ loại lỗi hoặc từng khoa lâm sàng để lọc và hiển thị ngay bảng chi tiết ca vi phạm, tìm kiếm nhanh và in ấn khổ A4.
+- **Đa chọn nhiều hồ sơ bằng phím Shift và Ctrl**: Hỗ trợ giữ phím Shift để chọn hàng loạt dải dòng (range selection) hoặc phím Ctrl để thêm/bớt chọn linh hoạt trên cả bảng dữ liệu XML3 và bảng Cảnh báo.
+- **Kiểm tra lỗi Kê giường vượt quá thời gian ra viện của bệnh nhân (`bed-exceeds-discharge`)**: Tự động đối soát thời gian kết thúc kê giường `NGAY_KQ` với ngày giờ ra viện `NGAY_RA`, gắn cờ nhãn `VƯỢT GIỜ RA` và cung cấp nút sửa 1 chạm `🏥 Đặt NGAY_KQ = Giờ ra viện` trong modal Sửa trực tiếp.
+- **Cập nhật dữ liệu thực tế 20 ngày tháng 11/2026**: Rà soát `55.458 dòng XML3` (5.643 tiền giường, 1.371 BN nội trú), nhận diện 1.183 dòng vi phạm KT251 (1.027 dòng gối đầu liên tiếp, 428 lượt trùng phút 12:00, nguy cơ xuất toán 139.565.450 VNĐ).
+
+## [2.15.0] — 2026-11-20
+
+- **Chi tiết hồ sơ nằm ghép đầy đủ**: Bổ sung thông tin chi tiết các hồ sơ khác đang nằm ghép vào trường detail và khối đối chiếu chuyên biệt trong modal xem bệnh nhân (PatientHoverCard), bao gồm Họ tên, Mã BN, Mã LK, Khoa, Giường, Thời gian nằm và Thời gian giao nhau của từng bệnh nhân ghép cùng, kèm nút chuyển nhanh sang hồ sơ liên quan.
+- **Thêm cột 'Mã giường trùng' (`MA_GIUONG_TRUNG`) trên bảng dữ liệu XML3**: Hiển thị trực quan mã giường và tên các bệnh nhân ghép cùng / số ngày gối đầu; hỗ trợ bật/tắt trong Tùy chỉnh cột, lọc nhanh và sắp xếp thuận tiện.
+- **Rà soát cảnh báo trùng mốc số phút chuyển tiếp kê giường cùng BN (`minute-duplicate`)**: Phát hiện các trường hợp ngày giường trước kết thúc lúc HH:mm (ví dụ 12h00 hoặc 07h53) trùng chính xác mốc phút bắt đầu của ngày giường sau, đưa ra cảnh báo và gợi ý sửa nhanh +1 phút vào giờ bắt đầu hoặc -1 phút ở giờ kết thúc.
+- **Phát hiện và cảnh báo Giường gối đầu liên tiếp nhiều ngày (`multi-day-overlap`)**: Nhận diện các cặp hồ sơ khác nhau cùng nằm một mã giường kéo dài qua nhiều ngày dương lịch (>= 2 ngày) do xếp nhầm mã giường giữa các bệnh nhân vào/ra viện đan xen.
+- **Nút điều chỉnh nhanh mốc phút kê giường trong Modal Sửa trực tiếp**: Bổ sung 2 nút `+1p vào TH_YL` và `-1p ở NGAY_KQ` giúp điều dưỡng và cán bộ thanh quyết toán xử lý lỗi trùng phút chỉ với một click.
+
+## [2.14.0] — 2026-11-20
+
+- **Kiểm tra rà soát và cảnh báo Giường nằm ghép & Tiền giường (KT251)**: Tự động phân tách khoảng thời gian nằm giường theo từng ngày dương lịch, phát hiện các bệnh nhân khác nhau nằm cùng mã giường trong cùng khoa có thời gian trùng nhau > 4 giờ (240 phút).
+- **Áp dụng chuẩn tỷ lệ thanh toán BHYT giường ghép**: Ghép 2 người tối đa 50%, ghép từ 3 người trở lên tối đa 33%; tính toán chính xác số tiền có nguy cơ xuất toán BHYT.
+- **Kiểm tra toàn diện tiền giường**: Cảnh báo chi phí ngày giường thiếu MA_GIUONG và cảnh báo cùng bệnh nhân nằm nhiều hơn 01 giường trong ngày.
+- **Hỗ trợ nạp trực tiếp file Excel dữ liệu XML3**: Nhận diện linh hoạt các cột tiêu đề giúp đối chiếu nhanh hàng chục ngàn dòng chi phí mà không cần nạp lại file XML gốc.
+- **Xuất file Excel đối chiếu giường nằm ghép chuẩn KT251**: Báo cáo gồm 2 sheet 'Tổng hợp KT251' và 'Chi tiết giường ghép KT251'.
+
 ## [2.7.0] — 2026-10-26
 
 - **Bật bộ lọc cột và tìm kiếm trực tiếp trên tiêu đề**: Thêm nút `🔍 Bộ lọc cột` trên toolbar cho phép bật/tắt tức thì hàng input tìm kiếm ngay dưới tiêu đề bảng (thead dính cố định khi cuộn trang). Từng cột có ô tìm kiếm/lọc riêng biệt.

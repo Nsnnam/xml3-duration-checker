@@ -89,6 +89,7 @@ import {
   CorrectionPlanModal,
   type CustomRowContext,
 } from "../lib/direct-edit-modal.tsx";
+import { ReportExportModal } from "../lib/report-export-modal.tsx";
 import coffeeQr from "../assets/coffee-qr.jpg";
 
 type View = "checker" | "dossier" | "library" | "settings" | "guide" | "about" | "support";
@@ -338,6 +339,7 @@ export function HomePage() {
     initialField?: string;
   } | null>(null);
   const [showCorrectionPlanModal, setShowCorrectionPlanModal] = useState(false);
+  const [showReportExportModal, setShowReportExportModal] = useState(false);
 
   const handleSaveCorrectionItem = (item: CorrectionItem) => {
     setCorrectionPlan((prev) => {
@@ -1196,6 +1198,7 @@ export function HomePage() {
             onOpenColorModal={() => setShowColorModal(true)}
             onExportDuplicateMachine={handleExportDuplicateMachine}
             onExportBedSharingComparison={handleExportBedSharing}
+            onOpenReportExportModal={() => setShowReportExportModal(true)}
             onOpenDirectEdit={(target) => setDirectEditTarget(target)}
             correctionPlan={correctionPlan}
             onOpenCorrectionPlanModal={() => setShowCorrectionPlanModal(true)}
@@ -1425,6 +1428,16 @@ export function HomePage() {
         />
       )}
 
+      {showReportExportModal && (
+        <ReportExportModal
+          isOpen={showReportExportModal}
+          onClose={() => setShowReportExportModal(false)}
+          records={analysis?.records || []}
+          patients={analysis?.patients}
+          onExportExcel={handleExportBedSharing}
+        />
+      )}
+
       <footer className="border-t border-slate-200 bg-white px-4 py-4 text-center text-xs text-slate-500">
         v{APP_META.version} · {APP_META.author} ·{" "}
         <button className="text-teal-700 underline" onClick={() => setView("support")}>
@@ -1539,6 +1552,7 @@ function CheckerView({
   onOpenColorModal,
   onExportDuplicateMachine,
   onExportBedSharingComparison,
+  onOpenReportExportModal,
   onOpenDirectEdit,
   correctionPlan,
   onOpenCorrectionPlanModal,
@@ -1591,6 +1605,7 @@ function CheckerView({
   onOpenColorModal: () => void;
   onExportDuplicateMachine: () => void;
   onExportBedSharingComparison?: () => void;
+  onOpenReportExportModal?: () => void;
   onOpenDirectEdit: (target: {
     record?: Xml3Record;
     warning?: ValidationWarning;
@@ -1669,28 +1684,53 @@ function CheckerView({
   }, [correctionPlan]);
 
   const [selectedXml3Keys, setSelectedXml3Keys] = useState<Set<string>>(new Set());
+  const [lastSelectedXml3Index, setLastSelectedXml3Index] = useState<number | null>(null);
   const [batchDurationMins, setBatchDurationMins] = useState<number>(30);
   const [batchRewindMins, setBatchRewindMins] = useState<number>(10);
 
   const handleToggleSelectAllXml3 = () => {
     if (selectedXml3Keys.size >= displayRecords.length && displayRecords.length > 0) {
       setSelectedXml3Keys(new Set());
+      setLastSelectedXml3Index(null);
     } else {
       const next = new Set<string>();
       for (const r of displayRecords) {
         next.add(`${r.fileName}-${r.MA_LK}-${r.STT}`);
       }
       setSelectedXml3Keys(next);
+      setLastSelectedXml3Index(null);
     }
   };
 
-  const handleToggleSelectXml3Row = (key: string) => {
-    setSelectedXml3Keys((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
+  const handleToggleSelectXml3Row = (
+    key: string,
+    index: number,
+    event?: React.MouseEvent<HTMLElement> | React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const isShift = event && "shiftKey" in event && Boolean((event as React.MouseEvent).shiftKey);
+
+    if (isShift && lastSelectedXml3Index !== null && lastSelectedXml3Index !== index) {
+      const start = Math.min(lastSelectedXml3Index, index);
+      const end = Math.max(lastSelectedXml3Index, index);
+      setSelectedXml3Keys((prev) => {
+        const next = new Set(prev);
+        for (let i = start; i <= end; i++) {
+          const r = displayRecords[i];
+          if (r) {
+            next.add(`${r.fileName}-${r.MA_LK}-${r.STT}`);
+          }
+        }
+        return next;
+      });
+    } else {
+      setSelectedXml3Keys((prev) => {
+        const next = new Set(prev);
+        if (next.has(key)) next.delete(key);
+        else next.add(key);
+        return next;
+      });
+      setLastSelectedXml3Index(index);
+    }
   };
 
   const handleBatchXml3Duration = (mins: number) => {
@@ -2522,6 +2562,21 @@ function CheckerView({
                     )}
                   </button>
                 )}
+                {onOpenReportExportModal && (
+                  <button
+                    type="button"
+                    onClick={onOpenReportExportModal}
+                    className="rounded-lg border border-purple-300 bg-purple-50 px-2.5 py-1.5 text-xs font-bold text-purple-900 hover:bg-purple-100 shadow-sm flex items-center gap-1.5"
+                    title="Xuất Báo cáo chuyên đề & Infographics tương tác (HTML/Markdown/PowerPoint)"
+                  >
+                    <span>📊 Báo cáo &amp; Infographics</span>
+                    {categoryCounts.bed > 0 && (
+                      <span className="rounded-full bg-purple-600 px-1.5 py-0.2 text-[10px] font-black text-white">
+                        {categoryCounts.bed}
+                      </span>
+                    )}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={onOpenCorrectionPlanModal}
@@ -3016,6 +3071,7 @@ function CheckerView({
                                       <option value="GỐI ĐẦU">GỐI ĐẦU NHIỀU NGÀY</option>
                                       <option value="TRÙNG PHÚT">TRÙNG PHÚT GIÁP RANH</option>
                                       <option value="THIẾU MÃ GIƯỜNG">THIẾU MÃ GIƯỜNG</option>
+                                      <option value="VƯỢT GIỜ RA">VƯỢT GIỜ RA VIỆN</option>
                                       <option value="Z00.0">Z00.0</option>
                                       <option value="Z30.1">Z30.1</option>
                                       <option value="THIẾU">THIẾU / LỖI</option>
@@ -3072,7 +3128,7 @@ function CheckerView({
                               onOpenDirectEdit={onOpenDirectEdit}
                               isPlanned={plannedSet.has(`${record.MA_LK}_XML3_${record.STT}`)}
                               isSelected={selectedXml3Keys.has(recordKey)}
-                              onToggleSelect={() => handleToggleSelectXml3Row(recordKey)}
+                              onToggleSelect={(e) => handleToggleSelectXml3Row(recordKey, index, e)}
                               correctionPlan={correctionPlan}
                               onResetCorrection={onResetCorrection}
                             />
@@ -3254,7 +3310,7 @@ function WarningRow({
   }) => void;
   isPlanned?: boolean;
   isSelected?: boolean;
-  onToggleSelect?: () => void;
+  onToggleSelect?: (e: React.MouseEvent<HTMLElement> | React.ChangeEvent<HTMLInputElement>) => void;
   correctionPlan?: CorrectionItem[];
   onResetCorrection?: (maLk: string, tab: string, stt: string, maDichVu?: string) => void;
 }) {
@@ -3308,7 +3364,12 @@ function WarningRow({
 
   return (
     <tr
-      className={`border-t border-slate-200/70 align-top transition-colors ${
+      onClick={(e) => {
+        if (e.shiftKey || e.ctrlKey || e.metaKey) {
+          onToggleSelect?.(e);
+        }
+      }}
+      className={`border-t border-slate-200/70 align-top transition-colors select-none ${
         isSelected
           ? "bg-teal-50 hover:bg-teal-100/80"
           : isPlanned
@@ -3323,7 +3384,11 @@ function WarningRow({
         <input
           type="checkbox"
           checked={isSelected}
-          onChange={onToggleSelect}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect?.(e);
+          }}
+          onChange={() => {}}
           className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
         />
       </td>
@@ -3813,6 +3878,7 @@ function ValidationTable({
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
   const [sortConfig, setSortConfig] = useState<{ key: string; dir: "asc" | "desc" } | null>(null);
   const [selectedWarningIds, setSelectedWarningIds] = useState<Set<string>>(new Set());
+  const [lastSelectedWarningIndex, setLastSelectedWarningIndex] = useState<number | null>(null);
 
   const activeFilterCount = useMemo(() => {
     return Object.values(columnFilters).filter((v) => v && v.trim() !== "").length;
@@ -3841,22 +3907,46 @@ function ValidationTable({
   const handleToggleSelectAll = () => {
     if (selectedWarningIds.size >= displayWarnings.length && displayWarnings.length > 0) {
       setSelectedWarningIds(new Set());
+      setLastSelectedWarningIndex(null);
     } else {
       const next = new Set<string>();
       displayWarnings.forEach((w, idx) => {
         next.add(`${w.MA_LK}_${w.detailIndex || idx + 1}`);
       });
       setSelectedWarningIds(next);
+      setLastSelectedWarningIndex(null);
     }
   };
 
-  const handleToggleSelectWarning = (key: string) => {
-    setSelectedWarningIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
+  const handleToggleSelectWarning = (
+    key: string,
+    index: number,
+    event?: React.MouseEvent<HTMLElement> | React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const isShift = event && "shiftKey" in event && Boolean((event as React.MouseEvent).shiftKey);
+
+    if (isShift && lastSelectedWarningIndex !== null && lastSelectedWarningIndex !== index) {
+      const start = Math.min(lastSelectedWarningIndex, index);
+      const end = Math.max(lastSelectedWarningIndex, index);
+      setSelectedWarningIds((prev) => {
+        const next = new Set(prev);
+        for (let i = start; i <= end; i++) {
+          const w = displayWarnings[i];
+          if (w) {
+            next.add(`${w.MA_LK}_${w.detailIndex || i + 1}`);
+          }
+        }
+        return next;
+      });
+    } else {
+      setSelectedWarningIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(key)) next.delete(key);
+        else next.add(key);
+        return next;
+      });
+      setLastSelectedWarningIndex(index);
+    }
   };
 
   const handleBatchXml4CopyGiaTri = () => {
@@ -4213,7 +4303,12 @@ function ValidationTable({
                   return (
                     <tr
                       key={`${source}-${warning.MA_LK}-${warning.detailIndex}-${index}`}
-                      className={`border-t border-slate-100 align-top transition-colors ${
+                      onClick={(e) => {
+                        if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                          handleToggleSelectWarning(warnKey, index, e);
+                        }
+                      }}
+                      className={`border-t border-slate-100 align-top transition-colors select-none ${
                         isSelected
                           ? "bg-indigo-50 hover:bg-indigo-100/80"
                           : isPlanned
@@ -4226,7 +4321,11 @@ function ValidationTable({
                         <input
                           type="checkbox"
                           checked={isSelected}
-                          onChange={() => handleToggleSelectWarning(warnKey)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleSelectWarning(warnKey, index, e);
+                          }}
+                          onChange={() => {}}
                           className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                         />
                       </td>

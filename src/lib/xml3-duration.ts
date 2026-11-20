@@ -106,7 +106,12 @@ export type Xml3Record = {
   MUC_HUONG?: number;
   MA_GIUONG_TRUNG?: string;
   bedWarningType?:
-    "bed-sharing" | "multi-day-overlap" | "minute-duplicate" | "multiple-beds" | "missing-bed-code";
+    | "bed-sharing"
+    | "multi-day-overlap"
+    | "minute-duplicate"
+    | "multiple-beds"
+    | "missing-bed-code"
+    | "bed-exceeds-discharge";
   bedSharingCount?: number;
   bedOverlapDaysCount?: number;
   suggestedTyleTt?: number;
@@ -634,6 +639,7 @@ export function getRecordStatusLabel(record: Xml3Record): string {
   if (record.hasOrderWarning) return "SAI THỨ TỰ";
   if (record.hasEqualWarning) return "TRÙNG MỐC";
   if (record.hasBedWarning) {
+    if (record.bedWarningType === "bed-exceeds-discharge") return "VƯỢT GIỜ RA";
     if (record.bedWarningType === "multi-day-overlap") {
       return `GỐI ĐẦU ${record.bedOverlapDaysCount || 2}N`;
     }
@@ -1477,7 +1483,10 @@ export function getBedDailyIntervals(record: Xml3Record, recordIndex: number): B
   return intervals;
 }
 
-export function addBedWarnings(records: Xml3Record[]): Xml3Record[] {
+export function addBedWarnings(
+  records: Xml3Record[],
+  patientsMap?: Map<string, PatientInfo>,
+): Xml3Record[] {
   const result: Xml3Record[] = records.map((r) => ({ ...r }));
 
   // 1. Kiểm tra thiếu mã giường cho chi phí ngày giường (MA_NHOM = 14 hoặc 15)
@@ -1766,6 +1775,37 @@ export function addBedWarnings(records: Xml3Record[]): Xml3Record[] {
 
       const message = `XML3. Chi tiết thứ ${detailIndex}: ${bedTypeTitle}. Đề nghị thanh toán TYLE_TT=${tyleTt}%, vượt mức quy định ${suggestedTyleTt}% theo Thông tư 39/2024/TT-BYT. Tiền xuất toán dự kiến: ${potentialRefusal.toLocaleString("vi-VN")} đ. Hồ sơ trùng ghép: ${peerDetailStr}.`;
 
+      rec.detail = rec.detail ? `${rec.detail} · ${message}` : message;
+    }
+  }
+
+  // 5. Kiểm tra thời gian kết thúc kê giường vượt quá thời gian ra viện của bệnh nhân (NGAY_RA)
+  for (let i = 0; i < result.length; i++) {
+    const rec = result[i];
+    const nhom = (rec.MA_NHOM || "").trim();
+    if (nhom !== "14" && nhom !== "15") continue;
+
+    const pat = rec.patient || (patientsMap && rec.MA_LK ? patientsMap.get(rec.MA_LK) : undefined);
+    const ngayRaRaw = (pat?.NGAY_RA || "").trim();
+    if (!ngayRaRaw) continue;
+
+    const ngayRaDigits = ngayRaRaw.replace(/\D/g, "");
+    const ngayKqDigits = (rec.NGAY_KQ || "").replace(/\D/g, "");
+    const checkTimeDigits = ngayKqDigits || (rec.NGAY_TH_YL || "").replace(/\D/g, "");
+
+    if (!checkTimeDigits || !ngayRaDigits) continue;
+
+    // So sánh thời gian (chuẩn 12 số YYYYMMDDHHmm hoặc 8 số YYYYMMDD)
+    const cmpLen = Math.min(12, checkTimeDigits.length, ngayRaDigits.length);
+    if (cmpLen >= 8 && checkTimeDigits.slice(0, cmpLen) > ngayRaDigits.slice(0, cmpLen)) {
+      rec.hasBedWarning = true;
+      rec.bedWarningType = "bed-exceeds-discharge";
+      const displayRa = formatXmlDateTime(ngayRaDigits) || ngayRaDigits;
+      const displayKq = formatXmlDateTime(checkTimeDigits) || checkTimeDigits;
+      const detailIndex = rec.STT || String(i + 1);
+      const message = `XML3. Chi tiết thứ ${detailIndex}: Thời gian kết thúc kê giường (${displayKq}) vượt quá thời gian ra viện của bệnh nhân (${displayRa}). Gợi ý sửa: Sửa NGAY_KQ = ${ngayRaDigits.slice(0, 12)}`;
+      rec.MA_GIUONG_TRUNG = `(vượt ra viện: ${displayRa})`;
+      rec.status = rec.status === "ok" ? "bed-warning" : rec.status;
       rec.detail = rec.detail ? `${rec.detail} · ${message}` : message;
     }
   }
@@ -2655,7 +2695,7 @@ export async function analyzeXml3File(
   if (!tableFiles && !hasOtherXml)
     throw new Error(`${file.name}: không tìm thấy FILEHOSO có LOAIHOSO=XML3`);
 
-  const recordsWithBed = addBedWarnings(rawRecords);
+  const recordsWithBed = addBedWarnings(rawRecords, patients);
   const records = addDuplicateMachineWarnings(recordsWithBed);
   const warnings = records.filter(isWarning);
   const xml3Warnings = warnings.map(toXml3Warning);
@@ -2927,7 +2967,7 @@ export async function analyzeXml3Files(
   allRecords.splice(0, allRecords.length, ...updatedRecordsWithMachines);
 
   // Quét kiểm tra tiền giường & giường nằm ghép KT251 trên toàn bộ các file (cross-patient / cross-file)
-  const updatedRecordsWithBeds = addBedWarnings(allRecords);
+  const updatedRecordsWithBeds = addBedWarnings(allRecords, sharedPatients);
   allRecords.splice(0, allRecords.length, ...updatedRecordsWithBeds);
 
   const updatedXml3Warnings = allRecords.filter(isWarning).map(toXml3Warning);

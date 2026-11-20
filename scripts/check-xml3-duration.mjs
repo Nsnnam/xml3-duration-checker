@@ -1776,6 +1776,30 @@ assert.equal(bedCheckResultSamePat[1].bedWarningType, "minute-duplicate");
 assert.ok(bedCheckResultSamePat[1].MA_GIUONG_TRUNG?.includes("Trùng phút STT 10"));
 assert.ok(bedCheckResultSamePat[1].detail.includes("Trùng số phút chuyển tiếp kê giường"));
 
+// Case 8: Thời gian kết thúc kê giường vượt quá thời gian ra viện của bệnh nhân (NGAY_RA)
+const bedRecExceedDischarge = {
+  ...baseBedRecord,
+  STT: "15",
+  MA_LK: "LK-EXCEED-01",
+  MA_BN: "BN-EXCEED-01",
+  HO_TEN: "Bệnh nhân Vượt Giờ Ra",
+  MA_KHOA: "K33",
+  MA_GIUONG: "H012",
+  NGAY_TH_YL: "202611100800",
+  NGAY_KQ: "202611101400", // Kê giường đến 14:00
+  patient: {
+    MA_LK: "LK-EXCEED-01",
+    MA_BN: "BN-EXCEED-01",
+    HO_TEN: "Bệnh nhân Vượt Giờ Ra",
+    NGAY_RA: "202611101130", // Ra viện lúc 11:30
+  },
+};
+const bedCheckResultExceed = addBedWarnings([bedRecExceedDischarge]);
+assert.equal(bedCheckResultExceed[0].hasBedWarning, true);
+assert.equal(bedCheckResultExceed[0].bedWarningType, "bed-exceeds-discharge");
+assert.ok(bedCheckResultExceed[0].MA_GIUONG_TRUNG?.includes("vượt ra viện"));
+assert.ok(bedCheckResultExceed[0].detail.includes("vượt quá thời gian ra viện"));
+
 console.log(
   "All tests passed: XML1 CCCD validation, Z00.0 & Z30.1 validation, XML3 duplicate machine time validation, XML7 NGOAITRU_TUNGAY < NGAY_RA validation (+1 day suggestion), duplicate machine excel export, KT251 bed sharing & multi-day & minute duplicate validation & workbook export, warning colors & column filter/sort helpers: OK",
 );

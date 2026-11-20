@@ -67,7 +67,7 @@ def create_deck(output_path):
     tf1.word_wrap = True
 
     p0 = tf1.paragraphs[0]
-    p0.text = "BỆNH VIỆN ĐA KHOA · HỘI ĐỒNG CHUYÊN MÔN BHYT"
+    p0.text = "BỆNH VIỆN HỮU NGHỊ LẠC VIỆT · HỘI ĐỒNG CHUYÊN MÔN BHYT"
     p0.font.size = Pt(13)
     p0.font.bold = True
     p0.font.color.rgb = TEAL
@@ -81,13 +81,13 @@ def create_deck(output_path):
     p1.space_after = Pt(18)
 
     p2 = tf1.add_paragraph()
-    p2.text = "Phân tích dữ liệu thực tế 54.689 dòng XML3 (01/11 - 19/11/2026) · Nhận diện 4 nhóm lỗi cốt lõi & Giải pháp xử lý triệt để"
+    p2.text = "Phân tích dữ liệu thực tế 55.458 dòng XML3 (01/11 - 20/11/2026) · Nhận diện các nhóm lỗi cốt lõi & Giải pháp xử lý triệt để"
     p2.font.size = Pt(14)
     p2.font.color.rgb = RGBColor(203, 213, 225)
     p2.space_after = Pt(24)
 
     p3 = tf1.add_paragraph()
-    p3.text = "Báo cáo: Ban Giám đốc & Trưởng các Khoa Lâm sàng | Thực hiện: Nguyễn Sơn Nam (Nsnnam) | Hệ thống NsN_XMLcheck v2.15.0"
+    p3.text = "Báo cáo: Ban Giám đốc & Trưởng các Khoa Lâm sàng | Thực hiện: Nguyễn Sơn Nam (Nsnnam) | Hệ thống NsN_XMLcheck v2.16.0"
     p3.font.size = Pt(11)
     p3.font.color.rgb = TEAL
 
@@ -152,17 +152,17 @@ def create_deck(output_path):
             pp.space_after = Pt(8)
 
     # =========================================================================
-    # SLIDE 3: TỔNG QUAN DỮ LIỆU THỰC TẾ 19 NGÀY THÁNG 11/2026
+    # SLIDE 3: TỔNG QUAN DỮ LIỆU THỰC TẾ 20 NGÀY THÁNG 11/2026
     # =========================================================================
     s3 = prs.slides.add_slide(prs.slide_layouts[6])
-    add_header(s3, "TỔNG QUAN DỮ LIỆU RÀ SOÁT THỰC TẾ (01/11 - 19/11/2026)")
+    add_header(s3, "TỔNG QUAN DỮ LIỆU RÀ SOÁT THỰC TẾ (01/11 - 20/11/2026)")
 
     # 4 Stat KPI boxes
     kpis = [
-        ("54.689", "TỔNG SỐ BẢN GHI XML3", "Dữ liệu chi phí toàn viện 19 ngày", TEAL),
-        ("5.623", "CHI PHÍ NGÀY GIƯỜNG", "Nhóm 14 & 15 (1.365 bệnh nhân nội trú)", NAVY),
-        ("1.122", "DÒNG VI PHẠM GIƯỜNG GHÉP", "Chiếm 19,95% tổng số dòng tiền giường", ROSE),
-        ("125.246.140 đ", "NGUY CƠ XUẤT TOÁN BHYT", "Số tiền bị truy thu dự kiến nếu không hiệu chỉnh", ROSE)
+        ("55.458", "TỔNG SỐ BẢN GHI XML3", "Dữ liệu chi phí toàn viện 20 ngày", TEAL),
+        ("5.643", "CHI PHÍ NGÀY GIƯỜNG", "Nhóm 14 & 15 (1.371 bệnh nhân nội trú)", NAVY),
+        ("1.183", "DÒNG VI PHẠM GIƯỜNG GHÉP", "Chiếm 20,96% tổng số dòng tiền giường", ROSE),
+        ("139.565.450 đ", "NGUY CƠ XUẤT TOÁN BHYT", "Số tiền bị truy thu dự kiến nếu không hiệu chỉnh", ROSE)
     ]
     for i, (val, title, note, color) in enumerate(kpis):
         cx = Inches(0.8 + i * 2.95)
@@ -208,9 +208,10 @@ def create_deck(output_path):
 
     notes = [
         "• Tần suất phát sinh giường ghép rất cao: Bình quân mỗi ngày có gần 60 lượt ngày giường bị gắn cờ trùng giường giữa các bệnh nhân.",
-        "• Lỗi giường gối đầu liên tiếp nhiều ngày chiếm đa số tuyệt đối (1.020 / 1.122 dòng = 90,9%): Do thói quen xếp giường chồng chéo khi bệnh nhân cũ chưa ra viện đã xếp bệnh nhân mới vào đúng mã giường đó.",
+        "• Lỗi giường gối đầu liên tiếp nhiều ngày chiếm đa số tuyệt đối (1.027 / 1.183 dòng = 86,8%): Do thói quen xếp giường chồng chéo khi bệnh nhân cũ chưa ra viện đã xếp bệnh nhân mới vào đúng mã giường đó.",
         "• Có 428 lượt trùng mốc số phút chuyển tiếp kê giường cùng BN (ví dụ: ngày 1 kết thúc 12h00, ngày 2 bắt đầu đúng 12h00): BHYT có thể cảnh báo cùng lúc nằm 2 giường tại mốc 12h00.",
         "• Có 90 lượt chồng lấn thời gian kê giường của cùng một bệnh nhân (dòng sau bắt đầu trước khi dòng trước kết thúc).",
+        "• Phát hiện vi phạm: Thời gian kết thúc kê giường vượt quá thời gian ra viện của bệnh nhân (NGAY_KQ > NGAY_RA).",
         "• Nếu không rà soát và điều chỉnh kịp thời, số tiền xuất toán tiền giường cả tháng 11 có thể vượt mức 200 TRIỆU ĐỒNG!"
     ]
     for n in notes:
@@ -318,17 +319,17 @@ def create_deck(output_path):
             p.alignment = PP_ALIGN.CENTER
 
     dept_rows = [
-        ("Khoa K33 (Nội/YHCT)", "322 dòng", "316 dòng (98%)", "86 BN", "27 giường", "37.383.080 đ"),
-        ("Khoa K02 (HSCC/Cấp cứu)", "307 dòng", "261 dòng (85%)", "121 BN", "20 giường", "32.238.256 đ"),
-        ("Khoa K33.2 (Nội 2)", "187 dòng", "187 dòng (100%)", "44 BN", "17 giường", "22.893.170 đ"),
-        ("Khoa K19.2 (Ngoại 2)", "142 dòng", "136 dòng (96%)", "54 BN", "15 giường", "15.231.015 đ"),
-        ("Khoa K19.1 (Ngoại 1)", "85 dòng", "74 dòng (87%)", "42 BN", "12 giường", "9.616.181 đ"),
-        ("Khoa K18 (Chấn thương)", "18 dòng", "12 dòng", "16 BN", "8 giường", "2.156.000 đ"),
-        ("Khoa K03.2", "17 dòng", "10 dòng", "11 BN", "4 giường", "1.739.168 đ"),
-        ("Khoa K27", "18 dòng", "4 dòng", "16 BN", "7 giường", "1.727.850 đ"),
-        ("Khoa K1631", "18 dòng", "18 dòng", "12 BN", "6 giường", "1.370.520 đ"),
-        ("Khoa K18.1 & K03.1", "8 dòng", "2 dòng", "8 BN", "4 giường", "890.900 đ"),
-        ("TỔNG CỘNG TOÀN VIỆN", "1.122 dòng", "1.020 dòng (90,9%)", "426 BN", "130 giường", "125.246.140 đ")
+        ("Khoa K33 (Nội/YHCT)", "322 dòng", "312 dòng (97%)", "86 BN", "27 giường", "39.445.000 đ"),
+        ("Khoa K02 (HSCC/Cấp cứu)", "327 dòng", "254 dòng (78%)", "129 BN", "24 giường", "37.106.300 đ"),
+        ("Khoa K33.2 (Nội 2)", "189 dòng", "187 dòng (99%)", "44 BN", "17 giường", "23.152.500 đ"),
+        ("Khoa K19.2 (Ngoại 2)", "149 dòng", "138 dòng (93%)", "57 BN", "16 giường", "18.192.700 đ"),
+        ("Khoa K19.1 (Ngoại 1)", "90 dòng", "78 dòng (87%)", "42 BN", "12 giường", "10.249.100 đ"),
+        ("Khoa K18 (Chấn thương)", "28 dòng", "10 dòng", "24 BN", "10 giường", "3.430.000 đ"),
+        ("Khoa K03.2", "26 dòng", "10 dòng", "18 BN", "6 giường", "2.743.000 đ"),
+        ("Khoa K27", "24 dòng", "16 dòng", "22 BN", "8 giường", "2.653.800 đ"),
+        ("Khoa K1631", "18 dòng", "18 dòng", "12 BN", "6 giường", "1.522.800 đ"),
+        ("Khoa K18.1 & K03.1", "10 dòng", "4 dòng", "10 BN", "4 giường", "1.070.250 đ"),
+        ("TỔNG CỘNG TOÀN VIỆN", "1.183 dòng", "1.027 dòng (86,8%)", "444 BN", "130 giường", "139.565.450 đ")
     ]
 
     for r_idx, row_vals in enumerate(dept_rows):
@@ -587,10 +588,11 @@ def create_deck(output_path):
 
     plans = [
         ("1. HÀNH ĐỘNG NGAY TRONG TUẦN", ROSE, [
-            "• Sử dụng công cụ NsN_XMLcheck v2.15.0 để rà soát toàn bộ dữ liệu XML3 tháng 11/2026 hiện có.",
-            "• Với 1.020 dòng giường gối đầu liên tiếp: Yêu cầu các khoa K33, K02, K33.2, K19.2 kiểm tra lại hồ sơ bệnh án gốc, điều chỉnh lại mã giường đúng thực tế trước khi chốt dữ liệu.",
+            "• Sử dụng công cụ NsN_XMLcheck v2.16.0 để rà soát toàn bộ dữ liệu XML3 tháng 11/2026 hiện có.",
+            "• Với 1.027 dòng giường gối đầu liên tiếp: Yêu cầu các khoa K33, K02, K33.2, K19.2 kiểm tra lại hồ sơ bệnh án gốc, điều chỉnh lại mã giường đúng thực tế trước khi chốt dữ liệu.",
             "• Với 428 ca trùng phút: Áp dụng quy tắc cộng 1 phút (+1p) cho giờ bắt đầu ngày giường sau.",
-            "• Bảo toàn trên 125 TRIỆU ĐỒNG chi phí ngày giường không bị cơ quan BHXH xuất toán."
+            "• Với các ca kê giường vượt quá giờ ra viện: Đặt lại NGAY_KQ bằng đúng NGAY_RA của bệnh nhân.",
+            "• Bảo toàn gần 140 TRIỆU ĐỒNG chi phí ngày giường không bị cơ quan BHXH xuất toán."
         ]),
         ("2. HOÀN THIỆN QUY TRÌNH NỘI BỘ", AMBER, [
             "• Ban hành Quy định chuẩn hóa kê ngày giường & chuyển khoa trong toàn viện.",
