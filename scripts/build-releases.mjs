@@ -22,9 +22,27 @@ fs.writeFileSync(
   "NsN_XMLcheck\n\nChạy: python -m http.server 5173 rồi mở http://localhost:5173\n",
 );
 
+const pptxSource = path.join(root, "SLIDE_BAO_CAO_GIUONG_GHEP_VA_TIEN_GIUONG_LANH_DAO.pptx");
+if (fs.existsSync(pptxSource)) {
+  fs.copyFileSync(
+    pptxSource,
+    path.join(web, "SLIDE_BAO_CAO_GIUONG_GHEP_VA_TIEN_GIUONG_LANH_DAO.pptx"),
+  );
+  fs.copyFileSync(
+    pptxSource,
+    path.join(root, "dist-web", "SLIDE_BAO_CAO_GIUONG_GHEP_VA_TIEN_GIUONG_LANH_DAO.pptx"),
+  );
+}
+
 const singleDir = path.join(root, "releases", "single-page");
 fs.rmSync(singleDir, { recursive: true, force: true });
 fs.mkdirSync(singleDir, { recursive: true });
+if (fs.existsSync(pptxSource)) {
+  fs.copyFileSync(
+    pptxSource,
+    path.join(singleDir, "SLIDE_BAO_CAO_GIUONG_GHEP_VA_TIEN_GIUONG_LANH_DAO.pptx"),
+  );
+}
 const htmlPath = path.join(root, "dist-web", "index.html");
 let html = fs.readFileSync(htmlPath, "utf8");
 const assetDir = path.join(root, "dist-web", "assets");

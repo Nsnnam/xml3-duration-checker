@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import type { Xml3Record, PatientInfo } from "./xml3-duration";
 import { formatXmlDateTime } from "./timezone";
+import { SLIDE_PPTX_BASE64 } from "./slide-pptx-data";
 
 export interface ReportExportModalProps {
   isOpen: boolean;
@@ -557,6 +558,33 @@ ${deptTable}
     URL.revokeObjectURL(url);
   };
 
+  // Tải Slide PowerPoint trực tiếp qua Blob Base64 (hoạt động 100% cả Online GitHub Pages lẫn Offline)
+  const handleDownloadSlidePptx = () => {
+    try {
+      const binaryString = atob(SLIDE_PPTX_BASE64);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], {
+        type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const cleanName = (hospitalName || "Lạc_Việt").trim().replace(/[\s/\\?%*:|"<>]+/g, "_");
+      a.download = `SLIDE_BAO_CAO_GIUONG_GHEP_VA_TIEN_GIUONG_${cleanName}.pptx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Lỗi tải slide PPTX:", err);
+      window.open("./SLIDE_BAO_CAO_GIUONG_GHEP_VA_TIEN_GIUONG_LANH_DAO.pptx", "_blank");
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -710,9 +738,9 @@ ${deptTable}
               )}
 
               {/* Nút 4: Slide PowerPoint */}
-              <a
-                href="./SLIDE_BAO_CAO_GIUONG_GHEP_VA_TIEN_GIUONG_LANH_DAO.pptx"
-                download="SLIDE_BAO_CAO_GIUONG_GHEP_VA_TIEN_GIUONG_LANH_DAO.pptx"
+              <button
+                type="button"
+                onClick={handleDownloadSlidePptx}
                 className="flex items-center gap-3 rounded-xl border border-indigo-300 bg-indigo-50/60 p-3 text-left hover:bg-indigo-100/70 transition group shadow-xs cursor-pointer"
               >
                 <span className="text-2xl group-hover:scale-110 transition">📽️</span>
@@ -724,7 +752,7 @@ ${deptTable}
                     10 slide 16:9 thiết kế sẵn báo cáo Ban Giám đốc
                   </div>
                 </div>
-              </a>
+              </button>
             </div>
           </div>
         </div>
