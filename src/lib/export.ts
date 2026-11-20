@@ -44,7 +44,13 @@ function detailRows(records: Xml3Record[]) {
           : record.hasEqualWarning
             ? "TRÙNG MỐC"
             : record.hasBedWarning
-              ? "GIƯỜNG"
+              ? record.bedWarningType === "bed-sharing"
+                ? (record.bedSharingCount ?? 2) >= 3
+                  ? "GHÉP 3+ NGƯỜI"
+                  : "GHÉP 2 NGƯỜI"
+                : record.bedWarningType === "missing-bed-code"
+                  ? "THIẾU MÃ GIƯỜNG"
+                  : "TRÙNG GIƯỜNG"
               : record.hasTtThauWarning
                 ? "TT_THAU"
                 : record.hasMaMayWarning
@@ -72,6 +78,12 @@ function detailRows(records: Xml3Record[]) {
     MA_MAY: record.MA_MAY || "",
     MA_KHOA: record.MA_KHOA,
     MA_GIUONG: record.MA_GIUONG,
+    SO_LUONG: record.SO_LUONG ?? "",
+    DON_GIA: record.DON_GIA ?? "",
+    TYLE_TT: record.TYLE_TT ?? "",
+    MUC_HUONG: record.MUC_HUONG ?? "",
+    THANH_TIEN: record.THANH_TIEN ?? "",
+    TIEN_XUAT_TOAN_DU_KIEN: record.potentialBedRefusal ?? "",
     MA_BAC_SI: record.MA_BAC_SI,
     NGUOI_THUC_HIEN: record.NGUOI_THUC_HIEN,
     NGAY_YL: formatXmlDateTime(record.NGAY_YL) || record.NGAY_YL,
@@ -422,6 +434,170 @@ export async function exportDuplicateMachineComparisonExcel(
   const workbook = await createDuplicateMachineWorkbook(records, patients);
   const buffer = await workbook.xlsx.writeBuffer();
   const filename = `${formatTimestampForFilename()}_Doi_chieu_trung_ma_may_XML3.xlsx`;
+  saveAs(
+    new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }),
+    filename,
+  );
+}
+
+export async function createBedSharingWorkbook(
+  records: Xml3Record[],
+  patients: ReadonlyMap<string, PatientInfo> = new Map(),
+): Promise<ExcelJS.Workbook> {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "Nguyễn Sơn Nam (Nsnnam)";
+  workbook.created = new Date();
+
+  const bedRecords = records.filter((r) => r.hasBedWarning && r.bedWarningType === "bed-sharing");
+
+  // Nhóm theo cụm: overlapDay|MA_KHOA|MA_GIUONG
+  const groupMap = new Map<string, Xml3Record[]>();
+  for (const r of bedRecords) {
+    const key = `${r.bedOverlapDate || ""}|${(r.MA_KHOA || "").trim()}|${(r.MA_GIUONG || "").trim()}`;
+    const list = groupMap.get(key) || [];
+    list.push(r);
+    groupMap.set(key, list);
+  }
+
+  // Sheet 1: Tổng hợp KT251
+  const summarySheet = workbook.addWorksheet("Tổng hợp KT251");
+  summarySheet.columns = [
+    { header: "Chỉ tiêu", key: "label", width: 45 },
+    { header: "Số lượng / Giá trị", key: "value", width: 30 },
+  ];
+
+  const totalRefusalMoney = bedRecords.reduce((sum, r) => sum + (r.potentialBedRefusal ?? 0), 0);
+  const count2Patients = bedRecords.filter((r) => (r.bedSharingCount ?? 2) === 2).length;
+  const count3PlusPatients = bedRecords.filter((r) => (r.bedSharingCount ?? 2) >= 3).length;
+  const uniquePatients = new Set(bedRecords.map((r) => r.MA_LK)).size;
+  const uniqueBeds = new Set(bedRecords.map((r) => `${r.MA_KHOA}|${r.MA_GIUONG}`)).size;
+
+  summarySheet.addRows([
+    { label: "Tổng số lượt chi phí ngày giường nằm ghép (KT251)", value: bedRecords.length },
+    { label: "Số lượt ghép 2 người (đề nghị thanh toán > 50%)", value: count2Patients },
+    {
+      label: "Số lượt ghép từ 3 người trở lên (đề nghị thanh toán > 33%)",
+      value: count3PlusPatients,
+    },
+    {
+      label: "Tổng số tiền có nguy cơ xuất toán BHYT (VNĐ)",
+      value: totalRefusalMoney.toLocaleString("vi-VN") + " VNĐ",
+    },
+    { label: "Số cụm ngày / buồng giường nằm ghép", value: groupMap.size },
+    { label: "Số bệnh nhân liên quan", value: uniquePatients },
+    { label: "Số mã giường phát hiện nằm ghép", value: uniqueBeds },
+    {
+      label: "Thời gian xuất báo cáo đối chiếu",
+      value: new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }),
+    },
+    {
+      label: "Căn cứ pháp lý rà soát",
+      value: "Thông tư 39/2024/TT-BYT & Hướng dẫn kiểm tra KT251 BHXH Việt Nam",
+    },
+  ]);
+  styleSheet(summarySheet);
+  fitColumns(summarySheet);
+
+  // Sheet 2: Chi tiết giường ghép (KT251)
+  const detailSheet = workbook.addWorksheet("Chi tiết giường ghép KT251");
+  detailSheet.columns = [
+    { header: "STT", key: "stt", width: 8 },
+    { header: "Khoa điều trị", key: "maKhoa", width: 14 },
+    { header: "Mã giường", key: "maGiuong", width: 16 },
+    { header: "Ngày nằm ghép", key: "ngayGhep", width: 15 },
+    { header: "Số BN ghép", key: "soBnGhep", width: 12 },
+    { header: "Giờ giao nhau", key: "soGioGiao", width: 14 },
+    { header: "Tỷ lệ đề nghị (%)", key: "tyleDeNghi", width: 16 },
+    { header: "Tỷ lệ quy định TT39 (%)", key: "tyleQuyDinh", width: 20 },
+    { header: "Số lượng", key: "soLuong", width: 10 },
+    { header: "Đơn giá BHYT (đ)", key: "donGia", width: 16 },
+    { header: "Mức hưởng (%)", key: "mucHuong", width: 14 },
+    { header: "Tiền xuất toán dự kiến (đ)", key: "tienXuatToan", width: 22 },
+    { header: "Họ và tên bệnh nhân", key: "hoTen", width: 24 },
+    { header: "Mã BN", key: "maBn", width: 14 },
+    { header: "Mã LK", key: "maLk", width: 14 },
+    { header: "CCCD / Định danh", key: "cccd", width: 16 },
+    { header: "Mã thẻ BHYT", key: "theBhyt", width: 18 },
+    { header: "Thời gian bắt đầu (TH_YL)", key: "ngayThYl", width: 20 },
+    { header: "Thời gian kết thúc (KQ)", key: "ngayKq", width: 20 },
+    { header: "Đối chiếu nằm ghép (Nằm cùng ai)", key: "doiChieu", width: 45 },
+    { header: "Tên dịch vụ ngày giường", key: "tenDichVu", width: 35 },
+    { header: "Mã dịch vụ", key: "maDichVu", width: 16 },
+    { header: "File nguồn", key: "fileName", width: 20 },
+    { header: "STT XML", key: "sttXml", width: 10 },
+  ];
+
+  let rowStt = 1;
+  const sortedKeys = Array.from(groupMap.keys()).sort();
+
+  for (let gIdx = 0; gIdx < sortedKeys.length; gIdx++) {
+    const gKey = sortedKeys[gIdx];
+    const rows = groupMap.get(gKey) ?? [];
+    const isEvenGroup = gIdx % 2 === 0;
+    const groupBgColor = isEvenGroup ? "FFFFFBEB" : "FFF8FAFC"; // Amber-50 vs Slate-50
+
+    for (const r of rows) {
+      const pat = patients.get(r.MA_LK) || r.patient;
+      const peers = r.bedSharingInfo || [];
+      const peerText = peers
+        .map(
+          (p) =>
+            `${p.peerHoTen} (Mã BN: ${p.peerMaBn || "—"}, LK: ${p.peerMaLk}, Giờ: ${p.startTimeDisplay}–${p.endTimeDisplay}, Giao: ${p.overlapHours}h)`,
+        )
+        .join(" | ");
+
+      const addedRow = detailSheet.addRow({
+        stt: rowStt++,
+        maKhoa: r.MA_KHOA,
+        maGiuong: r.MA_GIUONG,
+        ngayGhep: r.bedOverlapDate || "",
+        soBnGhep: r.bedSharingCount ?? 2,
+        soGioGiao: r.bedOverlapHours ? `${r.bedOverlapHours}h` : "",
+        tyleDeNghi: r.TYLE_TT ?? 100,
+        tyleQuyDinh: r.suggestedTyleTt ?? 50,
+        soLuong: r.SO_LUONG ?? 1,
+        donGia: r.DON_GIA ? r.DON_GIA.toLocaleString("vi-VN") : "",
+        mucHuong: r.MUC_HUONG ?? (pat?.MUC_HUONG ? pat.MUC_HUONG : 100),
+        tienXuatToan: r.potentialBedRefusal ? r.potentialBedRefusal.toLocaleString("vi-VN") : "0",
+        hoTen: r.HO_TEN || pat?.HO_TEN || "",
+        maBn: r.MA_BN || pat?.MA_BN || "",
+        maLk: r.MA_LK,
+        cccd: pat?.SO_CCCD || "",
+        theBhyt: pat?.MA_THE_BHYT || "",
+        ngayThYl: formatXmlDateTime(r.NGAY_TH_YL) || r.NGAY_TH_YL,
+        ngayKq: formatXmlDateTime(r.NGAY_KQ) || r.NGAY_KQ,
+        doiChieu: peerText,
+        tenDichVu: r.TEN_DICH_VU || r.TEN_VAT_TU || "",
+        maDichVu: r.MA_DICH_VU || r.MA_VAT_TU || "",
+        fileName: r.fileName,
+        sttXml: r.STT,
+      });
+
+      addedRow.eachCell((cell) => {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: groupBgColor },
+        };
+      });
+    }
+  }
+
+  styleSheet(detailSheet);
+  fitColumns(detailSheet);
+
+  return workbook;
+}
+
+export async function exportBedSharingComparisonExcel(
+  records: Xml3Record[],
+  patients: ReadonlyMap<string, PatientInfo> = new Map(),
+) {
+  const workbook = await createBedSharingWorkbook(records, patients);
+  const buffer = await workbook.xlsx.writeBuffer();
+  const filename = `${formatTimestampForFilename()}_Doi_chieu_giuong_ghep_KT251.xlsx`;
   saveAs(
     new Blob([buffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

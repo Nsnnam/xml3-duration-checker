@@ -3,12 +3,25 @@ export const APP_META = {
   title: "NsN_XMLcheck",
   description:
     "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, MA_MAY chuẩn XX.3[xxx].Z & trùng thời gian máy, cảnh báo Z00.0/Z30.1 (KHHGĐ) & Hồ sơ 15 bảng BHYT",
-  version: "2.13.1",
-  date: "2026-11-14",
+  version: "2.14.0",
+  date: "2026-11-20",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.14.0",
+      date: "2026-11-20",
+      changes: [
+        "Kiểm tra rà soát và cảnh báo Giường nằm ghép & Tiền giường (KT251 - Thông tư 39/2024/TT-BYT & Hướng dẫn BHXH): Tự động phân tách khoảng thời gian nằm giường theo từng ngày dương lịch, phát hiện các bệnh nhân khác nhau nằm cùng mã giường trong cùng khoa có thời gian trùng nhau > 4 giờ (240 phút).",
+        "Áp dụng chuẩn tỷ lệ thanh toán BHYT giường ghép: Ghép 2 người tối đa 50%, ghép từ 3 người trở lên tối đa 33%; tính toán chính xác số tiền có nguy cơ xuất toán BHYT (potentialBedRefusal) dựa trên số lượng, đơn giá, mức hưởng và tỷ lệ chênh lệch.",
+        "Kiểm tra toàn diện tiền giường: Cảnh báo chi phí ngày giường (MA_NHOM 14 hoặc 15) thiếu MA_GIUONG và cảnh báo cùng bệnh nhân nằm nhiều hơn 01 giường trong ngày.",
+        "Hỗ trợ nạp trực tiếp file Excel dữ liệu XML3 (.xlsx, .xls): Nhận diện linh hoạt các cột tiêu đề (DON_GIA_BH, TYLE_TT_BH, THANH_TIEN_BH, MA_BA, MABN, HOTEN, v.v.) giúp đối chiếu nhanh hàng chục ngàn dòng chi phí mà không cần nạp lại file XML gốc.",
+        "Xuất file Excel đối chiếu giường nằm ghép chuẩn KT251: Báo cáo gồm 2 sheet 'Tổng hợp KT251' (thống kê tổng ca, số ca ghép 2, ghép 3+, tổng tiền nguy cơ xuất toán) và 'Chi tiết giường ghép KT251' (chi tiết từng dòng chi phí, bệnh nhân ghép cùng, thời gian giao nhau, tỷ lệ đề nghị vs quy định, tiền xuất toán).",
+        "Thao tác hàng loạt trên thanh công cụ XML3: Thêm nút 'Giảm tỷ lệ về 50% (Ghép 2)' và 'Giảm tỷ lệ về 33% (Ghép 3+)' giúp đưa nhanh vào Kế hoạch sửa BHYT với giá trị TYLE_TT chuẩn.",
+        "Modal Sửa trực tiếp & Lập kế hoạch: Bổ sung khung cảnh báo trực quan chi tiết giường ghép (số người ghép, ngày trùng, giờ giao nhau, danh sách bệnh nhân ghép cùng, số tiền nguy cơ xuất toán) và các nút gợi ý điều chỉnh nhanh tỷ lệ.",
+      ],
+    },
     {
       version: "2.13.1",
       date: "2026-11-14",

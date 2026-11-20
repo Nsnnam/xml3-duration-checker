@@ -4,6 +4,7 @@ import {
   exportXml3Report,
   createXml3ReportWorkbook,
   exportDuplicateMachineComparisonExcel,
+  exportBedSharingComparisonExcel,
 } from "../lib/export.ts";
 import {
   exportLibraryTemplate,
@@ -497,6 +498,27 @@ export function HomePage() {
     }
   }
 
+  async function handleExportBedSharing() {
+    if (!analysis || !analysis.records.length) {
+      setNotice("Chưa có kết quả phân tích để xuất đối chiếu giường ghép.");
+      return;
+    }
+    const hasBeds = analysis.records.some((r) => r.hasBedWarning);
+    if (!hasBeds) {
+      setNotice("Không có bản ghi nào có cảnh báo tiền giường/giường ghép để xuất đối chiếu.");
+      return;
+    }
+    try {
+      setNotice("Đang tạo file Excel đối chiếu giường nằm ghép (KT251)...");
+      await exportBedSharingComparisonExcel(analysis.records, analysis.patients);
+      setNotice("✅ Đã xuất file Excel đối chiếu giường nằm ghép KT251 thành công!");
+    } catch (error) {
+      setNotice(
+        `❌ Lỗi xuất file đối chiếu giường ghép: ${error instanceof Error ? error.message : "Không xác định"}`,
+      );
+    }
+  }
+
   // Lưu columnsConfig vào localStorage khi thay đổi
   const saveColsConfig = (next: AllTabsColumnConfig) => {
     setColumnsConfig(next);
@@ -922,14 +944,15 @@ export function HomePage() {
   }
 
   function addFiles(list: FileList | null) {
-    const incoming = Array.from(list ?? []).filter((file) =>
-      file.name.toLowerCase().endsWith(".xml"),
-    );
+    const incoming = Array.from(list ?? []).filter((file) => {
+      const name = file.name.toLowerCase();
+      return name.endsWith(".xml") || name.endsWith(".xlsx") || name.endsWith(".xls");
+    });
     setFiles((current) => [
       ...current,
       ...incoming.filter((file) => !current.some((old) => old.name === file.name)),
     ]);
-    setNotice(incoming.length ? "" : "Chỉ nhận file có phần mở rộng .xml.");
+    setNotice(incoming.length ? "" : "Chỉ nhận file có phần mở rộng .xml, .xlsx, .xls.");
   }
 
   function clearAll() {
@@ -1170,6 +1193,7 @@ export function HomePage() {
             warningColors={warningColors}
             onOpenColorModal={() => setShowColorModal(true)}
             onExportDuplicateMachine={handleExportDuplicateMachine}
+            onExportBedSharingComparison={handleExportBedSharing}
             onOpenDirectEdit={(target) => setDirectEditTarget(target)}
             correctionPlan={correctionPlan}
             onOpenCorrectionPlanModal={() => setShowCorrectionPlanModal(true)}
@@ -1512,6 +1536,7 @@ function CheckerView({
   warningColors,
   onOpenColorModal,
   onExportDuplicateMachine,
+  onExportBedSharingComparison,
   onOpenDirectEdit,
   correctionPlan,
   onOpenCorrectionPlanModal,
@@ -1563,6 +1588,7 @@ function CheckerView({
   warningColors: Record<WarningCategory, string>;
   onOpenColorModal: () => void;
   onExportDuplicateMachine: () => void;
+  onExportBedSharingComparison?: () => void;
   onOpenDirectEdit: (target: {
     record?: Xml3Record;
     warning?: ValidationWarning;
@@ -1611,6 +1637,13 @@ function CheckerView({
     }
     return counts;
   }, [onlyWarnings, filteredWarnings, filteredRecords, analysis]);
+
+  const totalBedRefusal = useMemo(() => {
+    const list = onlyWarnings ? filteredWarnings : filteredRecords;
+    return list
+      .filter((r) => r.hasBedWarning && r.potentialBedRefusal)
+      .reduce((sum, r) => sum + (r.potentialBedRefusal ?? 0), 0);
+  }, [onlyWarnings, filteredWarnings, filteredRecords]);
 
   const [showMetricsGrid, setShowMetricsGrid] = useState(false);
 
@@ -1846,6 +1879,50 @@ function CheckerView({
       onSaveCorrectionItems(
         newItems,
         `✓ Đã thêm ${newItems.length} mục đồng bộ thời gian công khám vào Kế hoạch sửa!`,
+      );
+      setSelectedXml3Keys(new Set());
+    }
+  };
+
+  const handleBatchAdjustBedRatio = (targetRatio: number) => {
+    if (selectedXml3Keys.size === 0) return;
+    const targetRecords = displayRecords.filter((r) =>
+      selectedXml3Keys.has(`${r.fileName}-${r.MA_LK}-${r.STT}`),
+    );
+    const newItems: CorrectionItem[] = [];
+
+    for (const r of targetRecords) {
+      const dossier = analysis?.dossiers?.find((d) => d.maLk === r.MA_LK);
+      const ngayVao = dossier?.patient?.NGAY_VAO || r.NGAY_YL || "";
+      const ngayRa = dossier?.patient?.NGAY_RA || r.NGAY_KQ || "";
+      const tuNgay = toHisDateString(ngayVao) || toHisDateString(r.NGAY_YL);
+      const denNgay = toHisDateString(ngayRa) || toHisDateString(r.NGAY_KQ);
+
+      newItems.push({
+        id: `plan_xml3_bed_${r.MA_LK}_${r.STT}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        maLk: r.MA_LK,
+        maBa: r.MA_BN || dossier?.patient?.MA_BN || "",
+        hoTen: r.HO_TEN || dossier?.patient?.HO_TEN || "",
+        ngayVao,
+        ngayRa,
+        tuNgay,
+        denNgay,
+        tab: "XML3",
+        stt: r.STT,
+        maDichVu: r.MA_DICH_VU,
+        tenDichVu: r.TEN_DICH_VU || r.TEN_VAT_TU,
+        field: "TYLE_TT",
+        oldValue: r.TYLE_TT !== undefined ? String(r.TYLE_TT) : "100",
+        newValue: String(targetRatio),
+        lyDo: `Điều chỉnh tỷ lệ thanh toán ngày giường về ${targetRatio}% theo Thông tư 39/2024/TT-BYT (KT251)`,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    if (newItems.length > 0) {
+      onSaveCorrectionItems(
+        newItems,
+        `✓ Đã thêm ${newItems.length} mục điều chỉnh tỷ lệ thanh toán giường về ${targetRatio}% vào Kế hoạch sửa!`,
       );
       setSelectedXml3Keys(new Set());
     }
@@ -2101,14 +2178,15 @@ function CheckerView({
             <label className="flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-teal-200 bg-teal-50/50 px-4 text-center transition hover:border-teal-500 hover:bg-teal-50">
               <span className="text-3xl">＋</span>
               <span className="mt-2 text-sm font-semibold text-teal-800">
-                Chọn hoặc thêm nhiều file XML
+                Chọn hoặc thêm file XML hoặc Excel XML3 (.xlsx, .xls)
               </span>
               <span className="mt-1 text-xs text-slate-500">
-                XML1–XML15 Base64 · Xử lý hoàn toàn trên trình duyệt local
+                Hỗ trợ XML1–XML15 Base64 và file Excel xuất XML3 · Xử lý hoàn toàn trên trình duyệt
+                local
               </span>
               <input
                 type="file"
-                accept=".xml"
+                accept=".xml,.xlsx,.xls"
                 multiple
                 className="hidden"
                 onChange={(event) => {
@@ -2416,6 +2494,22 @@ function CheckerView({
                     )}
                   </button>
                 )}
+                {alertTab === "XML3" && onExportBedSharingComparison && (
+                  <button
+                    type="button"
+                    onClick={onExportBedSharingComparison}
+                    disabled={!categoryCounts.bed}
+                    className="rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm flex items-center gap-1.5"
+                    title="Xuất riêng file Excel đối chiếu chi tiết giường nằm ghép chuẩn mẫu KT251 BHXH"
+                  >
+                    <span>🛏️ Xuất đối chiếu giường ghép (KT251)</span>
+                    {categoryCounts.bed > 0 && (
+                      <span className="rounded-full bg-amber-600 px-1.5 py-0.2 text-[10px] font-black text-white">
+                        {categoryCounts.bed}
+                      </span>
+                    )}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={onOpenCorrectionPlanModal}
@@ -2599,6 +2693,18 @@ function CheckerView({
                       >
                         {count.toLocaleString("vi-VN")}
                       </span>
+                      {catKey === "bed" && totalBedRefusal > 0 && (
+                        <span
+                          className={`rounded-full px-1.5 py-0.2 text-[9px] font-black ${
+                            isActive
+                              ? "bg-amber-300 text-amber-950"
+                              : "bg-rose-100 text-rose-800 border border-rose-300"
+                          }`}
+                          title={`Tổng tiền có nguy cơ xuất toán BHYT do giường nằm ghép: ${totalBedRefusal.toLocaleString("vi-VN")} VNĐ`}
+                        >
+                          {(totalBedRefusal / 1000000).toFixed(1)}tr đ
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -2769,6 +2875,26 @@ function CheckerView({
                           title="Đặt NGAY_YL = NGAY_TH_YL cho các dịch vụ công khám (nhóm 13)"
                         >
                           <span>🩺</span> Đồng bộ YL = TH_YL (Công khám)
+                        </button>
+
+                        {/* Nút giảm tỷ lệ giường về 50% (ghép 2) */}
+                        <button
+                          type="button"
+                          onClick={() => handleBatchAdjustBedRatio(50)}
+                          className="rounded-xl border border-amber-400 bg-amber-50 px-3 py-1.5 text-[11px] font-bold text-amber-950 hover:bg-amber-100 shadow-xs flex items-center gap-1 cursor-pointer"
+                          title="Điều chỉnh tỷ lệ thanh toán TYLE_TT về 50% cho các dòng đã chọn theo quy định giường ghép 2 người (TT 39/2024/TT-BYT)"
+                        >
+                          <span>🛏️</span> Giảm tỷ lệ về 50% (Ghép 2)
+                        </button>
+
+                        {/* Nút giảm tỷ lệ giường về 33% (ghép 3+) */}
+                        <button
+                          type="button"
+                          onClick={() => handleBatchAdjustBedRatio(33)}
+                          className="rounded-xl border border-amber-400 bg-amber-50 px-3 py-1.5 text-[11px] font-bold text-amber-950 hover:bg-amber-100 shadow-xs flex items-center gap-1 cursor-pointer"
+                          title="Điều chỉnh tỷ lệ thanh toán TYLE_TT về 33% cho các dòng đã chọn theo quy định giường ghép từ 3 người trở lên (TT 39/2024/TT-BYT)"
+                        >
+                          <span>🛏️</span> Giảm tỷ lệ về 33% (Ghép 3+)
                         </button>
 
                         {/* Nút khôi phục hàng loạt về ban đầu */}

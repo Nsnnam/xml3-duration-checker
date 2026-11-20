@@ -1,3 +1,4 @@
+import ExcelJS from "exceljs";
 import {
   DEFAULT_MANDATORY_MACHINE_SERVICES,
   type MachineServiceRule,
@@ -61,6 +62,18 @@ export type DuplicateMachineInfo = {
   peerFile: string;
 };
 
+export type BedSharingPeerInfo = {
+  peerMaLk: string;
+  peerMaBn: string;
+  peerHoTen: string;
+  peerGiuong: string;
+  peerKhoa: string;
+  overlapDate: string;
+  overlapHours: number;
+  startTimeDisplay: string;
+  endTimeDisplay: string;
+};
+
 export type Xml3Record = {
   fileName: string;
   table: "XML3";
@@ -85,6 +98,18 @@ export type Xml3Record = {
   MA_MAY: string;
   MA_HIEU_SP: string;
   TT_THAU: string;
+  SO_LUONG?: number;
+  DON_GIA?: number;
+  TYLE_TT?: number;
+  THANH_TIEN?: number;
+  MUC_HUONG?: number;
+  bedWarningType?: "bed-sharing" | "multiple-beds" | "missing-bed-code";
+  bedSharingCount?: number;
+  suggestedTyleTt?: number;
+  potentialBedRefusal?: number;
+  bedOverlapDate?: string;
+  bedOverlapHours?: number;
+  bedSharingInfo?: BedSharingPeerInfo[];
   durationMinutes: number | null;
   serviceRule?: ServiceRule;
   patient?: PatientInfo;
@@ -226,6 +251,11 @@ export const XML3_FIELDS = [
   "MA_MAY",
   "MA_HIEU_SP",
   "TT_THAU",
+  "SO_LUONG",
+  "DON_GIA",
+  "TYLE_TT",
+  "THANH_TIEN",
+  "MUC_HUONG",
 ] as const;
 
 type Xml3Field = (typeof XML3_FIELDS)[number];
@@ -341,6 +371,7 @@ export type PatientInfo = {
   CAN_NANG?: string;
   NAM_NAM_LIEN_TUC?: string;
   MIEN_CUNG_CT?: string;
+  MUC_HUONG?: string;
   TIEN_TONG?: string;
   TIEN_BHYT?: string;
   TIEN_BNTT?: string;
@@ -537,12 +568,12 @@ export const WARNING_CATEGORY_CONFIG: Record<WarningCategory, WarningCategoryMet
   },
   bed: {
     id: "bed",
-    label: "Trùng ngày giường",
-    badgeText: "GIƯỜNG",
-    badgeClass: "bg-stone-600 text-white border border-stone-700 shadow-xs",
-    chipClass: "border-stone-200 bg-stone-50 text-stone-900 hover:bg-stone-100",
-    activeChipClass: "bg-stone-600 text-white border-stone-600 shadow-sm",
-    icon: "🟤",
+    label: "Giường ghép & Tiền giường (KT251)",
+    badgeText: "GIƯỜNG GHÉP",
+    badgeClass: "bg-amber-700 text-white border border-amber-800 shadow-xs",
+    chipClass: "border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100",
+    activeChipClass: "bg-amber-700 text-white border-amber-700 shadow-sm",
+    icon: "🛏️",
     defaultColor: DEFAULT_WARNING_COLORS.bed,
   },
   ketLuan: {
@@ -598,7 +629,14 @@ export function getRecordStatusLabel(record: Xml3Record): string {
   }
   if (record.hasOrderWarning) return "SAI THỨ TỰ";
   if (record.hasEqualWarning) return "TRÙNG MỐC";
-  if (record.hasBedWarning) return "GIƯỜNG";
+  if (record.hasBedWarning) {
+    if (record.bedWarningType === "bed-sharing") {
+      return (record.bedSharingCount ?? 2) >= 3 ? "GHÉP 3+ NGƯỜI" : "GHÉP 2 NGƯỜI";
+    }
+    if (record.bedWarningType === "missing-bed-code") return "THIẾU MÃ GIƯỜNG";
+    if (record.bedWarningType === "multiple-beds") return "TRÙNG GIƯỜNG";
+    return "GIƯỜNG";
+  }
   if (record.hasTtThauWarning) return "TT_THAU";
   if (record.hasMaMayWarning) return "MÃ MÁY";
   if (record.status === "warning") return "VƯỢT MAX";
@@ -1363,32 +1401,293 @@ export function getChronologyIssues(ngayYl: string, ngayThYl: string, ngayKq: st
     );
 }
 
-function addBedWarnings(records: Xml3Record[]): Xml3Record[] {
-  const groups = new Map<string, Xml3Record[]>();
-  for (const record of records) {
-    if (!record.MA_GIUONG) continue;
-    const date = parseXmlDateTime(record.NGAY_TH_YL) ?? parseXmlDateTime(record.NGAY_KQ);
-    if (!date) continue;
-    const day = date.toISOString().slice(0, 10);
-    const key = `${record.MA_LK}|${record.MA_BN}|${day}`;
-    groups.set(key, [...(groups.get(key) ?? []), record]);
+export type BedDailyInterval = {
+  recordIndex: number;
+  record: Xml3Record;
+  dayStr: string;
+  startMinute: number;
+  endMinute: number;
+  startDisplay: string;
+  endDisplay: string;
+};
+
+export function getBedDailyIntervals(record: Xml3Record, recordIndex: number): BedDailyInterval[] {
+  const startDigits = (record.NGAY_TH_YL || "").replace(/\D/g, "");
+  const endDigits = (record.NGAY_KQ || "").replace(/\D/g, "");
+  if (startDigits.length < 8 || endDigits.length < 8) return [];
+
+  const sy = parseInt(startDigits.slice(0, 4), 10);
+  const sm = parseInt(startDigits.slice(4, 6), 10) - 1;
+  const sd = parseInt(startDigits.slice(6, 8), 10);
+  const sh = startDigits.length >= 10 ? parseInt(startDigits.slice(8, 10), 10) : 0;
+  const smin = startDigits.length >= 12 ? parseInt(startDigits.slice(10, 12), 10) : 0;
+
+  const ey = parseInt(endDigits.slice(0, 4), 10);
+  const em = parseInt(endDigits.slice(4, 6), 10) - 1;
+  const ed = parseInt(endDigits.slice(6, 8), 10);
+  const eh = endDigits.length >= 10 ? parseInt(endDigits.slice(8, 10), 10) : 23;
+  const emin = endDigits.length >= 12 ? parseInt(endDigits.slice(10, 12), 10) : 59;
+
+  const startDate = new Date(Date.UTC(sy, sm, sd));
+  const endDate = new Date(Date.UTC(ey, em, ed));
+  if (endDate.getTime() < startDate.getTime()) return [];
+
+  const intervals: BedDailyInterval[] = [];
+  const curr = new Date(startDate.getTime());
+
+  while (curr.getTime() <= endDate.getTime()) {
+    const y = curr.getUTCFullYear();
+    const m = curr.getUTCMonth() + 1;
+    const d = curr.getUTCDate();
+    const dayStr = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+
+    const isFirstDay = curr.getTime() === startDate.getTime();
+    const isLastDay = curr.getTime() === endDate.getTime();
+
+    const startMinute = isFirstDay ? sh * 60 + smin : 0;
+    const endMinute = isLastDay ? eh * 60 + emin : 1440;
+
+    if (endMinute > startMinute) {
+      intervals.push({
+        recordIndex,
+        record,
+        dayStr,
+        startMinute,
+        endMinute,
+        startDisplay: isFirstDay
+          ? `${String(sh).padStart(2, "0")}:${String(smin).padStart(2, "0")}`
+          : "00:00",
+        endDisplay: isLastDay
+          ? `${String(eh).padStart(2, "0")}:${String(emin).padStart(2, "0")}`
+          : "23:59",
+      });
+    }
+
+    curr.setUTCDate(curr.getUTCDate() + 1);
   }
-  const flagged = new Set<Xml3Record>();
-  for (const rows of groups.values()) {
-    if (rows.length <= 1) continue;
-    for (const row of rows) flagged.add(row);
+
+  return intervals;
+}
+
+export function addBedWarnings(records: Xml3Record[]): Xml3Record[] {
+  const result: Xml3Record[] = records.map((r) => ({ ...r }));
+
+  // 1. Kiểm tra thiếu mã giường cho chi phí ngày giường (MA_NHOM = 14 hoặc 15)
+  for (let i = 0; i < result.length; i++) {
+    const rec = result[i];
+    const nhom = (rec.MA_NHOM || "").trim();
+    if ((nhom === "14" || nhom === "15") && (!rec.MA_GIUONG || !rec.MA_GIUONG.trim())) {
+      const detailIndex = rec.STT || "xx";
+      const message = `XML3. Chi tiết thứ ${detailIndex}: Chi phí ngày giường (MA_NHOM ${nhom}) nhưng thiếu MA_GIUONG.`;
+      rec.hasBedWarning = true;
+      rec.bedWarningType = "missing-bed-code";
+      rec.status = rec.status === "ok" ? "bed-warning" : rec.status;
+      rec.detail = rec.detail ? `${rec.detail} · ${message}` : message;
+    }
   }
-  return records.map((record) => {
-    if (!flagged.has(record)) return record;
-    const detailIndex = record.STT || "xx";
-    const message = `XML3. Chi tiết thứ ${detailIndex}: Số lượng giường trong ngày lớn hơn 01.`;
-    return {
-      ...record,
-      hasBedWarning: true,
-      status: record.status === "ok" ? "bed-warning" : record.status,
-      detail: record.detail ? `${record.detail} · ${message}` : message,
-    };
-  });
+
+  // 2. Thu thập intervals theo từng ngày cho các dòng có MA_GIUONG
+  const intervalsByBedDay = new Map<string, BedDailyInterval[]>();
+  const intervalsByPatientDay = new Map<string, BedDailyInterval[]>();
+
+  for (let i = 0; i < result.length; i++) {
+    const rec = result[i];
+    if (!rec.MA_GIUONG || !rec.MA_GIUONG.trim()) continue;
+
+    const dailyIntervals = getBedDailyIntervals(rec, i);
+    for (const interval of dailyIntervals) {
+      // Nhóm theo giường: dayStr|MA_KHOA|MA_GIUONG
+      const bedKey = `${interval.dayStr}|${(rec.MA_KHOA || "").trim().toUpperCase()}|${rec.MA_GIUONG.trim().toUpperCase()}`;
+      const bedList = intervalsByBedDay.get(bedKey) || [];
+      bedList.push(interval);
+      intervalsByBedDay.set(bedKey, bedList);
+
+      // Nhóm theo bệnh nhân: dayStr|MA_LK
+      const patKey = `${interval.dayStr}|${rec.MA_LK}`;
+      const patList = intervalsByPatientDay.get(patKey) || [];
+      patList.push(interval);
+      intervalsByPatientDay.set(patKey, patList);
+    }
+  }
+
+  // 3. Quét Giường Nằm Ghép (KT251) - Các bệnh nhân khác nhau nằm cùng giường, trùng > 240 phút (4 giờ)
+  type SharingRecordMeta = {
+    patientCount: number;
+    maxOverlapHours: number;
+    overlapDay: string;
+    peers: BedSharingPeerInfo[];
+  };
+  const sharingMetaByRecord = new Map<number, SharingRecordMeta>();
+
+  for (const [bedKey, intervals] of intervalsByBedDay.entries()) {
+    if (intervals.length <= 1) continue;
+
+    // Tìm các cặp giao nhau > 240 phút giữa các bệnh nhân khác nhau
+    const overlapPairs: Array<{
+      intA: BedDailyInterval;
+      intB: BedDailyInterval;
+      overlapMins: number;
+    }> = [];
+
+    for (let a = 0; a < intervals.length; a++) {
+      for (let b = a + 1; b < intervals.length; b++) {
+        const intA = intervals[a];
+        const intB = intervals[b];
+        const rA = intA.record;
+        const rB = intB.record;
+
+        // Phải là 2 bệnh nhân khác nhau (khác MA_LK, hoặc nếu có MA_BN thì khác MA_BN)
+        const isSame =
+          rA.MA_LK === rB.MA_LK ||
+          (Boolean(rA.MA_BN) && Boolean(rB.MA_BN) && rA.MA_BN === rB.MA_BN);
+        if (isSame) continue;
+
+        const overlap = Math.max(
+          0,
+          Math.min(intA.endMinute, intB.endMinute) - Math.max(intA.startMinute, intB.startMinute),
+        );
+        if (overlap > 240) {
+          // Lớn hơn 4 giờ (240 phút) -> Giường nằm ghép!
+          overlapPairs.push({ intA, intB, overlapMins: overlap });
+        }
+      }
+    }
+
+    if (!overlapPairs.length) continue;
+
+    // Thu thập danh sách bệnh nhân tham gia nằm ghép trên giường này trong ngày
+    const bedDayParticipatingPatients = new Set<string>();
+    for (const pair of overlapPairs) {
+      bedDayParticipatingPatients.add(pair.intA.record.MA_LK);
+      bedDayParticipatingPatients.add(pair.intB.record.MA_LK);
+    }
+
+    const patientCount = bedDayParticipatingPatients.size;
+    const [dayStr] = bedKey.split("|");
+
+    for (const pair of overlapPairs) {
+      const overlapHours = Math.round((pair.overlapMins / 60) * 10) / 10;
+      const { intA, intB } = pair;
+      const rA = intA.record;
+      const rB = intB.record;
+
+      // Cập nhật cho intA
+      let metaA = sharingMetaByRecord.get(intA.recordIndex);
+      if (!metaA) {
+        metaA = {
+          patientCount,
+          maxOverlapHours: overlapHours,
+          overlapDay: dayStr,
+          peers: [],
+        };
+        sharingMetaByRecord.set(intA.recordIndex, metaA);
+      }
+      metaA.patientCount = Math.max(metaA.patientCount, patientCount);
+      metaA.maxOverlapHours = Math.max(metaA.maxOverlapHours, overlapHours);
+      if (!metaA.peers.some((p) => p.peerMaLk === rB.MA_LK)) {
+        metaA.peers.push({
+          peerMaLk: rB.MA_LK,
+          peerMaBn: rB.MA_BN,
+          peerHoTen: rB.HO_TEN,
+          peerGiuong: rB.MA_GIUONG,
+          peerKhoa: rB.MA_KHOA,
+          overlapDate: dayStr,
+          overlapHours,
+          startTimeDisplay: intB.startDisplay,
+          endTimeDisplay: intB.endDisplay,
+        });
+      }
+
+      // Cập nhật cho intB
+      let metaB = sharingMetaByRecord.get(intB.recordIndex);
+      if (!metaB) {
+        metaB = {
+          patientCount,
+          maxOverlapHours: overlapHours,
+          overlapDay: dayStr,
+          peers: [],
+        };
+        sharingMetaByRecord.set(intB.recordIndex, metaB);
+      }
+      metaB.patientCount = Math.max(metaB.patientCount, patientCount);
+      metaB.maxOverlapHours = Math.max(metaB.maxOverlapHours, overlapHours);
+      if (!metaB.peers.some((p) => p.peerMaLk === rA.MA_LK)) {
+        metaB.peers.push({
+          peerMaLk: rA.MA_LK,
+          peerMaBn: rA.MA_BN,
+          peerHoTen: rA.HO_TEN,
+          peerGiuong: rA.MA_GIUONG,
+          peerKhoa: rA.MA_KHOA,
+          overlapDate: dayStr,
+          overlapHours,
+          startTimeDisplay: intA.startDisplay,
+          endTimeDisplay: intA.endDisplay,
+        });
+      }
+    }
+  }
+
+  // Gắn cảnh báo Giường nằm ghép vào kết quả
+  for (const [recIdx, meta] of sharingMetaByRecord.entries()) {
+    const rec = result[recIdx];
+    const tyleTt = rec.TYLE_TT ?? 100;
+    const suggestedTyleTt = meta.patientCount >= 3 ? 33 : 50;
+
+    rec.bedWarningType = "bed-sharing";
+    rec.bedSharingCount = meta.patientCount;
+    rec.suggestedTyleTt = suggestedTyleTt;
+    rec.bedOverlapDate = meta.overlapDay;
+    rec.bedOverlapHours = meta.maxOverlapHours;
+    rec.bedSharingInfo = meta.peers;
+
+    if (tyleTt > suggestedTyleTt) {
+      rec.hasBedWarning = true;
+      rec.status = rec.status === "ok" ? "bed-warning" : rec.status;
+
+      const soLuong = rec.SO_LUONG ?? 1;
+      const donGia = rec.DON_GIA ?? 0;
+      const mucHuong =
+        rec.MUC_HUONG ?? (rec.patient?.MUC_HUONG ? parseFloat(rec.patient.MUC_HUONG) : 100);
+      const potentialRefusal = Math.round(
+        soLuong * donGia * (mucHuong / 100) * ((tyleTt - suggestedTyleTt) / 100),
+      );
+      rec.potentialBedRefusal = potentialRefusal;
+
+      const detailIndex = rec.STT || "xx";
+      const message =
+        meta.patientCount >= 3
+          ? `XML3. Chi tiết thứ ${detailIndex}: Giường ghép từ 3 người trở lên (${meta.patientCount} người, giao nhau ${meta.maxOverlapHours}h ngày ${meta.overlapDay}). Đề nghị thanh toán TYLE_TT=${tyleTt}%, vượt mức quy định 33% theo Thông tư 39/2024/TT-BYT. Tiền xuất toán dự kiến: ${potentialRefusal.toLocaleString("vi-VN")} đ.`
+          : `XML3. Chi tiết thứ ${detailIndex}: Giường ghép 2 người (giao nhau ${meta.maxOverlapHours}h ngày ${meta.overlapDay}). Đề nghị thanh toán TYLE_TT=${tyleTt}%, vượt mức quy định 50% theo Thông tư 39/2024/TT-BYT. Tiền xuất toán dự kiến: ${potentialRefusal.toLocaleString("vi-VN")} đ.`;
+
+      rec.detail = rec.detail ? `${rec.detail} · ${message}` : message;
+    }
+  }
+
+  // 4. Kiểm tra cùng bệnh nhân nằm nhiều hơn 01 giường trong ngày (multiple-beds)
+  for (const [patKey, intervals] of intervalsByPatientDay.entries()) {
+    if (intervals.length <= 1) continue;
+
+    const uniqueBeds = new Set(
+      intervals.map((it) => (it.record.MA_GIUONG || "").trim().toUpperCase()),
+    );
+    const [dayStr] = patKey.split("|");
+
+    if (uniqueBeds.size > 1 || intervals.length > 1) {
+      for (const interval of intervals) {
+        const rec = result[interval.recordIndex];
+        if (!rec.hasBedWarning) {
+          rec.hasBedWarning = true;
+          rec.bedWarningType = "multiple-beds";
+          rec.status = rec.status === "ok" ? "bed-warning" : rec.status;
+          const detailIndex = rec.STT || "xx";
+          const message = `XML3. Chi tiết thứ ${detailIndex}: Bệnh nhân nằm nhiều hơn 01 giường trong ngày ${dayStr}.`;
+          rec.detail = rec.detail ? `${rec.detail} · ${message}` : message;
+        }
+      }
+    }
+  }
+
+  return result;
 }
 
 export function formatDuplicateMachineWarningMessage(
@@ -1743,8 +2042,33 @@ export function evaluateRecord(
     details.unshift(formatZ301WarningMessage("XML3", stt));
   }
 
+  const rawFields = fields as Record<string, string>;
+  const soLuong = rawFields.SO_LUONG ? parseFloat(rawFields.SO_LUONG) : undefined;
+  const donGia =
+    rawFields.DON_GIA || rawFields.DON_GIA_BH || rawFields.DON_GIA_BV
+      ? parseFloat(rawFields.DON_GIA || rawFields.DON_GIA_BH || rawFields.DON_GIA_BV)
+      : undefined;
+  const tyleTt =
+    rawFields.TYLE_TT || rawFields.TYLE_TT_BH || rawFields.TYLE_TT_DV
+      ? parseFloat(rawFields.TYLE_TT || rawFields.TYLE_TT_BH || rawFields.TYLE_TT_DV)
+      : undefined;
+  const mucHuong = rawFields.MUC_HUONG
+    ? parseFloat(rawFields.MUC_HUONG)
+    : fields.patient?.MUC_HUONG
+      ? parseFloat(fields.patient.MUC_HUONG)
+      : undefined;
+  const thanhTien =
+    rawFields.THANH_TIEN || rawFields.THANH_TIEN_BH || rawFields.THANH_TIEN_BV
+      ? parseFloat(rawFields.THANH_TIEN || rawFields.THANH_TIEN_BH || rawFields.THANH_TIEN_BV)
+      : undefined;
+
   return {
     ...fields,
+    SO_LUONG: Number.isNaN(soLuong) ? undefined : soLuong,
+    DON_GIA: Number.isNaN(donGia) ? undefined : donGia,
+    TYLE_TT: Number.isNaN(tyleTt) ? undefined : tyleTt,
+    THANH_TIEN: Number.isNaN(thanhTien) ? undefined : thanhTien,
+    MUC_HUONG: Number.isNaN(mucHuong) ? undefined : mucHuong,
     MA_BN: fields.MA_BN || "",
     HO_TEN: fields.HO_TEN || "",
     patient: fields.patient,
@@ -1775,6 +2099,7 @@ export function isWarning(record: Xml3Record): boolean {
     record.status === "tt-thau-warning" ||
     record.status === "ma-may-warning" ||
     record.status === "duplicate-machine-warning" ||
+    record.status === "bed-warning" ||
     record.hasOrderWarning ||
     record.hasEqualWarning ||
     record.hasBedWarning ||
@@ -2018,6 +2343,149 @@ async function collectXml1Patients(file: File): Promise<Map<string, PatientInfo>
   return patients;
 }
 
+export async function parseXml3FromExcel(
+  file: File,
+  serviceRules: ReadonlyMap<string, ServiceRule> = new Map(),
+  mandatoryMachineRules: ReadonlyMap<string, MachineServiceRule> = DEFAULT_MANDATORY_MACHINE_MAP,
+): Promise<{
+  records: Xml3Record[];
+  patients: Map<string, PatientInfo>;
+  tableFiles: number;
+}> {
+  const workbook = new ExcelJS.Workbook();
+  const buffer = await file.arrayBuffer();
+  await workbook.xlsx.load(buffer);
+
+  const worksheet =
+    workbook.worksheets.find((ws) => {
+      const name = ws.name.toUpperCase();
+      return name.includes("XML3") || name.includes("3") || name.includes("CHI_TIET");
+    }) || workbook.worksheets[0];
+
+  if (!worksheet) {
+    throw new Error(`${file.name}: Không tìm thấy bảng tính hợp lệ trong file Excel`);
+  }
+
+  const colMap = new Map<string, number>();
+  worksheet.getRow(1).eachCell((cell, colNumber) => {
+    const header = String(cell.value ?? "")
+      .trim()
+      .toUpperCase();
+    if (header) colMap.set(header, colNumber);
+  });
+
+  const getColVal = (row: ExcelJS.Row, ...names: string[]): string => {
+    for (const name of names) {
+      const colNum = colMap.get(name.toUpperCase());
+      if (colNum !== undefined) {
+        const cell = row.getCell(colNum);
+        let val = cell.value;
+        if (val === null || val === undefined) continue;
+        if (val instanceof Date) {
+          const y = val.getFullYear();
+          const m = String(val.getMonth() + 1).padStart(2, "0");
+          const d = String(val.getDate()).padStart(2, "0");
+          const h = String(val.getHours()).padStart(2, "0");
+          const mi = String(val.getMinutes()).padStart(2, "0");
+          const s = String(val.getSeconds()).padStart(2, "0");
+          return `${y}${m}${d}${h}${mi}${s}`;
+        }
+        if (
+          typeof val === "object" &&
+          val !== null &&
+          "text" in (val as unknown as Record<string, unknown>)
+        ) {
+          val = (val as unknown as { text: string }).text;
+        }
+        const str = String(val).trim();
+        if (str) return str;
+      }
+    }
+    return "";
+  };
+
+  const records: Xml3Record[] = [];
+  const patients = new Map<string, PatientInfo>();
+
+  worksheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return;
+
+    const maLk = getColVal(row, "MA_LK", "MALK");
+    if (!maLk) return;
+
+    const stt = getColVal(row, "STT") || String(rowNumber - 1);
+    const maBn = getColVal(row, "MA_BN", "MA_BA", "MABN", "SO_BENH_AN");
+    const hoTen = getColVal(row, "HO_TEN", "HOTEN", "TEN_BENH_NHAN");
+    const maThe = getColVal(row, "MA_THE", "MA_THE_BHYT", "MATHE");
+    const cccd = getColVal(row, "SO_CCCD", "CCCD");
+    const ngayVao = getColVal(row, "NGAY_VAO", "NGAYVAO");
+    const ngayRa = getColVal(row, "NGAY_RA", "NGAYRA");
+
+    if (!patients.has(maLk)) {
+      patients.set(maLk, {
+        MA_LK: maLk,
+        MA_BN: maBn,
+        HO_TEN: hoTen,
+        MA_THE_BHYT: maThe,
+        SO_CCCD: cccd,
+        NGAY_VAO: ngayVao,
+        NGAY_RA: ngayRa,
+      });
+    }
+
+    const fields: Record<string, string> = {
+      MA_LK: maLk,
+      STT: stt,
+      MA_DICH_VU: getColVal(row, "MA_DICH_VU", "MADICHVU", "MA_CP"),
+      MA_VAT_TU: getColVal(row, "MA_VAT_TU", "MAVATTU"),
+      TEN_DICH_VU: getColVal(row, "TEN_DICH_VU", "TENDICHVU", "TEN_CP"),
+      TEN_VAT_TU: getColVal(row, "TEN_VAT_TU", "TENVATTU"),
+      MA_NHOM: getColVal(row, "MA_NHOM", "MANHOM"),
+      MA_KHOA: getColVal(row, "MA_KHOA", "MAKHOA"),
+      MA_GIUONG: getColVal(row, "MA_GIUONG", "MAGIUONG"),
+      MA_BAC_SI: getColVal(row, "MA_BAC_SI", "MABACSI"),
+      NGUOI_THUC_HIEN: getColVal(row, "NGUOI_THUC_HIEN", "NGUOITHUCHIEN", "MA_BSI_THUC_HIEN"),
+      MA_BENH: getColVal(row, "MA_BENH", "MABENH"),
+      MA_BENH_YHCT: getColVal(row, "MA_BENH_YHCT", "MABENHYHCT"),
+      NGAY_YL: getColVal(row, "NGAY_YL", "NGAYYL"),
+      NGAY_TH_YL: getColVal(row, "NGAY_TH_YL", "NGAYTHYL"),
+      NGAY_KQ: getColVal(row, "NGAY_KQ", "NGAYKQ"),
+      MA_MAY: getColVal(row, "MA_MAY", "MAMAY"),
+      MA_HIEU_SP: getColVal(row, "MA_HIEU_SP", "MAHIEUSP"),
+      TT_THAU: getColVal(row, "TT_THAU", "TTTHAU"),
+      SO_LUONG: getColVal(row, "SO_LUONG", "SOLUONG"),
+      DON_GIA: getColVal(row, "DON_GIA_BH", "DON_GIA", "DONGIA", "DON_GIA_BV"),
+      TYLE_TT: getColVal(row, "TYLE_TT_BH", "TYLE_TT", "TYLETT", "TYLE_TT_DV"),
+      THANH_TIEN: getColVal(row, "THANH_TIEN_BH", "THANH_TIEN", "THANHTIEN", "THANH_TIEN_BV"),
+      MUC_HUONG: getColVal(row, "MUC_HUONG", "MUCHUONG"),
+      MA_BN: maBn,
+      HO_TEN: hoTen,
+    };
+
+    const patient = patients.get(maLk);
+    const record = evaluateRecord(
+      fields as Record<Xml3Field, string> & {
+        MA_BN?: string;
+        HO_TEN?: string;
+        patient?: PatientInfo;
+      },
+      file.name,
+      serviceRules,
+      mandatoryMachineRules,
+    );
+    if (patient) {
+      record.patient = patient;
+    }
+    records.push(record);
+  });
+
+  return {
+    records,
+    patients,
+    tableFiles: 1,
+  };
+}
+
 export async function analyzeXml3File(
   file: File,
   sharedPatients = new Map<string, PatientInfo>(),
@@ -2177,6 +2645,9 @@ export async function analyzeXml3Files(
 
   // Pass 1: Thu thập bệnh nhân từ XML1 và CLS từ XML4
   for (const file of files) {
+    if (file.name.toLowerCase().endsWith(".xlsx") || file.name.toLowerCase().endsWith(".xls")) {
+      continue;
+    }
     try {
       for (const [maLk, patient] of await collectXml1Patients(file)) {
         sharedPatients.set(maLk, patient);
@@ -2190,6 +2661,35 @@ export async function analyzeXml3Files(
   // Pass 2: Phân tích XML3 và thu thập các bảng XML (15 bảng)
   for (const file of files) {
     try {
+      if (file.name.toLowerCase().endsWith(".xlsx") || file.name.toLowerCase().endsWith(".xls")) {
+        const parsedExcel = await parseXml3FromExcel(file, serviceRuleMap, mandatoryMachineMap);
+        tableFiles += parsedExcel.tableFiles;
+        allRecords.push(...parsedExcel.records);
+        for (const [maLk, pat] of parsedExcel.patients.entries()) {
+          sharedPatients.set(maLk, { ...(sharedPatients.get(maLk) || {}), ...pat });
+          let dossier = dossierMap.get(maLk);
+          if (!dossier) {
+            dossier = {
+              maLk,
+              patient: pat,
+              fileName: file.name,
+              tables: {},
+              warnings: [],
+              xml3Records: [],
+              hasWarnings: false,
+              warningCount: 0,
+            };
+            dossierMap.set(maLk, dossier);
+          } else {
+            dossier.patient = { ...dossier.patient, ...pat };
+          }
+        }
+        logs.push(
+          `[${file.name}] Đã nạp bảng XML3 từ file Excel (${parsedExcel.records.length} dòng)`,
+        );
+        continue;
+      }
+
       const text = await file.text();
       const outer = parseXml(text, file.name);
       const fileNodes = Array.from(outer.getElementsByTagName("FILEHOSO"));
@@ -2340,8 +2840,12 @@ export async function analyzeXml3Files(
   }
 
   // Quét kiểm tra trùng thời gian mã máy trên toàn bộ các file (cross-patient / cross-file)
-  const updatedAllRecords = addDuplicateMachineWarnings(allRecords);
-  allRecords.splice(0, allRecords.length, ...updatedAllRecords);
+  const updatedRecordsWithMachines = addDuplicateMachineWarnings(allRecords);
+  allRecords.splice(0, allRecords.length, ...updatedRecordsWithMachines);
+
+  // Quét kiểm tra tiền giường & giường nằm ghép KT251 trên toàn bộ các file (cross-patient / cross-file)
+  const updatedRecordsWithBeds = addBedWarnings(allRecords);
+  allRecords.splice(0, allRecords.length, ...updatedRecordsWithBeds);
 
   const updatedXml3Warnings = allRecords.filter(isWarning).map(toXml3Warning);
   for (const uw of updatedXml3Warnings) {

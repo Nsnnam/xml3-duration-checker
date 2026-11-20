@@ -33,8 +33,9 @@ import {
   loadWarningColors,
   saveWarningColors,
   resetWarningColors,
+  addBedWarnings,
 } from "../src/lib/xml3-duration.ts";
-import { createDuplicateMachineWorkbook } from "../src/lib/export.ts";
+import { createDuplicateMachineWorkbook, createBedSharingWorkbook } from "../src/lib/export.ts";
 import { formatXmlDateTime, formatXmlDate } from "../src/lib/timezone.ts";
 import {
   parseBackupJson,
@@ -1561,6 +1562,131 @@ const wLk703 = xml7Warnings.find((w) => w.MA_LK === "LK-703");
 assert.ok(wLk703, "Phải có cảnh báo cho LK-703 khi fallback lấy NGAY_RA từ XML1 patient");
 assert.ok(wLk703.message.includes("05/11/2026"));
 
+// 27. Kiểm tra rà soát và cảnh báo Giường nằm ghép & Tiền giường (KT251 - Thông tư 39/2024/TT-BYT)
+const baseBedRecord = {
+  fileName: "test_bed.xml",
+  table: "XML3",
+  STT: "1",
+  MA_DICH_VU: "14.01",
+  MA_VAT_TU: "",
+  TEN_DICH_VU: "Tiền giường bệnh nội khoa loại 1",
+  TEN_VAT_TU: "",
+  MA_NHOM: "14",
+  MA_BAC_SI: "BS01",
+  NGUOI_THUC_HIEN: "",
+  MA_BENH: "I10",
+  MA_BENH_YHCT: "",
+  NGAY_YL: "202611040700",
+  MA_MAY: "",
+  MA_HIEU_SP: "",
+  TT_THAU: "",
+  SO_LUONG: 1,
+  DON_GIA: 250000,
+  TYLE_TT: 100,
+  THANH_TIEN: 250000,
+  MUC_HUONG: 100,
+  rawXml: "<CHI_TIET_DVKT/>",
+};
+
+// Case 1: Giường ghép 2 người (giao nhau 6 giờ > 4 giờ), đề nghị 100% -> Cảnh báo, gợi ý 50%, tiền xuất toán 125.000 đ
+const bedRec1 = {
+  ...baseBedRecord,
+  MA_LK: "LK-BED-01",
+  MA_BN: "BN-BED-01",
+  HO_TEN: "Bệnh nhân Ghép A",
+  MA_KHOA: "K01",
+  MA_GIUONG: "G001",
+  NGAY_TH_YL: "202611041000",
+  NGAY_KQ: "202611041800",
+};
+const bedRec2 = {
+  ...baseBedRecord,
+  STT: "2",
+  MA_LK: "LK-BED-02",
+  MA_BN: "BN-BED-02",
+  HO_TEN: "Bệnh nhân Ghép B",
+  MA_KHOA: "K01",
+  MA_GIUONG: "G001",
+  NGAY_TH_YL: "202611041200",
+  NGAY_KQ: "202611042000",
+};
+
+const bedCheckResult1 = addBedWarnings([bedRec1, bedRec2]);
+assert.equal(bedCheckResult1.length, 2);
+assert.equal(bedCheckResult1[0].hasBedWarning, true);
+assert.equal(bedCheckResult1[0].bedWarningType, "bed-sharing");
+assert.equal(bedCheckResult1[0].bedSharingCount, 2);
+assert.equal(bedCheckResult1[0].suggestedTyleTt, 50);
+assert.equal(bedCheckResult1[0].potentialBedRefusal, 125000);
+assert.equal(bedCheckResult1[0].bedOverlapHours, 6);
+assert.equal(bedCheckResult1[0].bedSharingInfo?.length, 1);
+assert.equal(bedCheckResult1[0].bedSharingInfo?.[0].peerMaLk, "LK-BED-02");
+assert.equal(bedCheckResult1[1].hasBedWarning, true);
+assert.equal(bedCheckResult1[1].suggestedTyleTt, 50);
+assert.equal(bedCheckResult1[1].potentialBedRefusal, 125000);
+
+// Case 2: Giường ghép từ 3 người trở lên (giao nhau > 4 giờ), đề nghị 100% -> gợi ý 33%, tính đúng tiền xuất toán
+const bedRec3 = {
+  ...baseBedRecord,
+  STT: "3",
+  MA_LK: "LK-BED-03",
+  MA_BN: "BN-BED-03",
+  HO_TEN: "Bệnh nhân Ghép C",
+  MA_KHOA: "K01",
+  MA_GIUONG: "G001",
+  NGAY_TH_YL: "202611041100",
+  NGAY_KQ: "202611041900",
+};
+
+const bedCheckResult2 = addBedWarnings([bedRec1, bedRec2, bedRec3]);
+assert.equal(bedCheckResult2[0].bedSharingCount, 3);
+assert.equal(bedCheckResult2[0].suggestedTyleTt, 33);
+assert.equal(bedCheckResult2[0].potentialBedRefusal, 167500);
+
+// Case 3: Giao nhau <= 4 giờ (ví dụ 180 phút: từ 12:00 đến 15:00) -> Không coi là giường nằm ghép theo KT251
+const bedRecShort1 = {
+  ...baseBedRecord,
+  MA_LK: "LK-SHORT-01",
+  MA_BN: "BN-SHORT-01",
+  MA_KHOA: "K02",
+  MA_GIUONG: "G002",
+  NGAY_TH_YL: "202611040800",
+  NGAY_KQ: "202611041500",
+};
+const bedRecShort2 = {
+  ...baseBedRecord,
+  STT: "2",
+  MA_LK: "LK-SHORT-02",
+  MA_BN: "BN-SHORT-02",
+  MA_KHOA: "K02",
+  MA_GIUONG: "G002",
+  NGAY_TH_YL: "202611041200",
+  NGAY_KQ: "202611042000",
+};
+const bedCheckResultShort = addBedWarnings([bedRecShort1, bedRecShort2]);
+assert.equal(bedCheckResultShort[0].hasBedWarning ?? false, false);
+assert.equal(bedCheckResultShort[1].hasBedWarning ?? false, false);
+
+// Case 4: Chi phí ngày giường (MA_NHOM = 15) nhưng thiếu MA_GIUONG -> Cảnh báo missing-bed-code
+const bedRecMissingCode = {
+  ...baseBedRecord,
+  MA_NHOM: "15",
+  MA_GIUONG: "",
+};
+const bedCheckResultMissing = addBedWarnings([bedRecMissingCode]);
+assert.equal(bedCheckResultMissing[0].hasBedWarning, true);
+assert.equal(bedCheckResultMissing[0].bedWarningType, "missing-bed-code");
+assert.ok(bedCheckResultMissing[0].detail.includes("thiếu MA_GIUONG"));
+
+// Case 5: Xuất file đối chiếu Excel KT251 qua createBedSharingWorkbook
+const bedWorkbook = await createBedSharingWorkbook(bedCheckResult2);
+assert.ok(bedWorkbook, "Phải tạo được workbook đối chiếu KT251");
+assert.equal(bedWorkbook.worksheets.length, 2);
+assert.equal(bedWorkbook.worksheets[0].name, "Tổng hợp KT251");
+assert.equal(bedWorkbook.worksheets[1].name, "Chi tiết giường ghép KT251");
+assert.ok(bedWorkbook.worksheets[0].rowCount >= 9);
+assert.ok(bedWorkbook.worksheets[1].rowCount >= 4);
+
 console.log(
-  "All tests passed: XML1 CCCD validation, Z00.0 & Z30.1 validation, XML3 duplicate machine time validation, XML7 NGOAITRU_TUNGAY < NGAY_RA validation (+1 day suggestion), duplicate machine excel export, warning colors & column filter/sort helpers: OK",
+  "All tests passed: XML1 CCCD validation, Z00.0 & Z30.1 validation, XML3 duplicate machine time validation, XML7 NGOAITRU_TUNGAY < NGAY_RA validation (+1 day suggestion), duplicate machine excel export, KT251 bed sharing validation & workbook export, warning colors & column filter/sort helpers: OK",
 );

@@ -1397,6 +1397,80 @@ export function DirectEditModal({
               </div>
             )}
 
+            {/* Gợi ý cho Giường bệnh & Giường ghép KT251 */}
+            {(record?.hasBedWarning ||
+              record?.MA_NHOM === "14" ||
+              record?.MA_NHOM === "15" ||
+              selectedField === "TYLE_TT" ||
+              selectedField === "MA_GIUONG") && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50/80 p-2 space-y-1.5">
+                <div className="text-[10px] uppercase font-bold text-amber-900 flex items-center justify-between">
+                  <span>
+                    🛏️ Quy tắc ngày giường &amp; Giường ghép (KT251 - Thông tư 39/2024/TT-BYT):
+                  </span>
+                  {record?.potentialBedRefusal ? (
+                    <span className="text-[10px] font-bold text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded">
+                      ⚠️ Nguy cơ xuất toán: {record.potentialBedRefusal.toLocaleString("vi-VN")} đ
+                    </span>
+                  ) : null}
+                </div>
+                {record?.bedSharingInfo && record.bedSharingInfo.length > 0 && (
+                  <div className="text-[11px] text-amber-950 bg-white/80 rounded-lg p-1.5 border border-amber-200">
+                    <span className="font-bold text-rose-800">
+                      Phát hiện nằm ghép ({record.bedSharingCount} người)
+                    </span>{" "}
+                    ngày <span className="font-semibold">{record.bedOverlapDate}</span> trên giường{" "}
+                    <span className="font-semibold">{record.MA_GIUONG}</span> (khoa {record.MA_KHOA}
+                    ):
+                    <div className="mt-0.5 text-[10px] text-slate-700 space-y-0.5">
+                      {record.bedSharingInfo.map((p, idx) => (
+                        <div key={idx}>
+                          • BN: <span className="font-semibold">{p.peerHoTen}</span> (Mã BN:{" "}
+                          {p.peerMaBn || "—"}, LK: {p.peerMaLk}) · Giờ: {p.startTimeDisplay}–
+                          {p.endTimeDisplay} (Giao: {p.overlapHours}h)
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedField("TYLE_TT");
+                      setNewValue("50");
+                    }}
+                    className="rounded-lg border border-amber-500 bg-amber-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-amber-700 shadow-xs transition"
+                    title="Điều chỉnh tỷ lệ thanh toán TYLE_TT về 50% theo quy định giường nằm ghép 2 người (TT 39/2024/TT-BYT)"
+                  >
+                    🛏️ Giảm về 50% (Ghép 2 người)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedField("TYLE_TT");
+                      setNewValue("33");
+                    }}
+                    className="rounded-lg border border-amber-500 bg-amber-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-amber-700 shadow-xs transition"
+                    title="Điều chỉnh tỷ lệ thanh toán TYLE_TT về 33% theo quy định giường nằm ghép từ 3 người trở lên (TT 39/2024/TT-BYT)"
+                  >
+                    🛏️ Giảm về 33% (Ghép 3+ người)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedField("TYLE_TT");
+                      setNewValue("100");
+                    }}
+                    className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 shadow-xs transition"
+                    title="Đặt tỷ lệ thanh toán về 100% (Giường đơn chuẩn)"
+                  >
+                    Đặt 100% (Giường đơn)
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Gợi ý cho XML7 (NGOAITRU_TUNGAY) */}
             {selectedField === "NGOAITRU_TUNGAY" && xml7NextDaySuggestion && (
               <div className="rounded-xl border border-teal-300 bg-teal-50/70 p-2 space-y-1">
