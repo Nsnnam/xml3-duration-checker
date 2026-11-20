@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.17.0] — 2026-11-20
+
+- **Chuẩn hóa quy tắc giám định xuất toán tiền giường (KT251)**:
+  - Tự động gom các cụm bệnh nhân trùng giường cùng ngày theo đồ thị liên thông.
+  - Áp dụng nguyên tắc giám định thực tế: Giữ lại 01 giường có chi phí cao nhất (hoặc vào trước) với 0 đ xuất toán (`✅ GIỮ LẠI (0đ)`).
+  - Chỉ tính xuất toán cho các giường thứ 2 trở đi (`🚨 BỊ XUẤT TOÁN`), phản ánh chính xác số tiền quỹ BHYT có thể từ chối và giảm thiểu thiệt hại tài chính cho đơn vị.
+- **Phân định rõ cảnh báo thủ tục hành chính (0 đ xuất toán)**:
+  - Lỗi giờ kê giường vượt quá giờ ra viện (`bed-exceeds-discharge`): Phân loại là cảnh báo thủ tục hành chính trên XML, không cộng dồn xuất toán tiền (do nếu có người khác nằm đè lên đã bị bắt ở lỗi trùng giường).
+  - Lỗi trùng mốc phút 12:00 cùng BN (`minute-duplicate`): Phân loại là cảnh báo thủ tục (0 đ xuất toán) do ngắt y lệnh ca trực tự động trên phần mềm HIS.
+- **Phân tích chuyên sâu đối soát File KT251 thực tế của BHXH (`26193_KET_QUA_KT251_KT252.xlsx`)**:
+  - Đối soát 142.223 dòng trong file BHXH gửi về (1,568 tỷ VNĐ xuất toán).
+  - Phát hiện 451 ca trùng dưới 4 giờ bị cơ quan BHXH gắn cờ sai quy định văn bản nghiệp vụ số `20261110_TAILIEUHUONGDAN`; cung cấp 4 căn cứ giải trình giúp Bệnh viện bảo toàn hàng trăm triệu đồng chi phí giường bệnh.
+- **Nâng cấp giao diện trực quan & Phân loại màu sắc cảnh báo**:
+  - Phân biệt rõ rệt bằng badge màu sắc: Đỏ/Hồng (Bị xuất toán, có số tiền phạt âm), Xanh ngọc Emerald (Giữ lại 0đ XT), Cam Amber (Vượt giờ ra viện, chỉ cảnh báo), Tím Indigo (Trùng phút 12:00).
+  - Cột `MA_GIUONG_TRUNG` tự động đổi màu tương ứng với tình trạng xử lý của từng ca.
+- **Nâng cấp Infographics HTML Tương Tác đa chiều & Xuất Excel trực tiếp**:
+  - Bổ sung bộ lọc đồng thời theo Loại vi phạm, Khoa lâm sàng, Mức độ rủi ro (Có xuất toán vs Chỉ cảnh báo) và ô tìm kiếm tức thì.
+  - Tích hợp nút xuất trực tiếp file Excel báo cáo KT251 (`.xls`) gồm 2 sheet (*Tổng hợp theo khoa* và *Danh sách chi tiết*) ngay trên trang Infographic mà không cần cài thêm phần mềm.
+
 ## [2.16.0] — 2026-11-20
 
 - **Chức năng riêng biệt Xuất Báo cáo & Infographics KT251**: Bổ sung nút `📊 Báo cáo & Infographics` trực tiếp trên thanh công cụ, mở modal giao diện chuyên nghiệp cho phép tùy chỉnh Tên Đơn vị / Bệnh viện (mặc định: `Bệnh viện hữu nghị Lạc Việt`), xem thống kê thực tế, xuất Báo cáo chuyên đề Markdown (.md), tải slide PowerPoint (.pptx) và xuất file Excel đối chiếu.

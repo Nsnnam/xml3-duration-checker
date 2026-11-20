@@ -87,7 +87,7 @@ def create_deck(output_path):
     p2.space_after = Pt(24)
 
     p3 = tf1.add_paragraph()
-    p3.text = "Báo cáo: Ban Giám đốc & Trưởng các Khoa Lâm sàng | Thực hiện: Nguyễn Sơn Nam (Nsnnam) | Hệ thống NsN_XMLcheck v2.16.0"
+    p3.text = "Báo cáo: Ban Giám đốc & Trưởng các Khoa Lâm sàng | Thực hiện: Nguyễn Sơn Nam (Nsnnam) | Hệ thống NsN_XMLcheck v2.17.0"
     p3.font.size = Pt(11)
     p3.font.color.rgb = TEAL
 
@@ -161,8 +161,8 @@ def create_deck(output_path):
     kpis = [
         ("55.458", "TỔNG SỐ BẢN GHI XML3", "Dữ liệu chi phí toàn viện 20 ngày", TEAL),
         ("5.643", "CHI PHÍ NGÀY GIƯỜNG", "Nhóm 14 & 15 (1.371 bệnh nhân nội trú)", NAVY),
-        ("1.183", "DÒNG VI PHẠM GIƯỜNG GHÉP", "Chiếm 20,96% tổng số dòng tiền giường", ROSE),
-        ("139.565.450 đ", "NGUY CƠ XUẤT TOÁN BHYT", "Số tiền bị truy thu dự kiến nếu không hiệu chỉnh", ROSE)
+        ("580 dòng", "BỊ XUẤT TOÁN (ĐÃ GIỮ 546 CA)", "Giữ 1 giường cao nhất/0đ XT, xuất toán giường sau", ROSE),
+        ("120.340.125 đ", "NGUY CƠ XUẤT TOÁN KT251", "Giảm 19,2 triệu đ so với cách tính thô ban đầu", ROSE)
     ]
     for i, (val, title, note, color) in enumerate(kpis):
         cx = Inches(0.8 + i * 2.95)
@@ -207,12 +207,12 @@ def create_deck(output_path):
     p_bh.space_after = Pt(8)
 
     notes = [
-        "• Tần suất phát sinh giường ghép rất cao: Bình quân mỗi ngày có gần 60 lượt ngày giường bị gắn cờ trùng giường giữa các bệnh nhân.",
-        "• Lỗi giường gối đầu liên tiếp nhiều ngày chiếm đa số tuyệt đối (1.027 / 1.183 dòng = 86,8%): Do thói quen xếp giường chồng chéo khi bệnh nhân cũ chưa ra viện đã xếp bệnh nhân mới vào đúng mã giường đó.",
-        "• Có 428 lượt trùng mốc số phút chuyển tiếp kê giường cùng BN (ví dụ: ngày 1 kết thúc 12h00, ngày 2 bắt đầu đúng 12h00): BHYT có thể cảnh báo cùng lúc nằm 2 giường tại mốc 12h00.",
-        "• Có 90 lượt chồng lấn thời gian kê giường của cùng một bệnh nhân (dòng sau bắt đầu trước khi dòng trước kết thúc).",
-        "• Phát hiện vi phạm: Thời gian kết thúc kê giường vượt quá thời gian ra viện của bệnh nhân (NGAY_KQ > NGAY_RA).",
-        "• Nếu không rà soát và điều chỉnh kịp thời, số tiền xuất toán tiền giường cả tháng 11 có thể vượt mức 200 TRIỆU ĐỒNG!"
+        "• Áp dụng chuẩn quy tắc giám định thực tế: Giữ lại 01 giường cao nhất/vào trước (546 giường, 0 đ xuất toán), chỉ xuất toán các giường phía sau (580 giường, 120.340.125 đ).",
+        "• Lỗi giường gối đầu liên tiếp nhiều ngày chiếm đa số tuyệt đối (1.027 dòng vi phạm): Do thói quen xếp giường chồng chéo khi bệnh nhân cũ chưa ra viện đã xếp bệnh nhân mới vào cùng mã giường.",
+        "• Có 428 lượt trùng mốc phút 12:00 cùng BN: Phân loại cảnh báo thủ tục (0 đ xuất toán trực tiếp), hỗ trợ nút bấm tự động lùi 1 phút (12:01).",
+        "• Kê giường vượt quá giờ ra viện (NGAY_KQ > NGAY_RA): Là cảnh báo thủ tục hành chính, không xuất toán nếu không có BN khác nằm đè lên.",
+        "• Phát hiện sai sót từ file BHXH (KT251): Có 451 ca trùng < 4h bị gắn cờ sai quy định nghiệp vụ công văn số 20261110_TAILIEUHUONGDAN; Bệnh viện có đầy đủ cơ sở yêu cầu hủy xuất toán!",
+        "• Cần chuẩn hóa dữ liệu ngay để bảo toàn hơn 120 TRIỆU ĐỒNG chi phí ngày giường tháng 11/2026!"
     ]
     for n in notes:
         pn = tf_bot.add_paragraph()
@@ -525,27 +525,29 @@ def create_deck(output_path):
             pg.space_after = Pt(8)
 
     # =========================================================================
-    # SLIDE 9: GIẢI PHÁP VỚI ỨNG DỤNG NsN_XMLcheck v2.15.0
+    # SLIDE 9: GIẢI PHÁP VỚI ỨNG DỤNG NsN_XMLcheck v2.17.0
     # =========================================================================
     s9 = prs.slides.add_slide(prs.slide_layouts[6])
-    add_header(s9, "ỨNG DỤNG CÔNG CỤ NsN_XMLcheck v2.15.0 TRONG KIỂM SOÁT BHYT")
+    add_header(s9, "ỨNG DỤNG CÔNG CỤ NsN_XMLcheck v2.17.0 TRONG KIỂM SOÁT BHYT")
 
     features = [
-        ("RÀ SOÁT TỰ ĐỘNG CROSS-PATIENT", "Quét toàn bộ dữ liệu chỉ trong vài giây", [
-            "• Tự động nạp trực tiếp file Excel XML3 (54.000 dòng trong 7 giây) hoặc file XML gốc.",
-            "• Tự động phân tách thời gian nằm giường theo từng ngày dương lịch chuẩn GMT+7.",
-            "• Phát hiện chính xác các cặp giao thoa > 4 giờ giữa các bệnh nhân cùng khoa/giường.",
-            "• Nhận diện tự động Giường gối đầu liên tiếp (>= 2 ngày) và Trùng mốc phút chuyển tiếp."
+        ("RÀ SOÁT TỰ ĐỘNG & GIỮ LẠI 1 GIƯỜNG", "Chuẩn hóa theo thực tế giám định BHYT", [
+            "• Tự động gom cụm bệnh nhân trùng giường: Giữ lại 01 giường cao nhất/vào trước (0đ XT).",
+            "• Chỉ tính xuất toán cho giường thứ 2 trở đi: Giúp phản ánh đúng thực tế, giảm thiểu 50% số tiền phạt thô.",
+            "• Phân định rõ cảnh báo thủ tục hành chính: Giờ kê giường vượt giờ ra viện (NGAY_KQ > NGAY_RA) không bị tính xuất toán phạt tiền.",
+            "• Quét tự động 55.000+ dòng XML3 trong vòng dưới 7 giây chuẩn GMT+7."
         ]),
-        ("CỘT 'MÃ GIƯỜNG TRÙNG' & ĐỐI CHIẾU CHI TIẾT", "Minh bạch thông tin - Dễ dàng xử lý", [
-            "• Bảng XML3 bổ sung cột 'Mã giường trùng' hiển thị rõ mã giường và các bệnh nhân trùng ghép.",
-            "• Khối đối chiếu trong modal xem hồ sơ chỉ rõ: Nằm cùng ai, Mã BN, Mã LK, Khoa, Giờ giao nhau.",
-            "• Có nút 'Xem hồ sơ BN này' để chuyển đổi tức thì giữa 2 hồ sơ đang nằm trùng nhau."
+        ("BÁO CÁO & INFOGRAPHICS TƯƠNG TÁC", "Trực quan sinh động - Lọc đa chiều tức thì", [
+            "• Xuất Infographic HTML độc lập: Lọc cùng lúc theo Loại lỗi, Khoa phòng, Mức độ rủi ro (Xuất toán vs Cảnh báo).",
+            "• TÍCH HỢP XUẤT EXCEL TRỰC TIẾP TỪ INFOGRAPHIC: Cho phép tải file Excel đối chiếu chuẩn ngay trên trình duyệt.",
+            "• Giao diện mã màu chuyên biệt: Đỏ (bị xuất toán), Xanh ngọc (giữ lại 0đ), Cam (vượt giờ ra), Tím (trùng phút).",
+            "• Hỗ trợ chọn dải hồ sơ bằng phím Shift hoặc Ctrl để sửa hàng loạt cực nhanh."
         ]),
-        ("THAO TÁC HÀNG LOẠT & XUẤT ĐỐI CHIẾU EXCEL", "Tiết kiệm 95% thời gian xử lý thủ công", [
-            "• 2 nút bấm hàng loạt: 'Giảm tỷ lệ về 50% (Ghép 2)' và 'Giảm tỷ lệ về 33% (Ghép 3+)'.",
-            "• Nút sửa nhanh mốc phút: '+1p vào TH_YL' và '-1p ở NGAY_KQ'.",
-            "• Xuất báo cáo đối chiếu Excel chuẩn KT251 gồm 2 sheet (Tổng hợp số liệu & Chi tiết đối chiếu nằm ghép) để lưu trữ và báo cáo cơ quan BHXH."
+        ("THAO TÁC HÀNG LOẠT & TỰ ĐỘNG HÓA", "Tiết kiệm 95% thời gian xử lý thủ công", [
+            "• Nút sửa nhanh 1 phút: '+1p vào TH_YL' và '-1p ở NGAY_KQ'.",
+            "• Nút 1 chạm: '🏥 Đặt NGAY_KQ = Giờ ra viện' chuẩn hóa thời gian kết thúc với XML1.",
+            "• 2 nút áp tỷ lệ giường ghép tự động: 'Giảm tỷ lệ về 50% (Ghép 2)' và 'Giảm về 33% (Ghép 3+)'.",
+            "• Xuất kế hoạch sửa nạp tự động vào tiện ích VNPT-HIS Extension không cần nhập tay."
         ])
     ]
 
@@ -588,15 +590,16 @@ def create_deck(output_path):
 
     plans = [
         ("1. HÀNH ĐỘNG NGAY TRONG TUẦN", ROSE, [
-            "• Sử dụng công cụ NsN_XMLcheck v2.16.0 để rà soát toàn bộ dữ liệu XML3 tháng 11/2026 hiện có.",
-            "• Với 1.027 dòng giường gối đầu liên tiếp: Yêu cầu các khoa K33, K02, K33.2, K19.2 kiểm tra lại hồ sơ bệnh án gốc, điều chỉnh lại mã giường đúng thực tế trước khi chốt dữ liệu.",
+            "• Sử dụng công cụ NsN_XMLcheck v2.17.0 để rà soát toàn bộ dữ liệu XML3 tháng 11/2026.",
+            "• Với 1.027 dòng giường gối đầu liên tiếp: Yêu cầu các khoa K33, K02, K33.2, K19.2 kiểm tra bệnh án gốc, điều chỉnh mã giường đúng thực tế.",
+            "• Kiến nghị BHXH loại trừ 451 ca trùng < 4h: Căn cứ hướng dẫn số 20261110_TAILIEUHUONGDAN để bảo toàn chi phí.",
             "• Với 428 ca trùng phút: Áp dụng quy tắc cộng 1 phút (+1p) cho giờ bắt đầu ngày giường sau.",
-            "• Với các ca kê giường vượt quá giờ ra viện: Đặt lại NGAY_KQ bằng đúng NGAY_RA của bệnh nhân.",
-            "• Bảo toàn gần 140 TRIỆU ĐỒNG chi phí ngày giường không bị cơ quan BHXH xuất toán."
+            "• Bảo toàn hơn 120 TRIỆU ĐỒNG chi phí ngày giường không bị cơ quan BHXH xuất toán."
         ]),
         ("2. HOÀN THIỆN QUY TRÌNH NỘI BỘ", AMBER, [
             "• Ban hành Quy định chuẩn hóa kê ngày giường & chuyển khoa trong toàn viện.",
             "• Bắt buộc điều dưỡng phải xác nhận 'Bệnh nhân đã ra viện / Trả giường' trên phần mềm trước khi tiếp nhận bệnh nhân mới vào mã giường đó.",
+            "• Kiểm soát giờ ra viện: Đảm bảo NGAY_KQ kết thúc kê giường luôn <= NGAY_RA trên hồ sơ XML1.",
             "• Giao phòng KHTH và Điều dưỡng trưởng kiểm tra xác suất hằng tuần."
         ]),
         ("3. ĐỀ NGHỊ ĐƠN VỊ PHẦN MỀM HIS", TEAL, [

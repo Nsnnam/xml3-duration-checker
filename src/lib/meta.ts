@@ -3,12 +3,23 @@ export const APP_META = {
   title: "NsN_XMLcheck",
   description:
     "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, MA_MAY chuẩn XX.3[xxx].Z & trùng thời gian máy, cảnh báo Z00.0/Z30.1 (KHHGĐ) & Hồ sơ 15 bảng BHYT",
-  version: "2.16.0",
+  version: "2.17.0",
   date: "2026-11-20",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.17.0",
+      date: "2026-11-20",
+      changes: [
+        "Hoàn thiện chuẩn quy tắc giám định xuất toán tiền giường (KT251): Tự động gom các cụm bệnh nhân trùng giường cùng ngày, giữ lại 01 giường có chi phí cao nhất (hoặc vào trước) với 0 đ xuất toán (✅ GIỮ LẠI), chỉ xuất toán các giường thứ 2 trở đi (🚨 XUẤT TOÁN), giúp phản ánh trung thực thực tế giám định BHYT và giảm thiểu thiệt hại tài chính.",
+        "Phân định rõ cảnh báo thủ tục hành chính: Lỗi giờ kết thúc kê giường vượt quá giờ ra viện (bed-exceeds-discharge) và trùng mốc phút 12:00 cùng BN được phân loại là cảnh báo thủ tục hành chính (0 đ xuất toán trực tiếp), tránh tính trùng hoặc phạt kép.",
+        "Phân tích chuyên sâu đối soát file KT251 của BHXH: Đối chiếu toàn bộ 142.223 dòng trong file cảnh báo KT251 thực tế của BHXH (1,568 tỷ VNĐ xuất toán), phát hiện 451 ca trùng dưới 4 giờ bị cơ quan BHXH gắn cờ sai quy định nghiệp vụ công văn hướng dẫn; đưa ra 4 giải pháp giải trình giảm thiểu hàng trăm triệu đồng xuất toán cho Bệnh viện.",
+        "Nâng cấp giao diện cảnh báo và màu sắc trực quan: Phân biệt rõ rệt bằng badge và màu sắc giữa ca Có nguy cơ xuất toán (đỏ/hồng kèm số tiền trừ âm), ca Giữ lại 0đ (xanh ngọc emerald), ca Cảnh báo thủ tục vượt giờ ra viện (cam) và Trùng phút chuyển tiếp (tím).",
+        "Nâng cấp Infographic HTML Tương Tác đa chiều: Bổ sung bộ lọc đồng thời theo Loại vi phạm, Khoa lâm sàng, Mức độ rủi ro (Có xuất toán vs Chỉ cảnh báo), tìm kiếm tức thì và tích hợp nút xuất trực tiếp file Excel báo cáo KT251 (.xls) với 2 sheet Tổng hợp & Chi tiết từ chính trang Infographic.",
+      ],
+    },
     {
       version: "2.16.0",
       date: "2026-11-20",

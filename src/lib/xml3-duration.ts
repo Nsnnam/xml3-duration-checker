@@ -119,6 +119,9 @@ export type Xml3Record = {
   bedOverlapDate?: string;
   bedOverlapHours?: number;
   bedSharingInfo?: BedSharingPeerInfo[];
+  isRetainedBed?: boolean;
+  isAdministrativeWarning?: boolean;
+  bedAuditAction?: "retained" | "rejected" | "warning";
   durationMinutes: number | null;
   serviceRule?: ServiceRule;
   patient?: PatientInfo;
@@ -640,15 +643,22 @@ export function getRecordStatusLabel(record: Xml3Record): string {
   if (record.hasEqualWarning) return "TRÙNG MỐC";
   if (record.hasBedWarning) {
     if (record.bedWarningType === "bed-exceeds-discharge") return "VƯỢT GIỜ RA";
+    if (record.bedWarningType === "minute-duplicate") return "TRÙNG PHÚT";
+    if (record.bedAuditAction === "retained") return "GIƯỜNG (GIỮ LẠI)";
+    if (record.bedAuditAction === "rejected") {
+      if (record.bedWarningType === "multi-day-overlap") {
+        return `GỐI ĐẦU ${record.bedOverlapDaysCount || 2}N (XT)`;
+      }
+      return "GIƯỜNG GHÉP (XT)";
+    }
     if (record.bedWarningType === "multi-day-overlap") {
       return `GỐI ĐẦU ${record.bedOverlapDaysCount || 2}N`;
     }
-    if (record.bedWarningType === "minute-duplicate") return "TRÙNG PHÚT";
     if (record.bedWarningType === "bed-sharing") {
       return (record.bedSharingCount ?? 2) >= 3 ? "GHÉP 3+ NGƯỜI" : "GHÉP 2 NGƯỜI";
     }
     if (record.bedWarningType === "missing-bed-code") return "THIẾU MÃ GIƯỜNG";
-    if (record.bedWarningType === "multiple-beds") return "TRÙNG GIƯỜNG";
+    if (record.bedWarningType === "multiple-beds") return "TRÙNG GIƯỜNG (XT)";
     return "GIƯỜNG";
   }
   if (record.hasTtThauWarning) return "TT_THAU";
@@ -1498,6 +1508,9 @@ export function addBedWarnings(
       const message = `XML3. Chi tiết thứ ${detailIndex}: Chi phí ngày giường (MA_NHOM ${nhom}) nhưng thiếu MA_GIUONG.`;
       rec.hasBedWarning = true;
       rec.bedWarningType = "missing-bed-code";
+      rec.isAdministrativeWarning = true;
+      rec.bedAuditAction = "warning";
+      rec.potentialBedRefusal = 0;
       rec.MA_GIUONG_TRUNG = "(thiếu mã giường)";
       rec.status = rec.status === "ok" ? "bed-warning" : rec.status;
       rec.detail = rec.detail ? `${rec.detail} · ${message}` : message;
@@ -1538,6 +1551,9 @@ export function addBedWarnings(
       if (prev.NGAY_KQ === next.NGAY_TH_YL) {
         next.hasBedWarning = true;
         next.bedWarningType = "minute-duplicate";
+        next.isAdministrativeWarning = true;
+        next.bedAuditAction = "warning";
+        next.potentialBedRefusal = 0;
         next.status = next.status === "ok" ? "bed-warning" : next.status;
         const prevEndDisp = formatXmlDateTime(prev.NGAY_KQ) || prev.NGAY_KQ;
         const nextStartDisp = formatXmlDateTime(next.NGAY_TH_YL) || next.NGAY_TH_YL;
@@ -1547,7 +1563,7 @@ export function addBedWarnings(
         const suggestPrevEndDisp = formatXmlDateTime(suggestPrevEnd) || suggestPrevEnd;
 
         next.MA_GIUONG_TRUNG = `${next.MA_GIUONG || "Giường"} (Trùng phút STT ${prev.STT || "xx"}: ${nextStartDisp})`;
-        const msg = `XML3. Chi tiết thứ ${next.STT || "xx"}: Trùng số phút chuyển tiếp kê giường cùng BN với chi tiết STT ${prev.STT || "xx"} (Dòng trước kết thúc lúc ${prevEndDisp} trùng chính xác phút bắt đầu dòng sau ${nextStartDisp}). Gợi ý: Tăng 1 phút cho giờ bắt đầu dòng sau (${suggestStartDisp}) hoặc lùi 1 phút ở dòng trước (${suggestPrevEndDisp}) để tránh bị BHYT bắt lỗi kê đồng thời 2 giường.`;
+        const msg = `XML3. Chi tiết thứ ${next.STT || "xx"}: Trùng số phút chuyển tiếp kê giường cùng BN với chi tiết STT ${prev.STT || "xx"} (Dòng trước kết thúc lúc ${prevEndDisp} trùng chính xác phút bắt đầu dòng sau ${nextStartDisp}). (Cảnh báo mốc phút - 0 đ xuất toán do cùng BN). Gợi ý: Tăng 1 phút cho giờ bắt đầu dòng sau (${suggestStartDisp}) hoặc lùi 1 phút ở dòng trước (${suggestPrevEndDisp}) để tránh bị BHYT bắt lỗi kê đồng thời 2 giường.`;
         next.detail = next.detail ? `${next.detail} · ${msg}` : msg;
       }
       // Case B: Chồng lấn thời gian (dòng sau bắt đầu TRƯỚC KHI dòng trước kết thúc)
@@ -1556,9 +1572,20 @@ export function addBedWarnings(
         if (overlapMins !== null && overlapMins > 0) {
           next.hasBedWarning = true;
           next.bedWarningType = "multiple-beds";
+          next.bedAuditAction = "rejected";
           next.status = next.status === "ok" ? "bed-warning" : next.status;
+          const soLuong = next.SO_LUONG ?? 1;
+          const donGia = next.DON_GIA ?? 0;
+          const thanhTien =
+            next.THANH_TIEN !== undefined && next.THANH_TIEN > 0
+              ? next.THANH_TIEN
+              : soLuong * donGia;
+          const mucHuong =
+            next.MUC_HUONG ?? (next.patient?.MUC_HUONG ? parseFloat(next.patient.MUC_HUONG) : 100);
+          next.potentialBedRefusal = Math.round(thanhTien * (mucHuong / 100));
+
           next.MA_GIUONG_TRUNG = `${next.MA_GIUONG || "Giường"} (Chồng lấn ${overlapMins}p với STT ${prev.STT || "xx"})`;
-          const msg = `XML3. Chi tiết thứ ${next.STT || "xx"}: Chồng lấn ${overlapMins} phút thời gian kê giường cùng BN với chi tiết STT ${prev.STT || "xx"} (từ ${formatXmlDateTime(next.NGAY_TH_YL)} đến ${formatXmlDateTime(prev.NGAY_KQ)}).`;
+          const msg = `XML3. Chi tiết thứ ${next.STT || "xx"}: Chồng lấn ${overlapMins} phút thời gian kê giường cùng BN với chi tiết STT ${prev.STT || "xx"} (từ ${formatXmlDateTime(next.NGAY_TH_YL)} đến ${formatXmlDateTime(prev.NGAY_KQ)}). NGUY CƠ XUẤT TOÁN (-${next.potentialBedRefusal.toLocaleString("vi-VN")} đ) do kê trùng đồng thời nhiều giường cho một bệnh nhân.`;
           next.detail = next.detail ? `${next.detail} · ${msg}` : msg;
         }
       }
@@ -1591,6 +1618,8 @@ export function addBedWarnings(
   };
   const sharingMetaByRecord = new Map<number, SharingRecordMeta>();
   const pairOverlapDays = new Map<string, Set<string>>();
+  const retainedRecordIndices = new Set<number>();
+  const rejectedRecordIndices = new Set<number>();
 
   for (const [bedKey, intervals] of intervalsByBedDay.entries()) {
     if (intervals.length <= 1) continue;
@@ -1637,6 +1666,62 @@ export function addBedWarnings(
     }
 
     if (!overlapPairs.length) continue;
+
+    // Xây dựng đồ thị các ca trùng trên cùng buồng giường trong ngày
+    const adj = new Map<number, Set<number>>();
+    for (const pair of overlapPairs) {
+      const idxA = pair.intA.recordIndex;
+      const idxB = pair.intB.recordIndex;
+      if (!adj.has(idxA)) adj.set(idxA, new Set());
+      if (!adj.has(idxB)) adj.set(idxB, new Set());
+      adj.get(idxA)!.add(idxB);
+      adj.get(idxB)!.add(idxA);
+    }
+
+    const visitedCluster = new Set<number>();
+    for (const startIdx of adj.keys()) {
+      if (visitedCluster.has(startIdx)) continue;
+      const clusterIndices: number[] = [];
+      const queue = [startIdx];
+      visitedCluster.add(startIdx);
+      while (queue.length > 0) {
+        const curr = queue.shift()!;
+        clusterIndices.push(curr);
+        for (const neighbor of adj.get(curr) || []) {
+          if (!visitedCluster.has(neighbor)) {
+            visitedCluster.add(neighbor);
+            queue.push(neighbor);
+          }
+        }
+      }
+
+      if (clusterIndices.length > 1) {
+        // Sắp xếp: Giường có THANH_TIEN cao nhất lên đầu; nếu bằng nhau, NGAY_TH_YL sớm hơn lên đầu
+        clusterIndices.sort((idxA, idxB) => {
+          const rA = result[idxA];
+          const rB = result[idxB];
+          const amtA =
+            rA.THANH_TIEN !== undefined && rA.THANH_TIEN > 0
+              ? rA.THANH_TIEN
+              : (rA.DON_GIA || 0) * (rA.SO_LUONG || 1);
+          const amtB =
+            rB.THANH_TIEN !== undefined && rB.THANH_TIEN > 0
+              ? rB.THANH_TIEN
+              : (rB.DON_GIA || 0) * (rB.SO_LUONG || 1);
+          if (amtB !== amtA) return amtB - amtA;
+          const sA = rA.NGAY_TH_YL || "";
+          const sB = rB.NGAY_TH_YL || "";
+          return sA.localeCompare(sB);
+        });
+
+        // Giữ lại 01 giường cao nhất/vào trước
+        retainedRecordIndices.add(clusterIndices[0]);
+        // Xuất toán các giường phía sau
+        for (let c = 1; c < clusterIndices.length; c++) {
+          rejectedRecordIndices.add(clusterIndices[c]);
+        }
+      }
+    }
 
     // Thu thập danh sách bệnh nhân tham gia nằm ghép trên giường này trong ngày
     const bedDayParticipatingPatients = new Set<string>();
@@ -1738,45 +1823,58 @@ export function addBedWarnings(
     rec.bedOverlapHours = meta.maxOverlapHours;
     rec.bedSharingInfo = meta.peers;
 
+    const isRejected = rejectedRecordIndices.has(recIdx);
+    const isRetained = !isRejected && retainedRecordIndices.has(recIdx);
+    rec.isRetainedBed = isRetained;
+    rec.bedAuditAction = isRejected ? "rejected" : isRetained ? "retained" : "warning";
+
+    const soLuong = rec.SO_LUONG ?? 1;
+    const donGia = rec.DON_GIA ?? 0;
+    const thanhTien =
+      rec.THANH_TIEN !== undefined && rec.THANH_TIEN > 0 ? rec.THANH_TIEN : soLuong * donGia;
+    const mucHuong =
+      rec.MUC_HUONG ?? (rec.patient?.MUC_HUONG ? parseFloat(rec.patient.MUC_HUONG) : 100);
+
+    // Xuất toán các giường phía sau, giữ lại 01 giường có giá tiền cao nhất (0 đ xuất toán)
+    if (isRejected) {
+      rec.potentialBedRefusal = Math.round(thanhTien * (mucHuong / 100));
+    } else {
+      rec.potentialBedRefusal = 0;
+    }
+
     const peerNames = meta.peers
       .map((p) => p.peerHoTen || p.peerMaBn || p.peerMaLk)
       .slice(0, 2)
       .join(", ");
     const moreCount = meta.peers.length > 2 ? ` +${meta.peers.length - 2}` : "";
     const gpoiInfo = isMultiDay ? ` [gối ${maxMultiDayCount} ngày]` : ` [${meta.maxOverlapHours}h]`;
-    rec.MA_GIUONG_TRUNG = `${rec.MA_GIUONG} (Trùng BN: ${peerNames}${moreCount}${gpoiInfo})`;
+    const actionTag = isRetained ? " [GIỮ LẠI]" : " [XUẤT TOÁN]";
+    rec.MA_GIUONG_TRUNG = `${rec.MA_GIUONG}${actionTag} (Trùng BN: ${peerNames}${moreCount}${gpoiInfo})`;
 
-    if (tyleTt > suggestedTyleTt) {
-      rec.hasBedWarning = true;
-      rec.status = rec.status === "ok" ? "bed-warning" : rec.status;
+    rec.hasBedWarning = true;
+    rec.status = rec.status === "ok" ? "bed-warning" : rec.status;
 
-      const soLuong = rec.SO_LUONG ?? 1;
-      const donGia = rec.DON_GIA ?? 0;
-      const mucHuong =
-        rec.MUC_HUONG ?? (rec.patient?.MUC_HUONG ? parseFloat(rec.patient.MUC_HUONG) : 100);
-      const potentialRefusal = Math.round(
-        soLuong * donGia * (mucHuong / 100) * ((tyleTt - suggestedTyleTt) / 100),
-      );
-      rec.potentialBedRefusal = potentialRefusal;
+    const detailIndex = rec.STT || "xx";
+    const peerDetailStr = meta.peers
+      .map(
+        (p) =>
+          `[BN: ${p.peerHoTen || "—"} - Mã BN: ${p.peerMaBn || "—"}, LK: ${p.peerMaLk}, Giường: ${p.peerGiuong || rec.MA_GIUONG}, Khoa: ${p.peerKhoa}, Giờ: ${p.startTimeDisplay}–${p.endTimeDisplay}, Giao: ${p.overlapHours}h ngày ${p.overlapDate}]`,
+      )
+      .join("; ");
 
-      const detailIndex = rec.STT || "xx";
-      const peerDetailStr = meta.peers
-        .map(
-          (p) =>
-            `[BN: ${p.peerHoTen || "—"} - Mã BN: ${p.peerMaBn || "—"}, LK: ${p.peerMaLk}, Giường: ${p.peerGiuong || rec.MA_GIUONG}, Khoa: ${p.peerKhoa}, Giờ: ${p.startTimeDisplay}–${p.endTimeDisplay}, Giao: ${p.overlapHours}h ngày ${p.overlapDate}]`,
-        )
-        .join("; ");
+    const bedTypeTitle = isMultiDay
+      ? `Giường gối đầu liên tiếp ${maxMultiDayCount} ngày (${meta.patientCount} người, giao nhau ${meta.maxOverlapHours}h ngày ${meta.overlapDay})`
+      : meta.patientCount >= 3
+        ? `Giường ghép từ 3 người trở lên (${meta.patientCount} người, giao nhau ${meta.maxOverlapHours}h ngày ${meta.overlapDay})`
+        : `Giường ghép 2 người (giao nhau ${meta.maxOverlapHours}h ngày ${meta.overlapDay})`;
 
-      const bedTypeTitle = isMultiDay
-        ? `Giường gối đầu liên tiếp ${maxMultiDayCount} ngày (${meta.patientCount} người, giao nhau ${meta.maxOverlapHours}h ngày ${meta.overlapDay})`
-        : meta.patientCount >= 3
-          ? `Giường ghép từ 3 người trở lên (${meta.patientCount} người, giao nhau ${meta.maxOverlapHours}h ngày ${meta.overlapDay})`
-          : `Giường ghép 2 người (giao nhau ${meta.maxOverlapHours}h ngày ${meta.overlapDay})`;
+    const actionMessage = isRetained
+      ? `Được GIỮ LẠI THANH TOÁN (0 đ xuất toán) do có giá trị thanh toán cao nhất trong lượt trùng.`
+      : `NGUY CƠ XUẤT TOÁN 100% (-${rec.potentialBedRefusal.toLocaleString("vi-VN")} đ) do trùng giường với hồ sơ khác có giá trị thanh toán cao hơn/trước đó.`;
 
-      const message = `XML3. Chi tiết thứ ${detailIndex}: ${bedTypeTitle}. Đề nghị thanh toán TYLE_TT=${tyleTt}%, vượt mức quy định ${suggestedTyleTt}% theo Thông tư 39/2024/TT-BYT. Tiền xuất toán dự kiến: ${potentialRefusal.toLocaleString("vi-VN")} đ. Hồ sơ trùng ghép: ${peerDetailStr}.`;
+    const message = `XML3. Chi tiết thứ ${detailIndex}: ${bedTypeTitle}. Đề nghị thanh toán TYLE_TT=${tyleTt}%. ${actionMessage} Hồ sơ trùng ghép: ${peerDetailStr}.`;
 
-      rec.detail = rec.detail ? `${rec.detail} · ${message}` : message;
-    }
+    rec.detail = rec.detail ? `${rec.detail} · ${message}` : message;
   }
 
   // 5. Kiểm tra thời gian kết thúc kê giường vượt quá thời gian ra viện của bệnh nhân (NGAY_RA)
@@ -1800,10 +1898,13 @@ export function addBedWarnings(
     if (cmpLen >= 8 && checkTimeDigits.slice(0, cmpLen) > ngayRaDigits.slice(0, cmpLen)) {
       rec.hasBedWarning = true;
       rec.bedWarningType = "bed-exceeds-discharge";
+      rec.isAdministrativeWarning = true;
+      rec.bedAuditAction = "warning";
+      rec.potentialBedRefusal = 0; // Cảnh báo thủ tục, KHÔNG tính xuất toán trực tiếp
       const displayRa = formatXmlDateTime(ngayRaDigits) || ngayRaDigits;
       const displayKq = formatXmlDateTime(checkTimeDigits) || checkTimeDigits;
       const detailIndex = rec.STT || String(i + 1);
-      const message = `XML3. Chi tiết thứ ${detailIndex}: Thời gian kết thúc kê giường (${displayKq}) vượt quá thời gian ra viện của bệnh nhân (${displayRa}). Gợi ý sửa: Sửa NGAY_KQ = ${ngayRaDigits.slice(0, 12)}`;
+      const message = `XML3. Chi tiết thứ ${detailIndex}: Thời gian kết thúc kê giường (${displayKq}) vượt quá thời gian ra viện của bệnh nhân (${displayRa}). (Cảnh báo nghiệp vụ - 0 đ xuất toán do không trùng giường). Gợi ý sửa: Sửa NGAY_KQ = ${ngayRaDigits.slice(0, 12)}`;
       rec.MA_GIUONG_TRUNG = `(vượt ra viện: ${displayRa})`;
       rec.status = rec.status === "ok" ? "bed-warning" : rec.status;
       rec.detail = rec.detail ? `${rec.detail} · ${message}` : message;

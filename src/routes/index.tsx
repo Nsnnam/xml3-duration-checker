@@ -3394,21 +3394,58 @@ function WarningRow({
       </td>
       {isVisible("status") && (
         <td style={colWidth("status", 85)} className="px-3 py-2.5 text-center">
-          <span
-            className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-tight ${
-              isWarning ? "" : "bg-slate-100 text-slate-600"
-            }`}
-            style={
-              isWarning
-                ? {
-                    backgroundColor: customColor,
-                    color: "#ffffff",
-                  }
-                : undefined
-            }
-          >
-            {label}
-          </span>
+          {record.hasBedWarning && record.bedAuditAction === "rejected" ? (
+            <div>
+              <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-tight bg-rose-700 text-white shadow-2xs">
+                {label}
+              </span>
+              {record.potentialBedRefusal ? (
+                <div
+                  className="mt-1 rounded bg-rose-100 px-1 py-0.5 text-[9.5px] font-mono font-black text-rose-800 border border-rose-300"
+                  title="Ước tính số tiền BHYT từ chối thanh toán do trùng giường"
+                >
+                  -{(record.potentialBedRefusal / 1000).toFixed(0)}k đ
+                </div>
+              ) : null}
+            </div>
+          ) : record.hasBedWarning && record.isRetainedBed ? (
+            <div>
+              <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-tight bg-emerald-600 text-white shadow-2xs border border-emerald-700">
+                GIỮ LẠI (0đ)
+              </span>
+              <div className="mt-0.5 text-[9px] font-bold text-emerald-700">Thanh toán</div>
+            </div>
+          ) : record.hasBedWarning && record.bedWarningType === "bed-exceeds-discharge" ? (
+            <div>
+              <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-tight bg-amber-500 text-white shadow-2xs">
+                VƯỢT GIỜ RA
+              </span>
+              <div className="mt-0.5 text-[9px] font-semibold text-amber-700">Chỉ cảnh báo</div>
+            </div>
+          ) : record.hasBedWarning && record.bedWarningType === "minute-duplicate" ? (
+            <div>
+              <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-tight bg-indigo-600 text-white shadow-2xs">
+                TRÙNG PHÚT
+              </span>
+              <div className="mt-0.5 text-[9px] font-semibold text-indigo-700">0đ xuất toán</div>
+            </div>
+          ) : (
+            <span
+              className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-tight ${
+                isWarning ? "" : "bg-slate-100 text-slate-600"
+              }`}
+              style={
+                isWarning
+                  ? {
+                      backgroundColor: customColor,
+                      color: "#ffffff",
+                    }
+                  : undefined
+              }
+            >
+              {label}
+            </span>
+          )}
           {onOpenDetail && (
             <button
               type="button"
@@ -3747,7 +3784,15 @@ function WarningRow({
           {record.MA_GIUONG_TRUNG ? (
             <div className="font-mono text-[11px] leading-tight">
               <span
-                className="font-bold text-purple-900 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200 inline-block break-words"
+                className={`font-bold px-1.5 py-0.5 rounded border inline-block break-words ${
+                  record.bedAuditAction === "rejected"
+                    ? "text-rose-900 bg-rose-50 border-rose-300"
+                    : record.isRetainedBed
+                      ? "text-emerald-900 bg-emerald-50 border-emerald-300"
+                      : record.bedWarningType === "bed-exceeds-discharge"
+                        ? "text-amber-900 bg-amber-50 border-amber-300"
+                        : "text-purple-900 bg-purple-50 border-purple-200"
+                }`}
                 title={record.detail}
               >
                 🛏️ {record.MA_GIUONG_TRUNG}

@@ -1588,7 +1588,7 @@ const baseBedRecord = {
   rawXml: "<CHI_TIET_DVKT/>",
 };
 
-// Case 1: Giường ghép 2 người (giao nhau 6 giờ > 4 giờ), đề nghị 100% -> Cảnh báo, gợi ý 50%, tiền xuất toán 125.000 đ
+// Case 1: Giường ghép 2 người (giao nhau 6 giờ > 4 giờ), đề nghị 100% -> Giữ lại 1 giường cao nhất/vào trước (0 đ), xuất toán giường sau (250.000 đ)
 const bedRec1 = {
   ...baseBedRecord,
   MA_LK: "LK-BED-01",
@@ -1616,18 +1616,18 @@ assert.equal(bedCheckResult1.length, 2);
 assert.equal(bedCheckResult1[0].hasBedWarning, true);
 assert.equal(bedCheckResult1[0].bedWarningType, "bed-sharing");
 assert.equal(bedCheckResult1[0].bedSharingCount, 2);
-assert.equal(bedCheckResult1[0].suggestedTyleTt, 50);
-assert.equal(bedCheckResult1[0].potentialBedRefusal, 125000);
+assert.equal(bedCheckResult1[0].isRetainedBed, true);
+assert.equal(bedCheckResult1[0].potentialBedRefusal, 0);
 assert.equal(bedCheckResult1[0].bedOverlapHours, 6);
 assert.equal(bedCheckResult1[0].bedSharingInfo?.length, 1);
 assert.equal(bedCheckResult1[0].bedSharingInfo?.[0].peerMaLk, "LK-BED-02");
 assert.ok(bedCheckResult1[0].MA_GIUONG_TRUNG?.includes("G001"));
 assert.ok(bedCheckResult1[0].detail.includes("Hồ sơ trùng ghép"));
 assert.equal(bedCheckResult1[1].hasBedWarning, true);
-assert.equal(bedCheckResult1[1].suggestedTyleTt, 50);
-assert.equal(bedCheckResult1[1].potentialBedRefusal, 125000);
+assert.equal(bedCheckResult1[1].isRetainedBed, false);
+assert.equal(bedCheckResult1[1].potentialBedRefusal, 250000);
 
-// Case 2: Giường ghép từ 3 người trở lên (giao nhau > 4 giờ), đề nghị 100% -> gợi ý 33%, tính đúng tiền xuất toán
+// Case 2: Giường ghép từ 3 người trở lên (giao nhau > 4 giờ) -> Giữ lại 1 giường cao nhất, xuất toán các giường sau
 const bedRec3 = {
   ...baseBedRecord,
   STT: "3",
@@ -1642,8 +1642,12 @@ const bedRec3 = {
 
 const bedCheckResult2 = addBedWarnings([bedRec1, bedRec2, bedRec3]);
 assert.equal(bedCheckResult2[0].bedSharingCount, 3);
-assert.equal(bedCheckResult2[0].suggestedTyleTt, 33);
-assert.equal(bedCheckResult2[0].potentialBedRefusal, 167500);
+assert.equal(bedCheckResult2[0].isRetainedBed, true);
+assert.equal(bedCheckResult2[0].potentialBedRefusal, 0);
+assert.equal(bedCheckResult2[1].isRetainedBed, false);
+assert.equal(bedCheckResult2[1].potentialBedRefusal, 250000);
+assert.equal(bedCheckResult2[2].isRetainedBed, false);
+assert.equal(bedCheckResult2[2].potentialBedRefusal, 250000);
 
 // Case 3: Giao nhau <= 4 giờ (ví dụ 180 phút: từ 12:00 đến 15:00) -> Không coi là giường nằm ghép theo KT251
 const bedRecShort1 = {

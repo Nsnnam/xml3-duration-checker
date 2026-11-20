@@ -382,7 +382,7 @@ html_template = f"""<!DOCTYPE html>
         <span>🏥 Đơn vị: <strong>Bệnh viện hữu nghị Lạc Việt</strong></span>
         <span>⏱️ Múi giờ: Asia/Ho_Chi_Minh (GMT+7)</span>
         <span>👤 Thực hiện: Nguyễn Sơn Nam (Nsnnam)</span>
-        <span>🚀 Ứng dụng: NsN_XMLcheck v2.16.0</span>
+        <span>🚀 Ứng dụng: NsN_XMLcheck v2.17.0</span>
       </div>
     </div>
 
@@ -509,7 +509,7 @@ html_template = f"""<!DOCTYPE html>
 
     <div class="footer">
       <div>
-        <strong>NsN_XMLcheck v2.16.0</strong> — Hệ thống kiểm tra dữ liệu BHYT &amp; Rà soát chuyên sâu KT251
+        <strong>NsN_XMLcheck v2.17.0</strong> — Hệ thống kiểm tra dữ liệu BHYT &amp; Rà soát chuyên sâu KT251
       </div>
       <div>
         Bản quyền © 2026 <strong>Nguyễn Sơn Nam (Nsnnam)</strong> · Bệnh viện hữu nghị Lạc Việt

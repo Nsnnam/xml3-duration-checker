@@ -475,24 +475,37 @@ export async function createBedSharingWorkbook(
   ];
 
   const totalRefusalMoney = bedRecords.reduce((sum, r) => sum + (r.potentialBedRefusal ?? 0), 0);
+  const countRetained = bedRecords.filter((r) => r.isRetainedBed).length;
+  const countRejected = bedRecords.filter((r) => r.bedAuditAction === "rejected").length;
+  const countAdminWarning = bedRecords.filter((r) => r.isAdministrativeWarning).length;
   const count2Patients = bedRecords.filter((r) => (r.bedSharingCount ?? 2) === 2).length;
   const count3PlusPatients = bedRecords.filter((r) => (r.bedSharingCount ?? 2) >= 3).length;
   const countMultiDay = bedRecords.filter((r) => r.bedWarningType === "multi-day-overlap").length;
   const countMinuteDup = bedRecords.filter((r) => r.bedWarningType === "minute-duplicate").length;
+  const countExceedDischarge = bedRecords.filter(
+    (r) => r.bedWarningType === "bed-exceeds-discharge",
+  ).length;
   const uniquePatients = new Set(bedRecords.map((r) => r.MA_LK)).size;
   const uniqueBeds = new Set(bedRecords.map((r) => `${r.MA_KHOA}|${r.MA_GIUONG}`)).size;
 
   summarySheet.addRows([
     { label: "Tổng số lượt chi phí ngày giường nằm ghép (KT251)", value: bedRecords.length },
+    { label: "✓ Số lượt giường được giữ lại (Thanh toán 100%)", value: countRetained },
+    { label: "✗ Số lượt giường bị xuất toán (Các giường phía sau)", value: countRejected },
+    { label: "⚠ Số lượt cảnh báo nghiệp vụ/thủ tục (0 đ xuất toán)", value: countAdminWarning },
     { label: "Trong đó: Giường gối đầu liên tiếp (>= 2 ngày)", value: countMultiDay },
     { label: "Trong đó: Trùng số phút chuyển tiếp kê giường (cùng BN)", value: countMinuteDup },
+    {
+      label: "Trong đó: Giờ kê giường vượt quá giờ ra viện (chỉ cảnh báo)",
+      value: countExceedDischarge,
+    },
     { label: "Số lượt ghép 2 người (đề nghị thanh toán > 50%)", value: count2Patients },
     {
       label: "Số lượt ghép từ 3 người trở lên (đề nghị thanh toán > 33%)",
       value: count3PlusPatients,
     },
     {
-      label: "Tổng số tiền có nguy cơ xuất toán BHYT (VNĐ)",
+      label: "Tổng số tiền có nguy cơ xuất toán BHYT thực tế (VNĐ)",
       value: totalRefusalMoney.toLocaleString("vi-VN") + " VNĐ",
     },
     { label: "Số cụm ngày / buồng giường nằm ghép", value: groupMap.size },
@@ -504,7 +517,8 @@ export async function createBedSharingWorkbook(
     },
     {
       label: "Căn cứ pháp lý rà soát",
-      value: "Thông tư 39/2024/TT-BYT & Hướng dẫn kiểm tra KT251 BHXH Việt Nam",
+      value:
+        "Thông tư 39/2024/TT-BYT & Hướng dẫn kiểm tra KT251 BHXH Việt Nam (Giữ lại 1 giường cao nhất)",
     },
   ]);
   styleSheet(summarySheet);
@@ -514,6 +528,7 @@ export async function createBedSharingWorkbook(
   const detailSheet = workbook.addWorksheet("Chi tiết giường ghép KT251");
   detailSheet.columns = [
     { header: "STT", key: "stt", width: 8 },
+    { header: "Tình trạng xử lý", key: "tinhTrang", width: 22 },
     { header: "Khoa điều trị", key: "maKhoa", width: 14 },
     { header: "Mã giường", key: "maGiuong", width: 16 },
     { header: "Mã giường trùng", key: "maGiuongTrung", width: 25 },
@@ -560,8 +575,20 @@ export async function createBedSharingWorkbook(
         )
         .join(" | ");
 
+      let tinhTrangStr = "Chỉ cảnh báo";
+      if (r.isRetainedBed) {
+        tinhTrangStr = "✅ Giữ lại (0 đ XT)";
+      } else if (r.bedAuditAction === "rejected") {
+        tinhTrangStr = "🚨 Xuất toán (Trùng)";
+      } else if (r.bedWarningType === "bed-exceeds-discharge") {
+        tinhTrangStr = "⚠️ Vượt giờ ra viện";
+      } else if (r.bedWarningType === "minute-duplicate") {
+        tinhTrangStr = "⏱️ Trùng phút 12:00";
+      }
+
       const addedRow = detailSheet.addRow({
         stt: rowStt++,
+        tinhTrang: tinhTrangStr,
         maKhoa: r.MA_KHOA,
         maGiuong: r.MA_GIUONG,
         maGiuongTrung: r.MA_GIUONG_TRUNG || r.MA_GIUONG,
