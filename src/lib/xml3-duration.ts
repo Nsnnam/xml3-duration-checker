@@ -4,6 +4,7 @@ import {
   type MachineServiceRule,
 } from "./mandatory-machine-services-data.ts";
 import { formatXmlDateTime } from "./timezone.ts";
+import { addMinutesToXmlDateTime } from "./correction-plan.ts";
 
 export type { MachineServiceRule };
 export { DEFAULT_MANDATORY_MACHINE_SERVICES };
@@ -103,8 +104,11 @@ export type Xml3Record = {
   TYLE_TT?: number;
   THANH_TIEN?: number;
   MUC_HUONG?: number;
-  bedWarningType?: "bed-sharing" | "multiple-beds" | "missing-bed-code";
+  MA_GIUONG_TRUNG?: string;
+  bedWarningType?:
+    "bed-sharing" | "multi-day-overlap" | "minute-duplicate" | "multiple-beds" | "missing-bed-code";
   bedSharingCount?: number;
+  bedOverlapDaysCount?: number;
   suggestedTyleTt?: number;
   potentialBedRefusal?: number;
   bedOverlapDate?: string;
@@ -630,6 +634,10 @@ export function getRecordStatusLabel(record: Xml3Record): string {
   if (record.hasOrderWarning) return "SAI THỨ TỰ";
   if (record.hasEqualWarning) return "TRÙNG MỐC";
   if (record.hasBedWarning) {
+    if (record.bedWarningType === "multi-day-overlap") {
+      return `GỐI ĐẦU ${record.bedOverlapDaysCount || 2}N`;
+    }
+    if (record.bedWarningType === "minute-duplicate") return "TRÙNG PHÚT";
     if (record.bedWarningType === "bed-sharing") {
       return (record.bedSharingCount ?? 2) >= 3 ? "GHÉP 3+ NGƯỜI" : "GHÉP 2 NGƯỜI";
     }
@@ -1481,14 +1489,75 @@ export function addBedWarnings(records: Xml3Record[]): Xml3Record[] {
       const message = `XML3. Chi tiết thứ ${detailIndex}: Chi phí ngày giường (MA_NHOM ${nhom}) nhưng thiếu MA_GIUONG.`;
       rec.hasBedWarning = true;
       rec.bedWarningType = "missing-bed-code";
+      rec.MA_GIUONG_TRUNG = "(thiếu mã giường)";
       rec.status = rec.status === "ok" ? "bed-warning" : rec.status;
       rec.detail = rec.detail ? `${rec.detail} · ${message}` : message;
     }
   }
 
-  // 2. Thu thập intervals theo từng ngày cho các dòng có MA_GIUONG
+  // 2. Kiểm tra cùng bệnh nhân: Trùng số phút chuyển tiếp kê giường (minute-duplicate) và chồng lấn thời gian
+  const bedRecordsByPatient = new Map<string, number[]>();
+  for (let i = 0; i < result.length; i++) {
+    const rec = result[i];
+    const nhom = (rec.MA_NHOM || "").trim();
+    if (nhom === "14" || nhom === "15") {
+      const patKey = rec.MA_LK || rec.MA_BN;
+      if (!patKey) continue;
+      const list = bedRecordsByPatient.get(patKey) || [];
+      list.push(i);
+      bedRecordsByPatient.set(patKey, list);
+    }
+  }
+
+  for (const [, indices] of bedRecordsByPatient.entries()) {
+    if (indices.length <= 1) continue;
+    indices.sort((idxA, idxB) => {
+      const sA = result[idxA].NGAY_TH_YL || "";
+      const sB = result[idxB].NGAY_TH_YL || "";
+      return sA.localeCompare(sB);
+    });
+
+    for (let k = 0; k < indices.length - 1; k++) {
+      const idxPrev = indices[k];
+      const idxNext = indices[k + 1];
+      const prev = result[idxPrev];
+      const next = result[idxNext];
+
+      if (!prev.NGAY_KQ || !next.NGAY_TH_YL) continue;
+
+      // Case A: Trùng chính xác mốc phút chuyển tiếp kê giường (NGAY_KQ của prev == NGAY_TH_YL của next)
+      if (prev.NGAY_KQ === next.NGAY_TH_YL) {
+        next.hasBedWarning = true;
+        next.bedWarningType = "minute-duplicate";
+        next.status = next.status === "ok" ? "bed-warning" : next.status;
+        const prevEndDisp = formatXmlDateTime(prev.NGAY_KQ) || prev.NGAY_KQ;
+        const nextStartDisp = formatXmlDateTime(next.NGAY_TH_YL) || next.NGAY_TH_YL;
+        const suggestStart = addMinutesToXmlDateTime(next.NGAY_TH_YL, 1);
+        const suggestStartDisp = formatXmlDateTime(suggestStart) || suggestStart;
+        const suggestPrevEnd = addMinutesToXmlDateTime(prev.NGAY_KQ, -1);
+        const suggestPrevEndDisp = formatXmlDateTime(suggestPrevEnd) || suggestPrevEnd;
+
+        next.MA_GIUONG_TRUNG = `${next.MA_GIUONG || "Giường"} (Trùng phút STT ${prev.STT || "xx"}: ${nextStartDisp})`;
+        const msg = `XML3. Chi tiết thứ ${next.STT || "xx"}: Trùng số phút chuyển tiếp kê giường cùng BN với chi tiết STT ${prev.STT || "xx"} (Dòng trước kết thúc lúc ${prevEndDisp} trùng chính xác phút bắt đầu dòng sau ${nextStartDisp}). Gợi ý: Tăng 1 phút cho giờ bắt đầu dòng sau (${suggestStartDisp}) hoặc lùi 1 phút ở dòng trước (${suggestPrevEndDisp}) để tránh bị BHYT bắt lỗi kê đồng thời 2 giường.`;
+        next.detail = next.detail ? `${next.detail} · ${msg}` : msg;
+      }
+      // Case B: Chồng lấn thời gian (dòng sau bắt đầu TRƯỚC KHI dòng trước kết thúc)
+      else if (next.NGAY_TH_YL < prev.NGAY_KQ) {
+        const overlapMins = minutesBetween(next.NGAY_TH_YL, prev.NGAY_KQ);
+        if (overlapMins !== null && overlapMins > 0) {
+          next.hasBedWarning = true;
+          next.bedWarningType = "multiple-beds";
+          next.status = next.status === "ok" ? "bed-warning" : next.status;
+          next.MA_GIUONG_TRUNG = `${next.MA_GIUONG || "Giường"} (Chồng lấn ${overlapMins}p với STT ${prev.STT || "xx"})`;
+          const msg = `XML3. Chi tiết thứ ${next.STT || "xx"}: Chồng lấn ${overlapMins} phút thời gian kê giường cùng BN với chi tiết STT ${prev.STT || "xx"} (từ ${formatXmlDateTime(next.NGAY_TH_YL)} đến ${formatXmlDateTime(prev.NGAY_KQ)}).`;
+          next.detail = next.detail ? `${next.detail} · ${msg}` : msg;
+        }
+      }
+    }
+  }
+
+  // 3. Thu thập intervals theo từng ngày cho các dòng có MA_GIUONG
   const intervalsByBedDay = new Map<string, BedDailyInterval[]>();
-  const intervalsByPatientDay = new Map<string, BedDailyInterval[]>();
 
   for (let i = 0; i < result.length; i++) {
     const rec = result[i];
@@ -1501,16 +1570,10 @@ export function addBedWarnings(records: Xml3Record[]): Xml3Record[] {
       const bedList = intervalsByBedDay.get(bedKey) || [];
       bedList.push(interval);
       intervalsByBedDay.set(bedKey, bedList);
-
-      // Nhóm theo bệnh nhân: dayStr|MA_LK
-      const patKey = `${interval.dayStr}|${rec.MA_LK}`;
-      const patList = intervalsByPatientDay.get(patKey) || [];
-      patList.push(interval);
-      intervalsByPatientDay.set(patKey, patList);
     }
   }
 
-  // 3. Quét Giường Nằm Ghép (KT251) - Các bệnh nhân khác nhau nằm cùng giường, trùng > 240 phút (4 giờ)
+  // 4. Quét Giường Nằm Ghép & Giường gối đầu liên tiếp (KT251) - Các BN khác nhau nằm cùng giường, trùng > 240 phút (4 giờ)
   type SharingRecordMeta = {
     patientCount: number;
     maxOverlapHours: number;
@@ -1518,6 +1581,7 @@ export function addBedWarnings(records: Xml3Record[]): Xml3Record[] {
     peers: BedSharingPeerInfo[];
   };
   const sharingMetaByRecord = new Map<number, SharingRecordMeta>();
+  const pairOverlapDays = new Map<string, Set<string>>();
 
   for (const [bedKey, intervals] of intervalsByBedDay.entries()) {
     if (intervals.length <= 1) continue;
@@ -1549,6 +1613,16 @@ export function addBedWarnings(records: Xml3Record[]): Xml3Record[] {
         if (overlap > 240) {
           // Lớn hơn 4 giờ (240 phút) -> Giường nằm ghép!
           overlapPairs.push({ intA, intB, overlapMins: overlap });
+
+          const pairKey =
+            [rA.MA_LK, rB.MA_LK].sort().join("__") +
+            "__" +
+            (rA.MA_KHOA || "").trim() +
+            "__" +
+            (rA.MA_GIUONG || "").trim();
+          const daySet = pairOverlapDays.get(pairKey) || new Set<string>();
+          daySet.add(intA.dayStr);
+          pairOverlapDays.set(pairKey, daySet);
         }
       }
     }
@@ -1627,18 +1701,41 @@ export function addBedWarnings(records: Xml3Record[]): Xml3Record[] {
     }
   }
 
-  // Gắn cảnh báo Giường nằm ghép vào kết quả
+  // Gắn cảnh báo Giường nằm ghép & Giường gối đầu liên tiếp vào kết quả
   for (const [recIdx, meta] of sharingMetaByRecord.entries()) {
     const rec = result[recIdx];
     const tyleTt = rec.TYLE_TT ?? 100;
     const suggestedTyleTt = meta.patientCount >= 3 ? 33 : 50;
 
-    rec.bedWarningType = "bed-sharing";
+    const maxMultiDayCount = Math.max(
+      ...meta.peers.map((p) => {
+        const pairKey =
+          [rec.MA_LK, p.peerMaLk].sort().join("__") +
+          "__" +
+          (rec.MA_KHOA || "").trim() +
+          "__" +
+          (rec.MA_GIUONG || "").trim();
+        return pairOverlapDays.get(pairKey)?.size || 1;
+      }),
+      1,
+    );
+
+    const isMultiDay = maxMultiDayCount >= 2;
+    rec.bedWarningType = isMultiDay ? "multi-day-overlap" : "bed-sharing";
     rec.bedSharingCount = meta.patientCount;
+    rec.bedOverlapDaysCount = isMultiDay ? maxMultiDayCount : undefined;
     rec.suggestedTyleTt = suggestedTyleTt;
     rec.bedOverlapDate = meta.overlapDay;
     rec.bedOverlapHours = meta.maxOverlapHours;
     rec.bedSharingInfo = meta.peers;
+
+    const peerNames = meta.peers
+      .map((p) => p.peerHoTen || p.peerMaBn || p.peerMaLk)
+      .slice(0, 2)
+      .join(", ");
+    const moreCount = meta.peers.length > 2 ? ` +${meta.peers.length - 2}` : "";
+    const gpoiInfo = isMultiDay ? ` [gối ${maxMultiDayCount} ngày]` : ` [${meta.maxOverlapHours}h]`;
+    rec.MA_GIUONG_TRUNG = `${rec.MA_GIUONG} (Trùng BN: ${peerNames}${moreCount}${gpoiInfo})`;
 
     if (tyleTt > suggestedTyleTt) {
       rec.hasBedWarning = true;
@@ -1654,36 +1751,22 @@ export function addBedWarnings(records: Xml3Record[]): Xml3Record[] {
       rec.potentialBedRefusal = potentialRefusal;
 
       const detailIndex = rec.STT || "xx";
-      const message =
-        meta.patientCount >= 3
-          ? `XML3. Chi tiết thứ ${detailIndex}: Giường ghép từ 3 người trở lên (${meta.patientCount} người, giao nhau ${meta.maxOverlapHours}h ngày ${meta.overlapDay}). Đề nghị thanh toán TYLE_TT=${tyleTt}%, vượt mức quy định 33% theo Thông tư 39/2024/TT-BYT. Tiền xuất toán dự kiến: ${potentialRefusal.toLocaleString("vi-VN")} đ.`
-          : `XML3. Chi tiết thứ ${detailIndex}: Giường ghép 2 người (giao nhau ${meta.maxOverlapHours}h ngày ${meta.overlapDay}). Đề nghị thanh toán TYLE_TT=${tyleTt}%, vượt mức quy định 50% theo Thông tư 39/2024/TT-BYT. Tiền xuất toán dự kiến: ${potentialRefusal.toLocaleString("vi-VN")} đ.`;
+      const peerDetailStr = meta.peers
+        .map(
+          (p) =>
+            `[BN: ${p.peerHoTen || "—"} - Mã BN: ${p.peerMaBn || "—"}, LK: ${p.peerMaLk}, Giường: ${p.peerGiuong || rec.MA_GIUONG}, Khoa: ${p.peerKhoa}, Giờ: ${p.startTimeDisplay}–${p.endTimeDisplay}, Giao: ${p.overlapHours}h ngày ${p.overlapDate}]`,
+        )
+        .join("; ");
+
+      const bedTypeTitle = isMultiDay
+        ? `Giường gối đầu liên tiếp ${maxMultiDayCount} ngày (${meta.patientCount} người, giao nhau ${meta.maxOverlapHours}h ngày ${meta.overlapDay})`
+        : meta.patientCount >= 3
+          ? `Giường ghép từ 3 người trở lên (${meta.patientCount} người, giao nhau ${meta.maxOverlapHours}h ngày ${meta.overlapDay})`
+          : `Giường ghép 2 người (giao nhau ${meta.maxOverlapHours}h ngày ${meta.overlapDay})`;
+
+      const message = `XML3. Chi tiết thứ ${detailIndex}: ${bedTypeTitle}. Đề nghị thanh toán TYLE_TT=${tyleTt}%, vượt mức quy định ${suggestedTyleTt}% theo Thông tư 39/2024/TT-BYT. Tiền xuất toán dự kiến: ${potentialRefusal.toLocaleString("vi-VN")} đ. Hồ sơ trùng ghép: ${peerDetailStr}.`;
 
       rec.detail = rec.detail ? `${rec.detail} · ${message}` : message;
-    }
-  }
-
-  // 4. Kiểm tra cùng bệnh nhân nằm nhiều hơn 01 giường trong ngày (multiple-beds)
-  for (const [patKey, intervals] of intervalsByPatientDay.entries()) {
-    if (intervals.length <= 1) continue;
-
-    const uniqueBeds = new Set(
-      intervals.map((it) => (it.record.MA_GIUONG || "").trim().toUpperCase()),
-    );
-    const [dayStr] = patKey.split("|");
-
-    if (uniqueBeds.size > 1 || intervals.length > 1) {
-      for (const interval of intervals) {
-        const rec = result[interval.recordIndex];
-        if (!rec.hasBedWarning) {
-          rec.hasBedWarning = true;
-          rec.bedWarningType = "multiple-beds";
-          rec.status = rec.status === "ok" ? "bed-warning" : rec.status;
-          const detailIndex = rec.STT || "xx";
-          const message = `XML3. Chi tiết thứ ${detailIndex}: Bệnh nhân nằm nhiều hơn 01 giường trong ngày ${dayStr}.`;
-          rec.detail = rec.detail ? `${rec.detail} · ${message}` : message;
-        }
-      }
     }
   }
 

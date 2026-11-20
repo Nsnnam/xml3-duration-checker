@@ -131,6 +131,8 @@ const TAB_COLUMNS: Record<string, ColumnDef[]> = {
     { key: "ttThau", label: "TT_THAU", defaultWidth: 100 },
     { key: "maMay", label: "Mã máy", defaultWidth: 140 },
     { key: "khoa", label: "Khoa", defaultWidth: 75 },
+    { key: "maGiuong", label: "Mã giường", defaultWidth: 95 },
+    { key: "maGiuongTrung", label: "Mã giường trùng", defaultWidth: 190 },
     { key: "ngayYl", label: "NGAY_YL", defaultWidth: 130 },
     { key: "ngayThYl", label: "NGAY_TH_YL", defaultWidth: 130 },
     { key: "ngayKq", label: "NGAY_KQ", defaultWidth: 130 },
@@ -2045,6 +2047,12 @@ function CheckerView({
             case "khoa":
               if (!matchesTextFilter(r.MA_KHOA, query)) return false;
               break;
+            case "maGiuong":
+              if (!matchesTextFilter(r.MA_GIUONG, query)) return false;
+              break;
+            case "maGiuongTrung":
+              if (!matchesTextFilter(r.MA_GIUONG_TRUNG, query)) return false;
+              break;
             case "ngayYl":
               if (
                 !matchesTextFilter(r.NGAY_YL, query) &&
@@ -2126,6 +2134,10 @@ function CheckerView({
             return factor * (a.MA_MAY || "").localeCompare(b.MA_MAY || "", "vi");
           case "khoa":
             return factor * (a.MA_KHOA || "").localeCompare(b.MA_KHOA || "", "vi");
+          case "maGiuong":
+            return factor * (a.MA_GIUONG || "").localeCompare(b.MA_GIUONG || "", "vi");
+          case "maGiuongTrung":
+            return factor * (a.MA_GIUONG_TRUNG || "").localeCompare(b.MA_GIUONG_TRUNG || "", "vi");
           case "ngayYl":
             return factor * (a.NGAY_YL || "").localeCompare(b.NGAY_YL || "");
           case "ngayThYl":
@@ -2998,7 +3010,12 @@ function CheckerView({
                                       <option value="TT_THAU">TT_THAU</option>
                                       <option value="SAI THỨ TỰ">SAI THỨ TỰ</option>
                                       <option value="TRÙNG MỐC">TRÙNG MỐC</option>
-                                      <option value="GIƯỜNG">GIƯỜNG</option>
+                                      <option value="GIƯỜNG">GIƯỜNG (Tất cả)</option>
+                                      <option value="GHÉP 2 NGƯỜI">GHÉP 2 NGƯỜI</option>
+                                      <option value="GHÉP 3+ NGƯỜI">GHÉP 3+ NGƯỜI</option>
+                                      <option value="GỐI ĐẦU">GỐI ĐẦU NHIỀU NGÀY</option>
+                                      <option value="TRÙNG PHÚT">TRÙNG PHÚT GIÁP RANH</option>
+                                      <option value="THIẾU MÃ GIƯỜNG">THIẾU MÃ GIƯỜNG</option>
                                       <option value="Z00.0">Z00.0</option>
                                       <option value="Z30.1">Z30.1</option>
                                       <option value="THIẾU">THIẾU / LỖI</option>
@@ -3634,6 +3651,46 @@ function WarningRow({
       {isVisible("khoa") && (
         <td style={colWidth("khoa", 75)} className="px-3 py-2.5 font-mono text-slate-700">
           {record.MA_KHOA || "—"}
+        </td>
+      )}
+      {isVisible("maGiuong") && (
+        <td
+          style={colWidth("maGiuong", 95)}
+          className="px-3 py-2.5 font-mono text-center font-bold text-slate-800"
+        >
+          {record.MA_GIUONG ? (
+            <span
+              className={
+                record.hasBedWarning
+                  ? "text-purple-900 font-black bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200"
+                  : ""
+              }
+            >
+              {record.MA_GIUONG}
+            </span>
+          ) : record.MA_NHOM === "14" || record.MA_NHOM === "15" ? (
+            <span className="text-rose-600 font-semibold italic bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+              (thiếu)
+            </span>
+          ) : (
+            "—"
+          )}
+        </td>
+      )}
+      {isVisible("maGiuongTrung") && (
+        <td style={colWidth("maGiuongTrung", 190)} className="px-3 py-2.5 text-xs">
+          {record.MA_GIUONG_TRUNG ? (
+            <div className="font-mono text-[11px] leading-tight">
+              <span
+                className="font-bold text-purple-900 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200 inline-block break-words"
+                title={record.detail}
+              >
+                🛏️ {record.MA_GIUONG_TRUNG}
+              </span>
+            </div>
+          ) : (
+            <span className="text-slate-400">—</span>
+          )}
         </td>
       )}
       {isVisible("ngayYl") && (

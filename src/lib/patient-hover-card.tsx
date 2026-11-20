@@ -543,6 +543,78 @@ export function PatientHoverCard({
           </div>
         )}
 
+        {/* Chi tiết đối chiếu giường ghép & gối đầu (KT251) */}
+        {record?.hasBedWarning && record.bedSharingInfo && record.bedSharingInfo.length > 0 && (
+          <div className="mt-3 rounded-2xl border border-purple-300 dark:border-purple-800 bg-purple-50/90 dark:bg-purple-950/40 p-3.5 space-y-2.5">
+            <div className="text-[11px] font-black uppercase tracking-wider text-purple-900 dark:text-purple-200 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <span>🛏️</span> Đối chiếu giường nằm ghép &amp; gối đầu (KT251)
+              </span>
+              <span className="rounded-md bg-purple-700 text-white px-2 py-0.5 text-[10px] font-black">
+                {record.bedOverlapDaysCount && record.bedOverlapDaysCount >= 2
+                  ? `Gối đầu ${record.bedOverlapDaysCount} ngày`
+                  : `Ghép ${record.bedSharingCount} người`}
+              </span>
+            </div>
+            <div className="text-[11px] text-purple-950 dark:text-purple-200 font-medium">
+              Mã giường:{" "}
+              <b className="font-mono text-purple-800 dark:text-purple-300">{record.MA_GIUONG}</b>{" "}
+              (Khoa: <b>{record.MA_KHOA}</b>).
+              {record.potentialBedRefusal ? (
+                <span className="ml-2 font-bold text-rose-700 bg-rose-100 dark:bg-rose-950/60 px-1.5 py-0.5 rounded">
+                  ⚠️ Nguy cơ xuất toán: {record.potentialBedRefusal.toLocaleString("vi-VN")} đ
+                </span>
+              ) : null}
+            </div>
+            <div className="space-y-2 max-h-56 overflow-y-auto">
+              {record.bedSharingInfo.map((peer, idx) => (
+                <div
+                  key={`${peer.peerMaLk}-${peer.overlapDate}-${idx}`}
+                  className="rounded-xl border border-purple-200 dark:border-purple-900/60 bg-white dark:bg-slate-900 p-2.5 text-xs space-y-1"
+                >
+                  <div className="flex items-center justify-between gap-1 flex-wrap">
+                    <span className="inline-block rounded px-1.5 py-0.5 text-[10px] font-black uppercase bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300">
+                      Nằm ghép cùng
+                    </span>
+                    <span className="font-mono text-[11px] font-bold text-slate-500">
+                      Ngày:{" "}
+                      <b className="text-purple-900 dark:text-purple-200">{peer.overlapDate}</b>{" "}
+                      (Giao nhau: <b>{peer.overlapHours}h</b>)
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 pt-0.5">
+                    <div>
+                      <span className="font-bold text-slate-800 dark:text-slate-100">
+                        {peer.peerHoTen || "Bệnh nhân ghép cùng"}
+                      </span>
+                      <span className="font-mono text-[11px] text-slate-500 ml-1.5">
+                        (Mã BN: {peer.peerMaBn || "—"} · LK: {peer.peerMaLk})
+                      </span>
+                    </div>
+                    {peer.peerMaLk && peer.peerMaLk !== maLk && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose();
+                          onOpenDossier(peer.peerMaLk);
+                        }}
+                        className="rounded-lg bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 px-2 py-0.5 text-[10px] font-bold cursor-pointer transition whitespace-nowrap"
+                        title="Chuyển đến xem hồ sơ bệnh nhân ghép cùng này"
+                      >
+                        🔍 Xem hồ sơ BN này
+                      </button>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-slate-600 dark:text-slate-300 font-mono">
+                    Thời gian của BN ghép: {peer.startTimeDisplay} – {peer.endTimeDisplay} (Khoa:{" "}
+                    {peer.peerKhoa}, Giường: {peer.peerGiuong})
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Chi tiết nội dung cảnh báo */}
         {warningMessage && (
           <div className="mt-3 rounded-2xl border border-rose-300 dark:border-rose-900/60 bg-rose-50/90 dark:bg-rose-950/40 p-3.5 text-rose-950 dark:text-rose-200 text-xs leading-relaxed">

@@ -1621,6 +1621,8 @@ assert.equal(bedCheckResult1[0].potentialBedRefusal, 125000);
 assert.equal(bedCheckResult1[0].bedOverlapHours, 6);
 assert.equal(bedCheckResult1[0].bedSharingInfo?.length, 1);
 assert.equal(bedCheckResult1[0].bedSharingInfo?.[0].peerMaLk, "LK-BED-02");
+assert.ok(bedCheckResult1[0].MA_GIUONG_TRUNG?.includes("G001"));
+assert.ok(bedCheckResult1[0].detail.includes("Hồ sơ trùng ghép"));
 assert.equal(bedCheckResult1[1].hasBedWarning, true);
 assert.equal(bedCheckResult1[1].suggestedTyleTt, 50);
 assert.equal(bedCheckResult1[1].potentialBedRefusal, 125000);
@@ -1687,6 +1689,93 @@ assert.equal(bedWorkbook.worksheets[1].name, "Chi tiết giường ghép KT251")
 assert.ok(bedWorkbook.worksheets[0].rowCount >= 9);
 assert.ok(bedWorkbook.worksheets[1].rowCount >= 4);
 
+// Case 6: Giường gối đầu liên tiếp nhiều ngày (>= 2 ngày) giữa BN A và BN B trên cùng giường G001
+const bedRecMultiA1 = {
+  ...baseBedRecord,
+  MA_LK: "LK-MULTI-A",
+  MA_BN: "BN-MULTI-A",
+  HO_TEN: "Bệnh nhân Gối Đầu A",
+  MA_KHOA: "K33",
+  MA_GIUONG: "H010",
+  NGAY_TH_YL: "202611041000",
+  NGAY_KQ: "202611041800",
+};
+const bedRecMultiA2 = {
+  ...baseBedRecord,
+  STT: "2",
+  MA_LK: "LK-MULTI-A",
+  MA_BN: "BN-MULTI-A",
+  HO_TEN: "Bệnh nhân Gối Đầu A",
+  MA_KHOA: "K33",
+  MA_GIUONG: "H010",
+  NGAY_TH_YL: "202611051000",
+  NGAY_KQ: "202611051800",
+};
+const bedRecMultiB1 = {
+  ...baseBedRecord,
+  STT: "3",
+  MA_LK: "LK-MULTI-B",
+  MA_BN: "BN-MULTI-B",
+  HO_TEN: "Bệnh nhân Gối Đầu B",
+  MA_KHOA: "K33",
+  MA_GIUONG: "H010",
+  NGAY_TH_YL: "202611041200",
+  NGAY_KQ: "202611042000",
+};
+const bedRecMultiB2 = {
+  ...baseBedRecord,
+  STT: "4",
+  MA_LK: "LK-MULTI-B",
+  MA_BN: "BN-MULTI-B",
+  HO_TEN: "Bệnh nhân Gối Đầu B",
+  MA_KHOA: "K33",
+  MA_GIUONG: "H010",
+  NGAY_TH_YL: "202611051200",
+  NGAY_KQ: "202611052000",
+};
+
+const bedCheckResultMulti = addBedWarnings([
+  bedRecMultiA1,
+  bedRecMultiA2,
+  bedRecMultiB1,
+  bedRecMultiB2,
+]);
+assert.equal(bedCheckResultMulti.length, 4);
+assert.equal(bedCheckResultMulti[0].bedWarningType, "multi-day-overlap");
+assert.equal(bedCheckResultMulti[0].bedOverlapDaysCount, 2);
+assert.ok(bedCheckResultMulti[0].MA_GIUONG_TRUNG?.includes("gối 2 ngày"));
+assert.ok(bedCheckResultMulti[0].detail.includes("Giường gối đầu liên tiếp 2 ngày"));
+
+// Case 7: Trùng số phút chuyển tiếp kê giường của cùng một bệnh nhân (12:00 -> 12:00)
+const bedRecSamePat1 = {
+  ...baseBedRecord,
+  STT: "10",
+  MA_LK: "LK-SAME-01",
+  MA_BN: "BN-SAME-01",
+  HO_TEN: "Bệnh nhân Trùng Phút",
+  MA_KHOA: "K02",
+  MA_GIUONG: "H006",
+  NGAY_TH_YL: "202611011200",
+  NGAY_KQ: "202611021200",
+};
+const bedRecSamePat2 = {
+  ...baseBedRecord,
+  STT: "11",
+  MA_LK: "LK-SAME-01",
+  MA_BN: "BN-SAME-01",
+  HO_TEN: "Bệnh nhân Trùng Phút",
+  MA_KHOA: "K02",
+  MA_GIUONG: "H006",
+  NGAY_TH_YL: "202611021200",
+  NGAY_KQ: "202611031200",
+};
+
+const bedCheckResultSamePat = addBedWarnings([bedRecSamePat1, bedRecSamePat2]);
+assert.equal(bedCheckResultSamePat[1].hasBedWarning, true);
+assert.equal(bedCheckResultSamePat[1].bedWarningType, "minute-duplicate");
+assert.ok(bedCheckResultSamePat[1].MA_GIUONG_TRUNG?.includes("Trùng phút STT 10"));
+assert.ok(bedCheckResultSamePat[1].detail.includes("Trùng số phút chuyển tiếp kê giường"));
+
 console.log(
-  "All tests passed: XML1 CCCD validation, Z00.0 & Z30.1 validation, XML3 duplicate machine time validation, XML7 NGOAITRU_TUNGAY < NGAY_RA validation (+1 day suggestion), duplicate machine excel export, KT251 bed sharing validation & workbook export, warning colors & column filter/sort helpers: OK",
+  "All tests passed: XML1 CCCD validation, Z00.0 & Z30.1 validation, XML3 duplicate machine time validation, XML7 NGOAITRU_TUNGAY < NGAY_RA validation (+1 day suggestion), duplicate machine excel export, KT251 bed sharing & multi-day & minute duplicate validation & workbook export, warning colors & column filter/sort helpers: OK",
 );

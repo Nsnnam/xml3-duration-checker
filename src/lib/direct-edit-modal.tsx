@@ -1467,6 +1467,32 @@ export function DirectEditModal({
                   >
                     Đặt 100% (Giường đơn)
                   </button>
+                  {record?.NGAY_TH_YL && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedField("NGAY_TH_YL");
+                        setNewValue(addMinutesToXmlDateTime(record.NGAY_TH_YL, 1));
+                      }}
+                      className="rounded-lg border border-teal-500 bg-teal-50 px-2 py-1 text-[11px] font-bold text-teal-800 hover:bg-teal-100 shadow-xs transition"
+                      title="Tăng 1 phút vào NGAY_TH_YL để tách mốc phút chuyển tiếp kê giường"
+                    >
+                      ⏱️ +1p vào TH_YL ({addMinutesToXmlDateTime(record.NGAY_TH_YL, 1).slice(-4)})
+                    </button>
+                  )}
+                  {record?.NGAY_KQ && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedField("NGAY_KQ");
+                        setNewValue(addMinutesToXmlDateTime(record.NGAY_KQ, -1));
+                      }}
+                      className="rounded-lg border border-teal-500 bg-teal-50 px-2 py-1 text-[11px] font-bold text-teal-800 hover:bg-teal-100 shadow-xs transition"
+                      title="Lùi 1 phút ở NGAY_KQ để tách mốc phút chuyển tiếp kê giường"
+                    >
+                      ⏱️ -1p ở NGAY_KQ ({addMinutesToXmlDateTime(record.NGAY_KQ, -1).slice(-4)})
+                    </button>
+                  )}
                 </div>
               </div>
             )}

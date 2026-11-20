@@ -450,7 +450,13 @@ export async function createBedSharingWorkbook(
   workbook.creator = "Nguyễn Sơn Nam (Nsnnam)";
   workbook.created = new Date();
 
-  const bedRecords = records.filter((r) => r.hasBedWarning && r.bedWarningType === "bed-sharing");
+  const bedRecords = records.filter(
+    (r) =>
+      r.hasBedWarning &&
+      (r.bedWarningType === "bed-sharing" ||
+        r.bedWarningType === "multi-day-overlap" ||
+        r.bedWarningType === "minute-duplicate"),
+  );
 
   // Nhóm theo cụm: overlapDay|MA_KHOA|MA_GIUONG
   const groupMap = new Map<string, Xml3Record[]>();
@@ -464,18 +470,22 @@ export async function createBedSharingWorkbook(
   // Sheet 1: Tổng hợp KT251
   const summarySheet = workbook.addWorksheet("Tổng hợp KT251");
   summarySheet.columns = [
-    { header: "Chỉ tiêu", key: "label", width: 45 },
+    { header: "Chỉ tiêu", key: "label", width: 50 },
     { header: "Số lượng / Giá trị", key: "value", width: 30 },
   ];
 
   const totalRefusalMoney = bedRecords.reduce((sum, r) => sum + (r.potentialBedRefusal ?? 0), 0);
   const count2Patients = bedRecords.filter((r) => (r.bedSharingCount ?? 2) === 2).length;
   const count3PlusPatients = bedRecords.filter((r) => (r.bedSharingCount ?? 2) >= 3).length;
+  const countMultiDay = bedRecords.filter((r) => r.bedWarningType === "multi-day-overlap").length;
+  const countMinuteDup = bedRecords.filter((r) => r.bedWarningType === "minute-duplicate").length;
   const uniquePatients = new Set(bedRecords.map((r) => r.MA_LK)).size;
   const uniqueBeds = new Set(bedRecords.map((r) => `${r.MA_KHOA}|${r.MA_GIUONG}`)).size;
 
   summarySheet.addRows([
     { label: "Tổng số lượt chi phí ngày giường nằm ghép (KT251)", value: bedRecords.length },
+    { label: "Trong đó: Giường gối đầu liên tiếp (>= 2 ngày)", value: countMultiDay },
+    { label: "Trong đó: Trùng số phút chuyển tiếp kê giường (cùng BN)", value: countMinuteDup },
     { label: "Số lượt ghép 2 người (đề nghị thanh toán > 50%)", value: count2Patients },
     {
       label: "Số lượt ghép từ 3 người trở lên (đề nghị thanh toán > 33%)",
@@ -506,6 +516,8 @@ export async function createBedSharingWorkbook(
     { header: "STT", key: "stt", width: 8 },
     { header: "Khoa điều trị", key: "maKhoa", width: 14 },
     { header: "Mã giường", key: "maGiuong", width: 16 },
+    { header: "Mã giường trùng", key: "maGiuongTrung", width: 25 },
+    { header: "Phân loại", key: "phanLoai", width: 22 },
     { header: "Ngày nằm ghép", key: "ngayGhep", width: 15 },
     { header: "Số BN ghép", key: "soBnGhep", width: 12 },
     { header: "Giờ giao nhau", key: "soGioGiao", width: 14 },
@@ -552,6 +564,13 @@ export async function createBedSharingWorkbook(
         stt: rowStt++,
         maKhoa: r.MA_KHOA,
         maGiuong: r.MA_GIUONG,
+        maGiuongTrung: r.MA_GIUONG_TRUNG || r.MA_GIUONG,
+        phanLoai:
+          r.bedWarningType === "multi-day-overlap"
+            ? `Gối đầu ${r.bedOverlapDaysCount || 2} ngày`
+            : r.bedWarningType === "minute-duplicate"
+              ? "Trùng phút giáp ranh"
+              : `Ghép ${r.bedSharingCount ?? 2} người`,
         ngayGhep: r.bedOverlapDate || "",
         soBnGhep: r.bedSharingCount ?? 2,
         soGioGiao: r.bedOverlapHours ? `${r.bedOverlapHours}h` : "",

@@ -3,12 +3,23 @@ export const APP_META = {
   title: "NsN_XMLcheck",
   description:
     "Kiểm tra thời gian (tối thiểu > 0 & tối đa), TT_THAU XML2/XML3, MA_MAY chuẩn XX.3[xxx].Z & trùng thời gian máy, cảnh báo Z00.0/Z30.1 (KHHGĐ) & Hồ sơ 15 bảng BHYT",
-  version: "2.14.0",
+  version: "2.15.0",
   date: "2026-11-20",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.15.0",
+      date: "2026-11-20",
+      changes: [
+        "Chi tiết hồ sơ nằm ghép đầy đủ: Bổ sung thông tin chi tiết các hồ sơ khác đang nằm ghép vào trường detail và khối đối chiếu chuyên biệt trong modal xem bệnh nhân (PatientHoverCard), bao gồm Họ tên, Mã BN, Mã LK, Khoa, Giường, Thời gian nằm và Thời gian giao nhau của từng bệnh nhân ghép cùng, kèm nút chuyển nhanh sang hồ sơ liên quan.",
+        "Thêm cột 'Mã giường trùng' (MA_GIUONG_TRUNG) trên bảng dữ liệu XML3: Hiển thị trực quan mã giường và tên các bệnh nhân ghép cùng / số ngày gối đầu; hỗ trợ bật/tắt trong Tùy chỉnh cột, lọc nhanh và sắp xếp thuận tiện.",
+        "Rà soát cảnh báo trùng mốc số phút chuyển tiếp kê giường cùng BN (minute-duplicate): Phát hiện các trường hợp ngày giường trước kết thúc lúc HH:mm (ví dụ 12h00 hoặc 07h53) trùng chính xác mốc phút bắt đầu của ngày giường sau, đưa ra cảnh báo và gợi ý sửa nhanh +1 phút vào giờ bắt đầu hoặc -1 phút ở giờ kết thúc.",
+        "Phát hiện và cảnh báo Giường gối đầu liên tiếp nhiều ngày (multi-day-overlap): Nhận diện các cặp hồ sơ khác nhau cùng nằm một mã giường kéo dài qua nhiều ngày dương lịch (>= 2 ngày) do xếp nhầm mã giường giữa các bệnh nhân vào/ra viện đan xen.",
+        "Nút điều chỉnh nhanh mốc phút kê giường trong Modal Sửa trực tiếp: Bổ sung 2 nút '+1p vào TH_YL' và '-1p ở NGAY_KQ' giúp điều dưỡng và cán bộ thanh quyết toán xử lý lỗi trùng phút chỉ với một click.",
+      ],
+    },
     {
       version: "2.14.0",
       date: "2026-11-20",
