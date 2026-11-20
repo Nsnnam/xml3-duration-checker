@@ -34,6 +34,10 @@ packaging/build
 *.sw?
 .env
 
+# Healthcare audit files & sensitive patient data
+BAO_CAO_DOI_SOAT_CHI_TIET_KT251_KT252.xlsx
+scripts/kt_full_summary_data.json
+
 # Local NSN standard kit junction (do not commit)
 .nsn-standard/
 
