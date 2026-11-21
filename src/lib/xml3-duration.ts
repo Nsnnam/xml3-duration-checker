@@ -101,8 +101,17 @@ export type Xml3Record = {
   TT_THAU: string;
   SO_LUONG?: number;
   DON_GIA?: number;
+  DON_GIA_BV?: number;
+  DON_GIA_BH?: number;
   TYLE_TT?: number;
+  TYLE_TT_DV?: number;
+  TYLE_TT_BH?: number;
   THANH_TIEN?: number;
+  THANH_TIEN_BV?: number;
+  THANH_TIEN_BH?: number;
+  T_BHTT?: number;
+  T_BNTT?: number;
+  T_BNCCT?: number;
   MUC_HUONG?: number;
   MA_GIUONG_TRUNG?: string;
   bedWarningType?:
@@ -265,8 +274,19 @@ export const XML3_FIELDS = [
   "TT_THAU",
   "SO_LUONG",
   "DON_GIA",
+  "DON_GIA_BV",
+  "DON_GIA_BH",
   "TYLE_TT",
+  "TYLE_TT_DV",
+  "TYLE_TT_BH",
   "THANH_TIEN",
+  "THANH_TIEN_BV",
+  "THANH_TIEN_BH",
+  "T_BHTT",
+  "T_BNTT",
+  "T_BNCCT",
+  "T_NGOAIDS",
+  "T_TRANTT",
   "MUC_HUONG",
 ] as const;
 
@@ -1344,9 +1364,23 @@ function readXml3Records(
   }
 
   return detailElements.map((item) => {
+    const rawAllFields: Record<string, string> = {};
+    for (let i = 0; i < item.children.length; i++) {
+      const child = item.children[i];
+      if (child.tagName) {
+        rawAllFields[child.tagName] = child.textContent?.trim() ?? "";
+      }
+    }
     const fields = Object.fromEntries(
-      XML3_FIELDS.map((field) => [field, textOf(item, field) || directTextOf(item, field)]),
-    ) as Record<Xml3Field, string>;
+      XML3_FIELDS.map((field) => [
+        field,
+        rawAllFields[field] ?? textOf(item, field) ?? directTextOf(item, field) ?? "",
+      ]),
+    ) as Record<Xml3Field, string> & Record<string, string>;
+
+    // Gộp tất cả các thẻ còn lại từ XML (kể cả các thẻ mới hoặc đặc thù của QĐ 130)
+    Object.assign(fields, rawAllFields);
+
     const record = evaluateRecord(fields, fileName, serviceRules, mandatoryMachineRules);
     return withPatientInfo(record, patients);
   });
@@ -1576,13 +1610,19 @@ export function addBedWarnings(
           next.status = next.status === "ok" ? "bed-warning" : next.status;
           const soLuong = next.SO_LUONG ?? 1;
           const donGia = next.DON_GIA ?? 0;
+          const tBhtt = next.T_BHTT;
           const thanhTien =
             next.THANH_TIEN !== undefined && next.THANH_TIEN > 0
               ? next.THANH_TIEN
               : soLuong * donGia;
           const mucHuong =
             next.MUC_HUONG ?? (next.patient?.MUC_HUONG ? parseFloat(next.patient.MUC_HUONG) : 100);
-          next.potentialBedRefusal = Math.round(thanhTien * (mucHuong / 100));
+
+          if (tBhtt !== undefined && tBhtt > 0) {
+            next.potentialBedRefusal = Math.round(tBhtt);
+          } else {
+            next.potentialBedRefusal = Math.round(thanhTien * (mucHuong / 100));
+          }
 
           next.MA_GIUONG_TRUNG = `${next.MA_GIUONG || "Giường"} (Chồng lấn ${overlapMins}p với STT ${prev.STT || "xx"})`;
           const msg = `XML3. Chi tiết thứ ${next.STT || "xx"}: Chồng lấn ${overlapMins} phút thời gian kê giường cùng BN với chi tiết STT ${prev.STT || "xx"} (từ ${formatXmlDateTime(next.NGAY_TH_YL)} đến ${formatXmlDateTime(prev.NGAY_KQ)}). NGUY CƠ XUẤT TOÁN (-${next.potentialBedRefusal.toLocaleString("vi-VN")} đ) do kê trùng đồng thời nhiều giường cho một bệnh nhân.`;
@@ -1696,18 +1736,22 @@ export function addBedWarnings(
       }
 
       if (clusterIndices.length > 1) {
-        // Sắp xếp: Giường có THANH_TIEN cao nhất lên đầu; nếu bằng nhau, NGAY_TH_YL sớm hơn lên đầu
+        // Sắp xếp: Giường có T_BHTT hoặc THANH_TIEN cao nhất lên đầu; nếu bằng nhau, NGAY_TH_YL sớm hơn lên đầu
         clusterIndices.sort((idxA, idxB) => {
           const rA = result[idxA];
           const rB = result[idxB];
           const amtA =
-            rA.THANH_TIEN !== undefined && rA.THANH_TIEN > 0
-              ? rA.THANH_TIEN
-              : (rA.DON_GIA || 0) * (rA.SO_LUONG || 1);
+            rA.T_BHTT !== undefined && rA.T_BHTT > 0
+              ? rA.T_BHTT
+              : rA.THANH_TIEN !== undefined && rA.THANH_TIEN > 0
+                ? rA.THANH_TIEN
+                : (rA.DON_GIA || 0) * (rA.SO_LUONG || 1);
           const amtB =
-            rB.THANH_TIEN !== undefined && rB.THANH_TIEN > 0
-              ? rB.THANH_TIEN
-              : (rB.DON_GIA || 0) * (rB.SO_LUONG || 1);
+            rB.T_BHTT !== undefined && rB.T_BHTT > 0
+              ? rB.T_BHTT
+              : rB.THANH_TIEN !== undefined && rB.THANH_TIEN > 0
+                ? rB.THANH_TIEN
+                : (rB.DON_GIA || 0) * (rB.SO_LUONG || 1);
           if (amtB !== amtA) return amtB - amtA;
           const sA = rA.NGAY_TH_YL || "";
           const sB = rB.NGAY_TH_YL || "";
@@ -1830,6 +1874,7 @@ export function addBedWarnings(
 
     const soLuong = rec.SO_LUONG ?? 1;
     const donGia = rec.DON_GIA ?? 0;
+    const tBhtt = rec.T_BHTT;
     const thanhTien =
       rec.THANH_TIEN !== undefined && rec.THANH_TIEN > 0 ? rec.THANH_TIEN : soLuong * donGia;
     const mucHuong =
@@ -1837,7 +1882,11 @@ export function addBedWarnings(
 
     // Xuất toán các giường phía sau, giữ lại 01 giường có giá tiền cao nhất (0 đ xuất toán)
     if (isRejected) {
-      rec.potentialBedRefusal = Math.round(thanhTien * (mucHuong / 100));
+      if (tBhtt !== undefined && tBhtt > 0) {
+        rec.potentialBedRefusal = Math.round(tBhtt);
+      } else {
+        rec.potentialBedRefusal = Math.round(thanhTien * (mucHuong / 100));
+      }
     } else {
       rec.potentialBedRefusal = 0;
     }
@@ -2272,26 +2321,53 @@ export function evaluateRecord(
     rawFields.DON_GIA || rawFields.DON_GIA_BH || rawFields.DON_GIA_BV
       ? parseFloat(rawFields.DON_GIA || rawFields.DON_GIA_BH || rawFields.DON_GIA_BV)
       : undefined;
+  const donGiaBh = rawFields.DON_GIA_BH ? parseFloat(rawFields.DON_GIA_BH) : donGia;
+  const donGiaBv = rawFields.DON_GIA_BV ? parseFloat(rawFields.DON_GIA_BV) : donGia;
+
   const tyleTt =
     rawFields.TYLE_TT || rawFields.TYLE_TT_BH || rawFields.TYLE_TT_DV
       ? parseFloat(rawFields.TYLE_TT || rawFields.TYLE_TT_BH || rawFields.TYLE_TT_DV)
       : undefined;
+  const tyleTtBh = rawFields.TYLE_TT_BH ? parseFloat(rawFields.TYLE_TT_BH) : tyleTt;
+  const tyleTtDv = rawFields.TYLE_TT_DV ? parseFloat(rawFields.TYLE_TT_DV) : tyleTt;
+
   const mucHuong = rawFields.MUC_HUONG
     ? parseFloat(rawFields.MUC_HUONG)
     : fields.patient?.MUC_HUONG
       ? parseFloat(fields.patient.MUC_HUONG)
       : undefined;
-  const thanhTien =
+
+  const tBhtt = rawFields.T_BHTT ? parseFloat(rawFields.T_BHTT) : undefined;
+  const tBntt = rawFields.T_BNTT ? parseFloat(rawFields.T_BNTT) : undefined;
+  const tBncct = rawFields.T_BNCCT ? parseFloat(rawFields.T_BNCCT) : undefined;
+
+  let thanhTien =
     rawFields.THANH_TIEN || rawFields.THANH_TIEN_BH || rawFields.THANH_TIEN_BV
       ? parseFloat(rawFields.THANH_TIEN || rawFields.THANH_TIEN_BH || rawFields.THANH_TIEN_BV)
       : undefined;
+
+  if (thanhTien === undefined && soLuong !== undefined && donGia !== undefined) {
+    thanhTien = Math.round(soLuong * donGia);
+  }
+
+  const thanhTienBh = rawFields.THANH_TIEN_BH ? parseFloat(rawFields.THANH_TIEN_BH) : thanhTien;
+  const thanhTienBv = rawFields.THANH_TIEN_BV ? parseFloat(rawFields.THANH_TIEN_BV) : thanhTien;
 
   return {
     ...fields,
     SO_LUONG: Number.isNaN(soLuong) ? undefined : soLuong,
     DON_GIA: Number.isNaN(donGia) ? undefined : donGia,
+    DON_GIA_BV: Number.isNaN(donGiaBv) ? undefined : donGiaBv,
+    DON_GIA_BH: Number.isNaN(donGiaBh) ? undefined : donGiaBh,
     TYLE_TT: Number.isNaN(tyleTt) ? undefined : tyleTt,
+    TYLE_TT_DV: Number.isNaN(tyleTtDv) ? undefined : tyleTtDv,
+    TYLE_TT_BH: Number.isNaN(tyleTtBh) ? undefined : tyleTtBh,
     THANH_TIEN: Number.isNaN(thanhTien) ? undefined : thanhTien,
+    THANH_TIEN_BV: Number.isNaN(thanhTienBv) ? undefined : thanhTienBv,
+    THANH_TIEN_BH: Number.isNaN(thanhTienBh) ? undefined : thanhTienBh,
+    T_BHTT: Number.isNaN(tBhtt) ? undefined : tBhtt,
+    T_BNTT: Number.isNaN(tBntt) ? undefined : tBntt,
+    T_BNCCT: Number.isNaN(tBncct) ? undefined : tBncct,
     MUC_HUONG: Number.isNaN(mucHuong) ? undefined : mucHuong,
     MA_BN: fields.MA_BN || "",
     HO_TEN: fields.HO_TEN || "",
@@ -2679,8 +2755,17 @@ export async function parseXml3FromExcel(
       TT_THAU: getColVal(row, "TT_THAU", "TTTHAU"),
       SO_LUONG: getColVal(row, "SO_LUONG", "SOLUONG"),
       DON_GIA: getColVal(row, "DON_GIA_BH", "DON_GIA", "DONGIA", "DON_GIA_BV"),
+      DON_GIA_BH: getColVal(row, "DON_GIA_BH", "DON_GIA"),
+      DON_GIA_BV: getColVal(row, "DON_GIA_BV"),
       TYLE_TT: getColVal(row, "TYLE_TT_BH", "TYLE_TT", "TYLETT", "TYLE_TT_DV"),
+      TYLE_TT_BH: getColVal(row, "TYLE_TT_BH", "TYLE_TT"),
+      TYLE_TT_DV: getColVal(row, "TYLE_TT_DV"),
       THANH_TIEN: getColVal(row, "THANH_TIEN_BH", "THANH_TIEN", "THANHTIEN", "THANH_TIEN_BV"),
+      THANH_TIEN_BH: getColVal(row, "THANH_TIEN_BH", "THANH_TIEN"),
+      THANH_TIEN_BV: getColVal(row, "THANH_TIEN_BV"),
+      T_BHTT: getColVal(row, "T_BHTT", "TBHTT", "TIEN_BHTT", "TIEN_BHYT"),
+      T_BNTT: getColVal(row, "T_BNTT", "TBNTT", "TIEN_BNTT"),
+      T_BNCCT: getColVal(row, "T_BNCCT", "TBNCCT", "TIEN_BNCCT"),
       MUC_HUONG: getColVal(row, "MUC_HUONG", "MUCHUONG"),
       MA_BN: maBn,
       HO_TEN: hoTen,

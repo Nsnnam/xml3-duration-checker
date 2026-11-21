@@ -2,12 +2,22 @@ export const APP_META = {
   name: "NsN_XMLcheck",
   title: "NsN_XMLcheck",
   description: "Tổng hợp công cụ xử lý XML_Namns",
-  version: "2.17.0",
-  date: "2026-11-20",
+  version: "2.18.0",
+  date: "2026-11-21",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.18.0",
+      date: "2026-11-21",
+      changes: [
+        "Khắc phục triệt để lỗi mở file HTML offline đơn tệp (releases/single-page/xml3-duration-checker.html): Mock an toàn các built-in module Node.js (fs, https) trong môi trường browser và cấu hình Rollup single bundle (inlineDynamicImports: true), loại bỏ hoàn toàn các chunk ngoài (__vite-browser-external-*.js), đảm bảo file HTML mở offline trực tiếp qua giao thức file:/// trên mọi trình duyệt mượt mà 100% không bị trắng trang hay lỗi CORS.",
+        "Nhận diện và trích xuất toàn diện các trường chi phí tiền giường chuẩn Quyết định 130/QĐ-BYT (T_BHTT, THANH_TIEN_BH, DON_GIA_BH, TYLE_TT_BH, DON_GIA_BV, THANH_TIEN_BV, T_BNCCT, T_BNTT): Khắc phục lỗi tính chi phí xuất toán bằng 0 đ khi nạp file XML chuẩn 130/4210 sửa đổi; tự động tính chuẩn xác số tiền xuất toán theo T_BHTT và tỷ lệ hưởng BHYT thực tế của người bệnh.",
+        "Chuẩn hóa layout Slide PowerPoint 16:9 chống tràn khung: Tinh chỉnh margins, vị trí và font size trên toàn bộ 10 slide, tối ưu độ cao bảng thống kê Khoa lâm sàng và Điểm nóng buồng/giường (Slide 5, 6); đặc biệt thiết kế lại Slide 10 thành 3 cột Card độc lập (Khối Lâm sàng, Phòng KHTH/Giám định, Phòng CNTT) sang trọng theo chuẩn Executive Presentation, hoàn toàn không bị đè chữ hay tràn viền slide.",
+        "Tối ưu bộ lọc và giao diện Infographic HTML tương tác: Sửa điều kiện lọc khi click thẻ 'Nguy cơ xuất toán thực tế (KT251)', khắc phục lỗi báo '0 ca phù hợp' và hiển thị đầy đủ, chính xác danh sách các ca bệnh vi phạm.",
+      ],
+    },
     {
       version: "2.17.0",
       date: "2026-11-20",

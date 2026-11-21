@@ -1,4 +1,5 @@
 import pptxgen from "pptxgenjs";
+import { APP_META } from "./meta";
 
 export interface ReportStatsForPptx {
   totalRecords: number;
@@ -76,9 +77,9 @@ export async function generateAndDownloadDynamicPptx(
           text: `${category.toUpperCase()} · ${hospitalName.toUpperCase()}\n`,
           options: { fontSize: 10, bold: true, color: C_TEAL },
         },
-        { text: title, options: { fontSize: 19, bold: true, color: C_NAVY } },
+        { text: title, options: { fontSize: 18, bold: true, color: C_NAVY } },
       ],
-      { x: 0.8, y: 0.4, w: 11.7, h: 0.9, fontFace: "Segoe UI", margin: 0 },
+      { x: 0.8, y: 0.35, w: 11.7, h: 0.9, fontFace: "Segoe UI", margin: 0 },
     );
   };
 
@@ -92,24 +93,24 @@ export async function generateAndDownloadDynamicPptx(
     [
       {
         text: "BÁO CÁO RÀ SOÁT CẢNH BÁO TIỀN GIƯỜNG & GIƯỜNG NẰM GHÉP (KT251)\n",
-        options: { fontSize: 26, bold: true, color: C_WHITE },
+        options: { fontSize: 24, bold: true, color: C_WHITE },
       },
       {
         text: `ĐƠN VỊ: ${hospitalName.toUpperCase()}\n\n`,
-        options: { fontSize: 18, bold: true, color: C_TEAL_LIGHT },
+        options: { fontSize: 17, bold: true, color: C_TEAL_LIGHT },
       },
-      { text: `• Thời gian rà soát: ${todayStr}\n`, options: { fontSize: 13, color: C_MUTED } },
+      { text: `• Thời gian rà soát: ${todayStr}\n`, options: { fontSize: 12, color: C_MUTED } },
       {
         text: "• Người thực hiện: Nguyễn Sơn Nam (Nsnnam) — Múi giờ Asia/Ho_Chi_Minh (GMT+7)\n",
-        options: { fontSize: 13, color: C_MUTED },
+        options: { fontSize: 12, color: C_MUTED },
       },
       {
-        text: "• Công cụ phân tích: Hệ thống NsN_XMLcheck v2.17.0 (Thuật toán rà soát dữ liệu thực tế)\n",
-        options: { fontSize: 13, color: C_MUTED },
+        text: `• Công cụ phân tích: Hệ thống NsN_XMLcheck v${APP_META.version} (Thuật toán rà soát dữ liệu thực tế)\n`,
+        options: { fontSize: 12, color: C_MUTED },
       },
       {
         text: "• Căn cứ pháp lý: Thông tư 39/2024/TT-BYT, Nghị định 96/2023/NĐ-CP & Quy định kiểm soát KT251 BHXH",
-        options: { fontSize: 13, color: C_MUTED },
+        options: { fontSize: 12, color: C_MUTED },
       },
     ],
     { x: 1.0, y: 1.8, w: 11.3, h: 4.5, fontFace: "Segoe UI", margin: 0 },
@@ -129,8 +130,8 @@ export async function generateAndDownloadDynamicPptx(
       color: C_TEAL,
     },
     {
-      title: "2. Hướng dẫn nghiệp vụ số 20261110_TAILIEUHUONGDAN của BHXH Việt Nam",
-      desc: "Quy định rõ tại Mục I Khoản 1 Bước 2: Hệ thống chỉ đánh dấu nằm ghép khi số giờ giao thoa giữa 2 hồ sơ lớn hơn 4.0 giờ (SO_GIO_GIAO > 4). Các ca giao thoa dưới 4 giờ là thời gian đệm bàn giao, không tính nằm ghép.",
+      title: "2. Hướng dẫn nghiệp vụ KT251 của BHXH Việt Nam",
+      desc: "Quy định rõ tại Mục I Khoản 1: Hệ thống chỉ đánh dấu nằm ghép khi số giờ giao thoa giữa 2 hồ sơ lớn hơn 4.0 giờ (SO_GIO_GIAO > 4). Các ca giao thoa dưới 4 giờ là thời gian đệm bàn giao/chuyển khoa, không tính nằm ghép.",
       color: C_BLUE,
     },
     {
@@ -140,7 +141,7 @@ export async function generateAndDownloadDynamicPptx(
     },
     {
       title: "4. Điều 35 Luật Khám bệnh, chữa bệnh 2023 (Nghĩa vụ cấp cứu)",
-      desc: "Quy định cơ sở khám bệnh, chữa bệnh không được từ chối hoặc chậm trễ tiếp nhận, cấp cứu người bệnh. Vượt giường kế hoạch do dịch bệnh, cấp cứu đột xuất là căn cứ pháp lý để giải trình bảo vệ chi phí.",
+      desc: "Quy định cơ sở KCB không được từ chối hoặc chậm trễ tiếp nhận, cấp cứu người bệnh. Vượt giường kế hoạch do dịch bệnh hoặc cấp cứu đột xuất là căn cứ pháp lý quan trọng để giải trình bảo vệ chi phí.",
       color: C_AMBER,
     },
   ];
@@ -149,13 +150,13 @@ export async function generateAndDownloadDynamicPptx(
     const col = idx % 2;
     const row = Math.floor(idx / 2);
     const x = 0.8 + col * 5.95;
-    const y = 1.6 + row * 2.65;
+    const y = 1.5 + row * 2.6;
 
     s2.addShape(pres.ShapeType.roundRect, {
       x,
       y,
       w: 5.75,
-      h: 2.45,
+      h: 2.35,
       fill: { color: C_CARD_BG },
       line: { color: item.color, width: 2 },
       rectRadius: 0.15,
@@ -163,10 +164,10 @@ export async function generateAndDownloadDynamicPptx(
 
     s2.addText(
       [
-        { text: `${item.title}\n\n`, options: { fontSize: 13.5, bold: true, color: item.color } },
-        { text: item.desc, options: { fontSize: 11.5, color: C_SLATE } },
+        { text: `${item.title}\n\n`, options: { fontSize: 12.5, bold: true, color: item.color } },
+        { text: item.desc, options: { fontSize: 10.5, color: C_SLATE } },
       ],
-      { x: x + 0.25, y: y + 0.2, w: 5.25, h: 2.05, fontFace: "Segoe UI", margin: 0 },
+      { x: x + 0.25, y: y + 0.15, w: 5.25, h: 2.0, fontFace: "Segoe UI", margin: 0 },
     );
   });
 
@@ -208,29 +209,29 @@ export async function generateAndDownloadDynamicPptx(
     const x = 0.8 + idx * 2.98;
     s3.addShape(pres.ShapeType.roundRect, {
       x,
-      y: 1.6,
+      y: 1.5,
       w: 2.8,
-      h: 2.1,
+      h: 2.0,
       fill: { color: C_CARD_BG },
       line: { color: kpi.color, width: 2 },
       rectRadius: 0.15,
     });
     s3.addText(
       [
-        { text: `${kpi.title}\n`, options: { fontSize: 10, bold: true, color: C_MUTED } },
-        { text: `${kpi.val}\n\n`, options: { fontSize: 24, bold: true, color: kpi.color } },
-        { text: kpi.sub, options: { fontSize: 10, color: C_SLATE } },
+        { text: `${kpi.title}\n`, options: { fontSize: 9.5, bold: true, color: C_MUTED } },
+        { text: `${kpi.val}\n\n`, options: { fontSize: 22, bold: true, color: kpi.color } },
+        { text: kpi.sub, options: { fontSize: 9.5, color: C_SLATE } },
       ],
-      { x: x + 0.15, y: 1.75, w: 2.5, h: 1.8, fontFace: "Segoe UI", margin: 0 },
+      { x: x + 0.15, y: 1.62, w: 2.5, h: 1.75, fontFace: "Segoe UI", margin: 0 },
     );
   });
 
   // Summary box below KPIs
   s3.addShape(pres.ShapeType.roundRect, {
     x: 0.8,
-    y: 4.0,
+    y: 3.75,
     w: 11.7,
-    h: 2.8,
+    h: 3.1,
     fill: { color: C_CARD_BG },
     line: { color: "CBD5E1", width: 1 },
     rectRadius: 0.15,
@@ -240,26 +241,26 @@ export async function generateAndDownloadDynamicPptx(
     [
       {
         text: "ĐÁNH GIÁ CHUNG VỀ TÌNH TRẠNG DỮ LIỆU ĐỢT NÀY:\n",
-        options: { fontSize: 14, bold: true, color: C_NAVY },
+        options: { fontSize: 13, bold: true, color: C_NAVY },
       },
       {
         text: `• Dữ liệu rà soát ghi nhận tổng số ${stats.totalRecords.toLocaleString("vi-VN")} dòng XML3 với ${stats.bedCount.toLocaleString("vi-VN")} dòng tiền giường (Nhóm 14, 15).\n`,
-        options: { fontSize: 12, color: C_SLATE },
+        options: { fontSize: 11, color: C_SLATE },
       },
       {
         text: `• Phát hiện ${stats.violationCount.toLocaleString("vi-VN")} dòng vi phạm quy tắc tiền giường; trong đó có ${stats.rejectedCount.toLocaleString("vi-VN")} dòng có nguy cơ bị xuất toán trực tiếp với tổng số tiền ${stats.totalRefusal.toLocaleString("vi-VN")} VNĐ.\n`,
-        options: { fontSize: 12, color: C_SLATE },
+        options: { fontSize: 11, color: C_SLATE },
       },
       {
-        text: `• Nhờ áp dụng quy tắc giám định chuẩn bảo lưu 01 giường hợp lệ giá cao nhất, Bệnh viện đã tự động bảo vệ được ${stats.retainedCount.toLocaleString("vi-VN")} lượt giường (0 đ xuất toán), giảm thiểu gần 50% số tiền phạt so với việc cộng dồn toàn bộ.\n`,
-        options: { fontSize: 12, color: C_SLATE },
+        text: `• Áp dụng quy tắc giám định bảo lưu 01 giường hợp lệ giá cao nhất, Bệnh viện đã tự động bảo vệ được ${stats.retainedCount.toLocaleString("vi-VN")} lượt giường (0 đ xuất toán), giảm thiểu gần 50% số tiền phạt so với việc cộng dồn toàn bộ.\n`,
+        options: { fontSize: 11, color: C_SLATE },
       },
       {
-        text: `• Ngoài ra, ghi nhận ${stats.minuteDupCount} ca trùng mốc phút 12:00 và ${stats.exceedDischargeCount} ca kê giường vượt giờ ra viện. Đây là các cảnh báo lỗi thủ tục hành chính/phần mềm, không làm phát sinh lạm dụng quỹ BHYT.`,
-        options: { fontSize: 12, color: C_SLATE },
+        text: `• Ghi nhận ${stats.minuteDupCount} ca trùng mốc phút 12:00 và ${stats.exceedDischargeCount} ca kê giường vượt giờ ra viện. Đây là các cảnh báo lỗi thủ tục hành chính/phần mềm, không làm phát sinh lạm dụng quỹ BHYT.`,
+        options: { fontSize: 11, color: C_SLATE },
       },
     ],
-    { x: 1.1, y: 4.2, w: 11.1, h: 2.4, fontFace: "Segoe UI", margin: 0, lineSpacing: 20 },
+    { x: 1.1, y: 3.9, w: 11.1, h: 2.8, fontFace: "Segoe UI", margin: 0, lineSpacing: 18 },
   );
 
   // -------------------------------------------------------------
@@ -303,13 +304,13 @@ export async function generateAndDownloadDynamicPptx(
     const col = idx % 2;
     const row = Math.floor(idx / 2);
     const x = 0.8 + col * 5.95;
-    const y = 1.6 + row * 2.65;
+    const y = 1.5 + row * 2.6;
 
     s4.addShape(pres.ShapeType.roundRect, {
       x,
       y,
       w: 5.75,
-      h: 2.45,
+      h: 2.35,
       fill: { color: C_CARD_BG },
       line: { color: g.color, width: 2 },
       rectRadius: 0.15,
@@ -317,11 +318,11 @@ export async function generateAndDownloadDynamicPptx(
 
     s4.addText(
       [
-        { text: `${g.title}\n\n`, options: { fontSize: 13, bold: true, color: g.color } },
-        { text: `${g.desc}\n\n`, options: { fontSize: 11, color: C_SLATE } },
-        { text: `👉 ${g.impact}`, options: { fontSize: 11, bold: true, color: C_NAVY } },
+        { text: `${g.title}\n\n`, options: { fontSize: 12, bold: true, color: g.color } },
+        { text: `${g.desc}\n\n`, options: { fontSize: 10.5, color: C_SLATE } },
+        { text: `👉 ${g.impact}`, options: { fontSize: 10.5, bold: true, color: C_NAVY } },
       ],
-      { x: x + 0.25, y: y + 0.2, w: 5.25, h: 2.05, fontFace: "Segoe UI", margin: 0 },
+      { x: x + 0.25, y: y + 0.15, w: 5.25, h: 2.05, fontFace: "Segoe UI", margin: 0 },
     );
   });
 
@@ -366,7 +367,7 @@ export async function generateAndDownloadDynamicPptx(
     ],
   ];
 
-  const topDepts = stats.deptList.slice(0, 10);
+  const topDepts = stats.deptList.slice(0, 8);
   if (topDepts.length === 0) {
     deptRows.push([
       { text: "1", options: { align: "center" } },
@@ -407,11 +408,25 @@ export async function generateAndDownloadDynamicPptx(
     y: 1.5,
     w: 11.7,
     colW: [0.6, 2.8, 1.3, 1.3, 1.3, 1.3, 1.0, 2.1],
-    fontSize: 10,
+    fontSize: 9.5,
     fontFace: "Segoe UI",
-    rowH: 0.38,
+    rowH: 0.32,
     border: { color: "CBD5E1", pt: 1 },
   });
+
+  s5.addText(
+    "* Ghi chú: Hiển thị các khoa trọng điểm có phát sinh cảnh báo. Chi tiết từng hồ sơ bệnh án tra cứu trong Báo cáo Excel hoặc Infographic HTML đi kèm.",
+    {
+      x: 0.8,
+      y: 5.8,
+      w: 11.7,
+      h: 0.4,
+      fontSize: 9.5,
+      fontFace: "Segoe UI",
+      color: C_MUTED,
+      italic: true,
+    },
+  );
 
   // -------------------------------------------------------------
   // SLIDE 6: ĐIỂM NÓNG: CÁC MÃ GIƯỜNG VI PHẠM THỰC TẾ
@@ -445,7 +460,7 @@ export async function generateAndDownloadDynamicPptx(
 
   const sortedTopBeds = Array.from(bedCountMap.values())
     .sort((a, b) => b.count - a.count)
-    .slice(0, 10);
+    .slice(0, 8);
 
   const bedTableRows: pptxgen.TableRow[] = [
     [
@@ -512,11 +527,25 @@ export async function generateAndDownloadDynamicPptx(
     y: 1.5,
     w: 11.7,
     colW: [0.6, 2.5, 2.2, 1.4, 1.4, 2.0, 1.6],
-    fontSize: 10,
+    fontSize: 9.5,
     fontFace: "Segoe UI",
-    rowH: 0.38,
+    rowH: 0.32,
     border: { color: "CBD5E1", pt: 1 },
   });
+
+  s6.addText(
+    "* Khuyến nghị: Các buồng giường gối đầu nhiều lượt cần được kiểm tra lịch sử xếp giường trên HIS, thu hồi và chuẩn hóa trước khi ký số chốt đợt thanh toán.",
+    {
+      x: 0.8,
+      y: 5.8,
+      w: 11.7,
+      h: 0.4,
+      fontSize: 9.5,
+      fontFace: "Segoe UI",
+      color: C_MUTED,
+      italic: true,
+    },
+  );
 
   // -------------------------------------------------------------
   // SLIDE 7: PHÂN TÍCH NGUYÊN NHÂN GỐC RỄ
@@ -556,13 +585,13 @@ export async function generateAndDownloadDynamicPptx(
     const col = idx % 2;
     const row = Math.floor(idx / 2);
     const x = 0.8 + col * 5.95;
-    const y = 1.6 + row * 2.65;
+    const y = 1.5 + row * 2.6;
 
     s7.addShape(pres.ShapeType.roundRect, {
       x,
       y,
       w: 5.75,
-      h: 2.45,
+      h: 2.35,
       fill: { color: C_CARD_BG },
       line: { color: rc.color, width: 2 },
       rectRadius: 0.15,
@@ -572,11 +601,11 @@ export async function generateAndDownloadDynamicPptx(
       [
         {
           text: `[${rc.num}] ${rc.title}\n\n`,
-          options: { fontSize: 13, bold: true, color: rc.color },
+          options: { fontSize: 12, bold: true, color: rc.color },
         },
-        { text: rc.desc, options: { fontSize: 11, color: C_SLATE } },
+        { text: rc.desc, options: { fontSize: 10.5, color: C_SLATE } },
       ],
-      { x: x + 0.25, y: y + 0.2, w: 5.25, h: 2.05, fontFace: "Segoe UI", margin: 0 },
+      { x: x + 0.25, y: y + 0.15, w: 5.25, h: 2.05, fontFace: "Segoe UI", margin: 0 },
     );
   });
 
@@ -614,13 +643,13 @@ export async function generateAndDownloadDynamicPptx(
     const col = idx % 2;
     const row = Math.floor(idx / 2);
     const x = 0.8 + col * 5.95;
-    const y = 1.6 + row * 2.65;
+    const y = 1.5 + row * 2.6;
 
     s8.addShape(pres.ShapeType.roundRect, {
       x,
       y,
       w: 5.75,
-      h: 2.45,
+      h: 2.35,
       fill: { color: C_CARD_BG },
       line: { color: g.color, width: 2 },
       rectRadius: 0.15,
@@ -628,17 +657,17 @@ export async function generateAndDownloadDynamicPptx(
 
     s8.addText(
       [
-        { text: `${g.title}\n\n`, options: { fontSize: 12.5, bold: true, color: g.color } },
-        { text: g.body, options: { fontSize: 11, color: C_SLATE } },
+        { text: `${g.title}\n\n`, options: { fontSize: 11.5, bold: true, color: g.color } },
+        { text: g.body, options: { fontSize: 10.5, color: C_SLATE } },
       ],
       {
         x: x + 0.25,
-        y: y + 0.2,
+        y: y + 0.15,
         w: 5.25,
         h: 2.05,
         fontFace: "Segoe UI",
         margin: 0,
-        lineSpacing: 18,
+        lineSpacing: 16,
       },
     );
   });
@@ -648,7 +677,7 @@ export async function generateAndDownloadDynamicPptx(
   // -------------------------------------------------------------
   const s9 = pres.addSlide();
   s9.background = { color: C_BG };
-  addHeader(s9, "ỨNG DỤNG HỆ THỐNG NsN_XMLcheck v2.17.0 TRONG KIỂM SOÁT DỮ LIỆU");
+  addHeader(s9, `ỨNG DỤNG HỆ THỐNG NsN_XMLcheck v${APP_META.version} TRONG KIỂM SOÁT DỮ LIỆU`);
 
   const toolFeatures = [
     {
@@ -677,13 +706,13 @@ export async function generateAndDownloadDynamicPptx(
     const col = idx % 2;
     const row = Math.floor(idx / 2);
     const x = 0.8 + col * 5.95;
-    const y = 1.6 + row * 2.65;
+    const y = 1.5 + row * 2.6;
 
     s9.addShape(pres.ShapeType.roundRect, {
       x,
       y,
       w: 5.75,
-      h: 2.45,
+      h: 2.35,
       fill: { color: C_CARD_BG },
       line: { color: f.color, width: 2 },
       rectRadius: 0.15,
@@ -691,83 +720,121 @@ export async function generateAndDownloadDynamicPptx(
 
     s9.addText(
       [
-        { text: `${f.title}\n\n`, options: { fontSize: 13, bold: true, color: f.color } },
-        { text: f.desc, options: { fontSize: 11.5, color: C_SLATE } },
+        { text: `${f.title}\n\n`, options: { fontSize: 12, bold: true, color: f.color } },
+        { text: f.desc, options: { fontSize: 10.5, color: C_SLATE } },
       ],
       {
         x: x + 0.25,
-        y: y + 0.2,
+        y: y + 0.15,
         w: 5.25,
         h: 2.05,
         fontFace: "Segoe UI",
         margin: 0,
-        lineSpacing: 18,
       },
     );
   });
 
   // -------------------------------------------------------------
   // SLIDE 10: KIẾN NGHỊ BAN GIÁM ĐỐC & KẾ HOẠCH HÀNH ĐỘNG
+  // (Thiết kế 3 Cột Card Độc Lập - Cực kỳ thoáng, không tràn khung)
   // -------------------------------------------------------------
   const s10 = pres.addSlide();
   s10.background = { color: C_BG };
   addHeader(s10, "KIẾN NGHỊ BAN GIÁM ĐỐC & KẾ HOẠCH HÀNH ĐỘNG CẤP BÁCH");
 
-  s10.addShape(pres.ShapeType.roundRect, {
-    x: 0.8,
-    y: 1.6,
-    w: 11.7,
-    h: 5.2,
-    fill: { color: C_CARD_BG },
-    line: { color: C_TEAL, width: 2 },
-    rectRadius: 0.15,
-  });
+  const actionColumns = [
+    {
+      title: "1. Khối Lâm Sàng & Điều Dưỡng",
+      subtitle: "Quản trị buồng bệnh & Xếp giường",
+      color: C_TEAL,
+      points: [
+        "Chấn chỉnh điều dưỡng trưởng các khoa điểm nóng; đưa chỉ số trùng giường vào đánh giá thi đua tháng.",
+        "Nghiêm cấm xếp đè BN mới vào mã giường cũ khi chưa hoàn thành thao tác trả giường trên HIS.",
+        "Tích chọn đúng hệ số nằm ghép 50% hoặc 33% theo TT 39/2024 khi buồng bệnh quá tải thực tế.",
+      ],
+    },
+    {
+      title: "2. Phòng KHTH & Giám Định",
+      subtitle: "Kiểm soát trước cổng & Pháp lý",
+      color: C_BLUE,
+      points: [
+        "Ứng dụng NsN_XMLcheck quét chéo dữ liệu định kỳ hàng ngày/tuần trước khi đẩy cổng BHYT.",
+        "Xây dựng biên bản giải trình các ca trùng dưới 4 giờ theo đúng hướng dẫn kiểm soát của BHXH VN.",
+        "Lập hồ sơ bảo lưu cấp cứu quá tải căn cứ Điều 35 Luật Khám chữa bệnh 2023 để giữ 100% chi phí.",
+      ],
+    },
+    {
+      title: "3. Phòng Công Nghệ Thông Tin",
+      subtitle: "Chuẩn hóa thuật toán HIS",
+      color: C_EMERALD,
+      points: [
+        "Cập nhật cấu hình HIS tự động tách ngày điều trị lúc 12:01 (thay vì 12:00) triệt tiêu lỗi trùng mốc phút.",
+        "Cài đặt cảnh báo pop-up trên HIS khi điều dưỡng xếp người bệnh mới vào giường đang có BN nằm.",
+        "Tự động đồng bộ giờ kết thúc giường bằng giờ ra viện (NGAY_KQ = NGAY_RA) khi in bảng kê.",
+      ],
+    },
+  ];
 
-  s10.addText(
-    [
+  actionColumns.forEach((col, idx) => {
+    const x = 0.8 + idx * 4.0;
+    const y = 1.5;
+    const w = 3.7;
+    const h = 5.2;
+
+    // Card background
+    s10.addShape(pres.ShapeType.roundRect, {
+      x,
+      y,
+      w,
+      h,
+      fill: { color: C_CARD_BG },
+      line: { color: col.color, width: 2 },
+      rectRadius: 0.15,
+    });
+
+    // Card Header Bar
+    s10.addShape(pres.ShapeType.roundRect, {
+      x: x + 0.15,
+      y: y + 0.15,
+      w: w - 0.3,
+      h: 0.85,
+      fill: { color: col.color },
+      line: { color: col.color },
+      rectRadius: 0.1,
+    });
+
+    s10.addText(
+      [
+        { text: `${col.title}\n`, options: { fontSize: 11, bold: true, color: C_WHITE } },
+        { text: col.subtitle, options: { fontSize: 9.5, color: "E2E8F0" } },
+      ],
       {
-        text: "NHÓM GIẢI PHÁP & KẾ HOẠCH HÀNH ĐỘNG CỤ THỂ:\n\n",
-        options: { fontSize: 15, bold: true, color: C_NAVY },
+        x: x + 0.25,
+        y: y + 0.22,
+        w: w - 0.5,
+        h: 0.75,
+        fontFace: "Segoe UI",
+        margin: 0,
+        align: "center",
       },
-      {
-        text: "1. Về phía Khối Lâm sàng & Điều dưỡng buồng bệnh:\n",
-        options: { fontSize: 12.5, bold: true, color: C_TEAL },
-      },
-      {
-        text: "   • Tổ chức họp chấn chỉnh điều dưỡng trưởng các khoa điểm nóng; đưa chỉ số trùng giường gối đầu vào tiêu chí đánh giá chất lượng khoa phòng định kỳ hàng tháng.\n",
-        options: { fontSize: 11.5, color: C_SLATE },
-      },
-      {
-        text: "   • Nghiêm cấm việc xếp đè bệnh nhân mới vào mã giường của bệnh nhân cũ khi chưa hoàn thành thao tác trả giường trên phần mềm HIS.\n\n",
-        options: { fontSize: 11.5, color: C_SLATE },
-      },
-      {
-        text: "2. Về phía Phòng Kế hoạch Tổng hợp & Giám định BHYT:\n",
-        options: { fontSize: 12.5, bold: true, color: C_BLUE },
-      },
-      {
-        text: "   • Ứng dụng hệ thống NsN_XMLcheck quét dữ liệu định kỳ hàng ngày/tuần, phát hiện và xử lý ngay các ca vi phạm trước khi chuyển file lên Cổng giám định BHXH.\n",
-        options: { fontSize: 11.5, color: C_SLATE },
-      },
-      {
-        text: "   • Xây dựng biên bản giải trình các trường hợp trùng thời gian dưới 4 giờ (căn cứ hướng dẫn của BHXH Việt Nam) và ca cấp cứu quá tải (Điều 35 Luật KCB 2023).\n\n",
-        options: { fontSize: 11.5, color: C_SLATE },
-      },
-      {
-        text: "3. Về phía Phòng Công nghệ Thông tin:\n",
-        options: { fontSize: 12.5, bold: true, color: C_EMERALD },
-      },
-      {
-        text: "   • Cập nhật cấu hình phần mềm HIS tự động điều chỉnh mốc tách ngày điều trị thành 12:01 (thay vì 12:00 chẵn) để triệt tiêu hoàn toàn lỗi trùng mốc phút.\n",
-        options: { fontSize: 11.5, color: C_SLATE },
-      },
-      {
-        text: "   • Cài đặt cảnh báo pop-up trên HIS khi điều dưỡng xếp người bệnh mới vào buồng giường đang có bệnh nhân khác nằm điều trị.",
-        options: { fontSize: 11.5, color: C_SLATE },
-      },
-    ],
-    { x: 1.1, y: 1.8, w: 11.1, h: 4.8, fontFace: "Segoe UI", margin: 0, lineSpacing: 18 },
-  );
+    );
+
+    // Card Body Points
+    const textRuns = col.points.flatMap((p, pIdx) => [
+      { text: `• Điểm ${pIdx + 1}: `, options: { fontSize: 10.5, bold: true, color: C_NAVY } },
+      { text: `${p}\n\n`, options: { fontSize: 10, color: C_SLATE } },
+    ]);
+
+    s10.addText(textRuns, {
+      x: x + 0.25,
+      y: y + 1.15,
+      w: w - 0.5,
+      h: 3.9,
+      fontFace: "Segoe UI",
+      margin: 0,
+      lineSpacing: 16,
+    });
+  });
 
   // Trigger download directly in browser
   const cleanName = (hospitalName || "Lạc_Việt").trim().replace(/[\s/\\?%*:|"<>]+/g, "_");

@@ -87,7 +87,7 @@ Artifact được tạo tại `releases/web/` và `releases/single-page/xml3-dur
 
 ## Phiên bản
 
-Phiên bản hiện tại: **2.10.1** · ngày **2026-11-05** · múi giờ **Asia/Ho_Chi_Minh (GMT+7)**. Xem [CHANGELOG.md](CHANGELOG.md) để biết lịch sử thay đổi.
+Phiên bản hiện tại: **2.18.0** · ngày **2026-11-21** · múi giờ **Asia/Ho_Chi_Minh (GMT+7)**. Xem [CHANGELOG.md](CHANGELOG.md) để biết lịch sử thay đổi.
 
 ## Tác giả và hỗ trợ
 

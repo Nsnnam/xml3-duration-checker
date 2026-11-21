@@ -11,13 +11,22 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),
+      "node:fs": path.resolve(import.meta.dirname, "src/lib/empty-node-mock.ts"),
+      "node:https": path.resolve(import.meta.dirname, "src/lib/empty-node-mock.ts"),
+      fs: path.resolve(import.meta.dirname, "src/lib/empty-node-mock.ts"),
+      https: path.resolve(import.meta.dirname, "src/lib/empty-node-mock.ts"),
     },
   },
   publicDir: path.resolve(import.meta.dirname, "public"),
   build: {
     outDir: path.resolve(import.meta.dirname, "dist-web"),
     emptyOutDir: true,
-    chunkSizeWarningLimit: 2500,
+    chunkSizeWarningLimit: 3500,
+    rollupOptions: {
+      output: {
+        inlineDynamicImports: true,
+      },
+    },
   },
   server: {
     port: 5174,

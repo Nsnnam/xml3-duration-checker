@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import type { Xml3Record, PatientInfo } from "./xml3-duration";
 import { formatXmlDateTime } from "./timezone";
 import { generateAndDownloadDynamicPptx } from "./dynamic-pptx-generator";
+import { APP_META } from "./meta";
 
 export interface ReportExportModalProps {
   isOpen: boolean;
@@ -330,7 +331,7 @@ export function ReportExportModal({
         <span>🏥 Đơn vị: <strong>${hospitalName}</strong></span>
         <span>📅 Ngày trích xuất: ${todayStr}</span>
         <span>👤 Chuyên viên phân tích: Nguyễn Sơn Nam (Nsnnam)</span>
-        <span>🚀 Hệ thống: NsN_XMLcheck v2.17.0</span>
+        <span>🚀 Hệ thống: NsN_XMLcheck v${APP_META.version}</span>
       </div>
     </div>
 
@@ -487,7 +488,7 @@ export function ReportExportModal({
 
     <div class="footer">
       <div>
-        <strong>${hospitalName}</strong> · Hệ thống NsN_XMLcheck v2.17.0
+        <strong>${hospitalName}</strong> · Hệ thống NsN_XMLcheck v${APP_META.version}
       </div>
       <div>
         Bản quyền © 2026 <strong>Nguyễn Sơn Nam (Nsnnam)</strong> · Múi giờ Asia/Ho_Chi_Minh
@@ -511,7 +512,7 @@ export function ReportExportModal({
 
       if (cardType === 'rejected') {
         currentTypeFilter = 'rejected';
-        currentRiskFilter = 'hasLoss';
+        currentRiskFilter = 'all';
       } else if (cardType === 'retained') {
         currentTypeFilter = 'retained';
         currentRiskFilter = 'all';
@@ -839,7 +840,7 @@ export function ReportExportModal({
 ## ĐƠN VỊ: ${hospitalName.toUpperCase()}
 **Thời gian lập báo cáo:** ${todayStr}  
 **Người thực hiện:** Nguyễn Sơn Nam (Nsnnam)  
-**Công cụ rà soát:** Hệ thống **NsN_XMLcheck v2.17.0**  
+**Công cụ rà soát:** Hệ thống **NsN_XMLcheck v${APP_META.version}**  
 **Căn cứ pháp lý & Giám định:** Thông tư 39/2024/TT-BYT, Công văn rà soát nghiệp vụ KT251 BHXH Việt Nam.
 
 ---
@@ -885,7 +886,7 @@ ${deptTable}
 4. **Nằm ghép bất khả kháng:** Phải tích áp tỷ lệ thanh toán 50% (ghép 2 người) hoặc 33% (ghép từ 3 người trở lên).
 
 ---
-*Báo cáo được xuất tự động từ hệ thống NsN_XMLcheck v2.17.0.*
+*Báo cáo được xuất tự động từ hệ thống NsN_XMLcheck v${APP_META.version}.*
 `;
 
     const blob = new Blob([mdContent], { type: "text/markdown;charset=utf-8" });
