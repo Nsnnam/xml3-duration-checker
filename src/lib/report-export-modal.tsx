@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import type { Xml3Record, PatientInfo } from "./xml3-duration";
 import { formatXmlDateTime } from "./timezone";
-import { SLIDE_PPTX_BASE64 } from "./slide-pptx-data";
+import { generateAndDownloadDynamicPptx } from "./dynamic-pptx-generator";
 
 export interface ReportExportModalProps {
   isOpen: boolean;
@@ -899,30 +899,19 @@ ${deptTable}
     URL.revokeObjectURL(url);
   };
 
-  // Tải Slide PowerPoint trực tiếp qua Blob Base64
-  const handleDownloadSlidePptx = () => {
+  // Tải Slide PowerPoint trực tiếp sinh từ dữ liệu thực tế
+  const [isGeneratingPptx, setIsGeneratingPptx] = useState(false);
+
+  const handleDownloadSlidePptx = async () => {
+    if (isGeneratingPptx) return;
+    setIsGeneratingPptx(true);
     try {
-      const binaryString = atob(SLIDE_PPTX_BASE64);
-      const len = binaryString.length;
-      const bytes = new Uint8Array(len);
-      for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      const blob = new Blob([bytes], {
-        type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      const cleanName = (hospitalName || "Lạc_Việt").trim().replace(/[\s/\\?%*:|"<>]+/g, "_");
-      a.download = `SLIDE_BAO_CAO_GIUONG_GHEP_VA_TIEN_GIUONG_${cleanName}.pptx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      await generateAndDownloadDynamicPptx(stats, hospitalName);
     } catch (err) {
-      console.error("Lỗi tải slide PPTX:", err);
-      window.open("./SLIDE_BAO_CAO_GIUONG_GHEP_VA_TIEN_GIUONG_LANH_DAO.pptx", "_blank");
+      console.error("Lỗi tạo slide PPTX:", err);
+      alert("Đã xảy ra lỗi khi tạo slide PowerPoint. Vui lòng thử lại!");
+    } finally {
+      setIsGeneratingPptx(false);
     }
   };
 
@@ -1089,16 +1078,21 @@ ${deptTable}
               {/* Nút 4: Slide PowerPoint */}
               <button
                 type="button"
+                disabled={isGeneratingPptx}
                 onClick={handleDownloadSlidePptx}
-                className="flex items-center gap-3 rounded-xl border border-indigo-300 bg-indigo-50/60 p-3 text-left hover:bg-indigo-100/70 transition group shadow-xs cursor-pointer"
+                className="flex items-center gap-3 rounded-xl border border-indigo-300 bg-indigo-50/60 p-3 text-left hover:bg-indigo-100/70 transition group shadow-xs cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <span className="text-2xl group-hover:scale-110 transition">📽️</span>
+                <span className="text-2xl group-hover:scale-110 transition">
+                  {isGeneratingPptx ? "⏳" : "📽️"}
+                </span>
                 <div>
                   <div className="text-xs font-bold text-indigo-950">
-                    Tải Slide PowerPoint (.pptx)
+                    {isGeneratingPptx
+                      ? "Đang tạo Slide PPTX từ dữ liệu thực tế..."
+                      : "Tải Slide PowerPoint (.pptx)"}
                   </div>
                   <div className="text-[11px] text-indigo-800">
-                    10 slide 16:9 thiết kế sẵn báo cáo Ban Giám đốc
+                    10 slide 16:9 sinh động 100% từ dữ liệu import thực tế
                   </div>
                 </div>
               </button>

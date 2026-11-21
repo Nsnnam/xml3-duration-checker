@@ -12,6 +12,8 @@ export const APP_META = {
       version: "2.17.0",
       date: "2026-11-20",
       changes: [
+        "Khởi tạo Slide PowerPoint (.pptx) động 100% theo dữ liệu thực tế import vào: Tích hợp thư viện PptxGenJS tạo trực tiếp 10 slide 16:9 chất lượng cao ngay trên trình duyệt, phản ánh trung thực toàn bộ số liệu thực tế (Tổng dòng XML3, số tiền giường, số BN nội trú, số dòng vi phạm, số lượt xuất toán, số lượt giữ lại 0đ, tổng tiền xuất toán, bảng phân bổ theo từng khoa và Top các mã buồng/giường vi phạm thực tế) theo đúng file nạp vào và tên cơ sở KCB, thay thế hoàn toàn file mẫu tĩnh trước đây.",
+        "Đồng bộ động Báo cáo chuyên đề Markdown (.md) và Infographic HTML tương tác (.html): Toàn bộ các thẻ KPI, bộ lọc đa chiều và bảng dữ liệu được tạo động theo đúng hồ sơ bệnh nhân trong phiên làm việc hiện tại.",
         "Khắc phục triệt để lỗi không sao chép được thông tin: Bỏ thuộc tính ngăn bôi đen (select-none) trên toàn bộ bảng cảnh báo và dữ liệu XML, cho phép người dùng bôi đen, chọn văn bản và sao chép (Ctrl+C) linh hoạt mọi trường dữ liệu.",
         "Tinh gọn thanh phân loại lỗi: Chuyển nút 'Đổi màu cảnh báo' vào giao diện Cấu hình & Backup và Thư viện quy tắc để tiết kiệm không gian và tránh rối mắt.",
         "Cập nhật mô tả tiêu đề trang thành 'Tổng hợp công cụ xử lý XML_Namns'.",
