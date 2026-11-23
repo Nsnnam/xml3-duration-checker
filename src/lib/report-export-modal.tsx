@@ -536,6 +536,11 @@ export function ReportExportModal({
     function filterByDept(dept) {
       currentDeptFilter = dept;
       document.getElementById('deptSelect').value = dept;
+      const deptInfo = deptStats.find(d => (d.khoa || '').toUpperCase() === (dept || '').toUpperCase());
+      if (deptInfo && deptInfo.loss <= 0 && document.getElementById('riskSelect').value === 'hasLoss') {
+        document.getElementById('riskSelect').value = 'all';
+        currentRiskFilter = 'all';
+      }
       applyFilters();
       document.getElementById('viewerSection').scrollIntoView({ behavior: 'smooth' });
     }
@@ -589,7 +594,10 @@ export function ReportExportModal({
 
       const tbody = document.getElementById('violationTableBody');
       if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-6 text-slate-500">Không tìm thấy ca nào phù hợp với bộ lọc hiện tại.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-500">' +
+          '<div class="text-sm font-bold text-slate-700 mb-1">Không tìm thấy ca nào phù hợp với bộ lọc hiện tại.</div>' +
+          '<div class="text-xs text-slate-500">💡 Gợi ý: Nếu bạn đang chọn "Có nguy cơ xuất toán (> 0 đ)", các ca xuất toán có chi phí 0 đ (chưa có đơn giá XML) sẽ bị ẩn. Hãy chuyển về <b>"Tất cả mức độ rủi ro"</b> hoặc bấm nút <b>"↺ Xem lại tất cả"</b>.</div>' +
+          '</td></tr>';
         return;
       }
 
@@ -622,7 +630,7 @@ export function ReportExportModal({
           '<td><span class="tag ' + typeBadgeClass + '">' + r.loai + '</span></td>' +
           '<td class="text-xs text-slate-700 max-w-[280px] break-words">' + r.trung + '</td>' +
           '<td class="text-right font-mono font-bold ' + (r.tienXuatToan > 0 ? 'text-rose-700' : 'text-emerald-700') + '">' +
-            (r.tienXuatToan > 0 ? ('-' + r.tienXuatToan.toLocaleString('vi-VN') + ' đ') : '0 đ (Giữ lại)') +
+            (r.tienXuatToan > 0 ? ('-' + r.tienXuatToan.toLocaleString('vi-VN') + ' đ') : (r.action === 'rejected' ? '<span class="text-amber-700 font-semibold">0 đ (Chưa có đơn giá)</span>' : '0 đ (Giữ lại)')) +
           '</td>' +
         '</tr>';
       }).join('');

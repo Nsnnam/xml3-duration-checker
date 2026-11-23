@@ -1,5 +1,11 @@
 import pptxgen from "pptxgenjs";
+import fileSaver from "file-saver";
 import { APP_META } from "./meta";
+
+const saveAs =
+  typeof (fileSaver as unknown as { default?: typeof fileSaver }).default === "function"
+    ? (fileSaver as unknown as { default: typeof fileSaver }).default
+    : (fileSaver as unknown as { saveAs: typeof fileSaver }).saveAs || fileSaver;
 
 export interface ReportStatsForPptx {
   totalRecords: number;
@@ -821,22 +827,29 @@ export async function generateAndDownloadDynamicPptx(
 
     // Card Body Points
     const textRuns = col.points.flatMap((p, pIdx) => [
-      { text: `• Điểm ${pIdx + 1}: `, options: { fontSize: 10.5, bold: true, color: C_NAVY } },
-      { text: `${p}\n\n`, options: { fontSize: 10, color: C_SLATE } },
+      { text: `• Điểm ${pIdx + 1}: `, options: { fontSize: 10, bold: true, color: C_NAVY } },
+      { text: `${p}\n\n`, options: { fontSize: 9.5, color: C_SLATE } },
     ]);
 
     s10.addText(textRuns, {
       x: x + 0.25,
       y: y + 1.15,
       w: w - 0.5,
-      h: 3.9,
+      h: 3.8,
       fontFace: "Segoe UI",
       margin: 0,
-      lineSpacing: 16,
+      lineSpacing: 14,
     });
   });
 
-  // Trigger download directly in browser
+  // Trigger download directly in browser via safe Blob + saveAs (chống lỗi "Failed - No file" trên Chrome do revokeObjectURL sớm)
   const cleanName = (hospitalName || "Lạc_Việt").trim().replace(/[\s/\\?%*:|"<>]+/g, "_");
-  await pres.writeFile({ fileName: `SLIDE_BAO_CAO_GIUONG_GHEP_VA_TIEN_GIUONG_${cleanName}.pptx` });
+  const fileName = `SLIDE_BAO_CAO_GIUONG_GHEP_VA_TIEN_GIUONG_${cleanName}.pptx`;
+  try {
+    const blob = (await pres.write({ outputType: "blob" })) as Blob;
+    saveAs(blob, fileName);
+  } catch (err) {
+    console.warn("Lỗi xuất blob pptx, thử lại với writeFile:", err);
+    await pres.writeFile({ fileName });
+  }
 }

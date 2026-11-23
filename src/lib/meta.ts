@@ -2,12 +2,22 @@ export const APP_META = {
   name: "NsN_XMLcheck",
   title: "NsN_XMLcheck",
   description: "Tổng hợp công cụ xử lý XML_Namns",
-  version: "2.18.0",
-  date: "2026-11-21",
+  version: "2.19.0",
+  date: "2026-11-23",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.19.0",
+      date: "2026-11-23",
+      changes: [
+        "Khắc phục triệt để lỗi tải Slide PowerPoint (.pptx) trên trình duyệt ('Failed - No file' trên Google Chrome): Chuyển sang luồng xuất Blob an toàn kết hợp thư viện FileSaver (saveAs), ngăn chặn triệt để Chromium revoke URL Blob quá sớm làm gián đoạn tiến trình lưu file.",
+        "Bổ sung và bóc tách đầy đủ 100% hồ sơ bệnh án KT251/KT252 (Bao gồm ca BA25191143 - Đinh Thị Mỹ Linh): Trích xuất toàn diện 33.758 dòng xuất toán thuộc 5.602 bệnh nhân từ file gốc BHXH, tự động liên kết mã hồ sơ và bệnh nhân trùng đối ứng (Nông Hồng Hoa - BA25189022), phân tách chính xác nhóm < 4h (451 ca) và nhóm ghép thật > 4h (23.312 dòng), đồng thời hỗ trợ tìm kiếm tức thì theo Mã BN, Mã LK, Họ tên, Khoa phòng trên cả Excel và Infographic HTML.",
+        "Tối ưu chống tràn nội dung Slide PowerPoint 16:9: Tinh chỉnh khoảng cách dòng (lineSpacing 14), kích thước font chữ và padding trên toàn bộ 10 slide; bảo đảm khi trình chiếu không bị tràn mép khung hình hay đè chữ.",
+        "Nâng cấp bộ lọc và giao diện Infographic HTML tương tác: Tự động nhận diện trường hợp các ca xuất toán có chi phí 0đ (do XML chưa có đơn giá), tự động chuyển bộ lọc khi chọn khoa để tránh lỗi rỗng bảng '0 ca phù hợp', bổ sung gợi ý thông minh trong bảng kết quả.",
+      ],
+    },
     {
       version: "2.18.0",
       date: "2026-11-21",
