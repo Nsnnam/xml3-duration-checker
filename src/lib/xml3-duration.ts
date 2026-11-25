@@ -453,6 +453,7 @@ export type WarningCategory =
   | "order"
   | "equal"
   | "z000"
+  | "multipleBeds"
   | "bed"
   | "ketLuan"
   | "cccd";
@@ -467,6 +468,7 @@ export const DEFAULT_WARNING_COLORS: Record<WarningCategory, string> = {
   order: "#CA8A04",
   equal: "#EA580C",
   z000: "#C026D3",
+  multipleBeds: "#B45309",
   bed: "#78716C",
   ketLuan: "#0F766E",
   cccd: "#2563EB",
@@ -598,13 +600,23 @@ export const WARNING_CATEGORY_CONFIG: Record<WarningCategory, WarningCategoryMet
     icon: "🌸",
     defaultColor: DEFAULT_WARNING_COLORS.z000,
   },
+  multipleBeds: {
+    id: "multipleBeds",
+    label: "Ngày giường > 1 (cùng BN)",
+    badgeText: "NGÀY GIƯỜNG > 1",
+    badgeClass: "bg-amber-800 text-white border border-amber-900 shadow-xs",
+    chipClass: "border-amber-300 bg-amber-50 text-amber-950 hover:bg-amber-100",
+    activeChipClass: "bg-amber-800 text-white border-amber-800 shadow-sm",
+    icon: "🛌",
+    defaultColor: DEFAULT_WARNING_COLORS.multipleBeds,
+  },
   bed: {
     id: "bed",
-    label: "Giường ghép & Ngày giường > 1 (KT251)",
+    label: "Giường nằm ghép (KT251)",
     badgeText: "GIƯỜNG GHÉP",
-    badgeClass: "bg-amber-700 text-white border border-amber-800 shadow-xs",
-    chipClass: "border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100",
-    activeChipClass: "bg-amber-700 text-white border-amber-700 shadow-sm",
+    badgeClass: "bg-stone-700 text-white border border-stone-800 shadow-xs",
+    chipClass: "border-stone-300 bg-stone-50 text-stone-900 hover:bg-stone-100",
+    activeChipClass: "bg-stone-700 text-white border-stone-700 shadow-sm",
     icon: "🛏️",
     defaultColor: DEFAULT_WARNING_COLORS.bed,
   },
@@ -635,7 +647,10 @@ export function getXml3RecordCategory(record: Xml3Record): WarningCategory {
   if (record.hasZ000Warning) return "z000";
   if (record.hasMaMayWarning) return "maMay";
   if (record.hasTtThauWarning) return "ttThau";
-  if (record.hasBedWarning) return "bed";
+  if (record.hasBedWarning) {
+    if (record.bedWarningType === "multiple-beds") return "multipleBeds";
+    return "bed";
+  }
   if (record.hasEqualWarning) return "equal";
   if (record.hasOrderWarning) return "order";
   if (
@@ -708,6 +723,13 @@ export function getValidationWarningCategory(warning: ValidationWarning): Warnin
   if (warning.message.includes("TT_THAU")) return "ttThau";
   if (warning.source === "XML4" && warning.message.includes("KET_LUAN")) return "ketLuan";
   if (warning.message.includes("MA_MAY") || warning.message.includes("mã máy")) return "maMay";
+  if (
+    warning.message.includes("Số lượng giường trong ngày lớn hơn 01") ||
+    warning.message.includes("Ngày giường > 1") ||
+    warning.message.includes("kê trùng đồng thời nhiều giường cho một bệnh nhân")
+  ) {
+    return "multipleBeds";
+  }
   if (warning.message.includes("giường") || warning.message.includes("GIUONG")) return "bed";
   if (warning.message.includes("trùng mốc") || warning.message.includes("=")) return "equal";
   if (warning.message.includes("thứ tự") || warning.message.includes("sớm hơn")) return "order";

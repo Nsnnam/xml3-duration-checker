@@ -1409,8 +1409,8 @@ assert.equal(
 );
 
 // Test color config & load
-assert.equal(Object.keys(DEFAULT_WARNING_COLORS).length, 12);
-assert.equal(Object.keys(WARNING_CATEGORY_CONFIG).length, 12);
+assert.equal(Object.keys(DEFAULT_WARNING_COLORS).length, 13);
+assert.equal(Object.keys(WARNING_CATEGORY_CONFIG).length, 13);
 const colors = loadWarningColors();
 assert.equal(typeof colors.dupMachine, "string");
 assert.equal(typeof colors.overMax, "string");
@@ -1825,6 +1825,7 @@ assert.equal(bedCheckResultMultiSame[0].bedAuditAction, "retained");
 assert.equal(bedCheckResultMultiSame[0].isRetainedBed, true);
 assert.equal(bedCheckResultMultiSame[0].potentialBedRefusal, 0);
 assert.equal(getRecordStatusLabel(bedCheckResultMultiSame[0]), "NGÀY GIƯỜNG > 1");
+assert.equal(getXml3RecordCategory(bedCheckResultMultiSame[0]), "multipleBeds");
 assert.ok(bedCheckResultMultiSame[0].detail.includes("Số lượng giường trong ngày lớn hơn 01"));
 assert.ok(bedCheckResultMultiSame[0].detail.includes("Giữ lại thanh toán"));
 
@@ -1835,6 +1836,7 @@ assert.equal(bedCheckResultMultiSame[1].bedAuditAction, "rejected");
 assert.equal(bedCheckResultMultiSame[1].isRetainedBed, false);
 assert.equal(bedCheckResultMultiSame[1].potentialBedRefusal, 250000);
 assert.equal(getRecordStatusLabel(bedCheckResultMultiSame[1]), "NGÀY GIƯỜNG > 1 (XT)");
+assert.equal(getXml3RecordCategory(bedCheckResultMultiSame[1]), "multipleBeds");
 assert.ok(bedCheckResultMultiSame[1].detail.includes("Số lượng giường trong ngày lớn hơn 01"));
 assert.ok(bedCheckResultMultiSame[1].detail.includes("NGUY CƠ XUẤT TOÁN"));
 

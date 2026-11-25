@@ -2,12 +2,22 @@ export const APP_META = {
   name: "NsN_XMLcheck",
   title: "NsN_XMLcheck",
   description: "Tổng hợp công cụ xử lý XML_Namns",
-  version: "2.20.0",
+  version: "2.21.0",
   date: "2026-11-25",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.21.0",
+      date: "2026-11-25",
+      changes: [
+        "Tách biệt hoàn toàn thành 2 danh mục độc lập: 'Ngày giường > 1 (cùng BN)' và 'Giường nằm ghép (KT251)' giúp nhân viên y tế và giám định viên theo dõi, phân loại và xử lý từng nhóm chuyên biệt cực kỳ thuận tiện.",
+        "Bổ sung Thẻ Metric thống kê độc lập: Thẻ 'Ngày giường > 1' (kê trùng / vượt số lượng trong ngày cùng BN) và Thẻ 'Giường ghép (KT251)' (nằm ghép giữa các BN khác nhau) ở bảng KPI.",
+        "Bổ sung Nút xuất file Excel chuyên biệt 'Xuất Ngày giường > 1 (cùng BN)': Tự động gom nhóm theo bệnh nhân và ngày điều trị, tổng hợp số lượt giữ lại 0đ, số lượt xuất toán, tiền xuất toán dự kiến và chi tiết đối chiếu DTsheet45.",
+        "Phân tách nút lọc chip màu sắc: Chip 'Ngày giường > 1 (cùng BN)' (màu hổ phách 🛌) và chip 'Giường nằm ghép (KT251)' (màu đá xám 🛏️) hỗ trợ lọc tức thì 1 click trên bảng cảnh báo XML3.",
+      ],
+    },
     {
       version: "2.20.0",
       date: "2026-11-25",

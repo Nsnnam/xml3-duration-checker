@@ -5,6 +5,7 @@ import {
   createXml3ReportWorkbook,
   exportDuplicateMachineComparisonExcel,
   exportBedSharingComparisonExcel,
+  exportSamePatientBedComparisonExcel,
 } from "../lib/export.ts";
 import {
   exportLibraryTemplate,
@@ -292,6 +293,7 @@ type SummaryFocus =
   | "warnings"
   | "order"
   | "equal"
+  | "multipleBeds"
   | "bed"
   | "ttThau"
   | "maMay"
@@ -523,6 +525,29 @@ export function HomePage() {
     }
   }
 
+  async function handleExportSamePatientBed() {
+    if (!analysis || !analysis.records.length) {
+      setNotice("Chưa có kết quả phân tích để xuất đối chiếu Ngày giường > 1.");
+      return;
+    }
+    const hasSamePatBeds = analysis.records.some(
+      (r) => r.hasBedWarning && r.bedWarningType === "multiple-beds",
+    );
+    if (!hasSamePatBeds) {
+      setNotice("Không có ca nào có cảnh báo Ngày giường > 1 (cùng BN) để xuất đối chiếu.");
+      return;
+    }
+    try {
+      setNotice("Đang tạo file Excel đối chiếu Ngày giường > 1 (cùng BN)...");
+      await exportSamePatientBedComparisonExcel(analysis.records, analysis.patients);
+      setNotice("✅ Đã xuất file Excel đối chiếu Ngày giường > 1 (cùng BN) thành công!");
+    } catch (error) {
+      setNotice(
+        `❌ Lỗi xuất file đối chiếu Ngày giường > 1: ${error instanceof Error ? error.message : "Không xác định"}`,
+      );
+    }
+  }
+
   // Lưu columnsConfig vào localStorage khi thay đổi
   const saveColsConfig = (next: AllTabsColumnConfig) => {
     setColumnsConfig(next);
@@ -637,7 +662,14 @@ export function HomePage() {
     let source = onlyWarnings ? filteredWarnings : filteredRecords;
     if (summaryFocus === "order") source = source.filter((record) => record.hasOrderWarning);
     else if (summaryFocus === "equal") source = source.filter((record) => record.hasEqualWarning);
-    else if (summaryFocus === "bed") source = source.filter((record) => record.hasBedWarning);
+    else if (summaryFocus === "multipleBeds")
+      source = source.filter(
+        (record) => record.hasBedWarning && record.bedWarningType === "multiple-beds",
+      );
+    else if (summaryFocus === "bed")
+      source = source.filter(
+        (record) => record.hasBedWarning && record.bedWarningType !== "multiple-beds",
+      );
     else if (summaryFocus === "ttThau") source = source.filter((record) => record.hasTtThauWarning);
     else if (summaryFocus === "maMay") source = source.filter((record) => record.hasMaMayWarning);
     else if (summaryFocus === "dupMachine")
@@ -672,6 +704,7 @@ export function HomePage() {
     } else {
       setAlertTab("XML3");
       if (focus === "order" || focus === "equal") setWarningCategoryFilter("order");
+      else if (focus === "multipleBeds") setWarningCategoryFilter("multipleBeds");
       else if (focus === "bed") setWarningCategoryFilter("bed");
       else if (focus === "ttThau") setWarningCategoryFilter("ttThau");
       else if (focus === "maMay") setWarningCategoryFilter("maMay");
@@ -1197,6 +1230,7 @@ export function HomePage() {
             warningColors={warningColors}
             onOpenColorModal={() => setShowColorModal(true)}
             onExportDuplicateMachine={handleExportDuplicateMachine}
+            onExportSamePatientBed={handleExportSamePatientBed}
             onExportBedSharingComparison={handleExportBedSharing}
             onOpenReportExportModal={() => setShowReportExportModal(true)}
             onOpenDirectEdit={(target) => setDirectEditTarget(target)}
@@ -1553,6 +1587,7 @@ function CheckerView({
   warningColors,
   onOpenColorModal,
   onExportDuplicateMachine,
+  onExportSamePatientBed,
   onExportBedSharingComparison,
   onOpenReportExportModal,
   onOpenDirectEdit,
@@ -1606,6 +1641,7 @@ function CheckerView({
   warningColors: Record<WarningCategory, string>;
   onOpenColorModal: () => void;
   onExportDuplicateMachine: () => void;
+  onExportSamePatientBed?: () => void;
   onExportBedSharingComparison?: () => void;
   onOpenReportExportModal?: () => void;
   onOpenDirectEdit: (target: {
@@ -1632,6 +1668,7 @@ function CheckerView({
       order: 0,
       equal: 0,
       z000: 0,
+      multipleBeds: 0,
       bed: 0,
       ketLuan: 0,
       cccd: 0,
@@ -2509,8 +2546,22 @@ function CheckerView({
                 onClick={() => onSummaryFocus("equal")}
               />
               <Metric
-                label="Giường trong ngày"
-                value={filteredRecords.filter((record) => record.hasBedWarning).length}
+                label="Ngày giường > 1"
+                value={
+                  filteredRecords.filter(
+                    (record) => record.hasBedWarning && record.bedWarningType === "multiple-beds",
+                  ).length
+                }
+                tone="rose"
+                onClick={() => onSummaryFocus("multipleBeds")}
+              />
+              <Metric
+                label="Giường ghép (KT251)"
+                value={
+                  filteredRecords.filter(
+                    (record) => record.hasBedWarning && record.bedWarningType !== "multiple-beds",
+                  ).length
+                }
                 tone="rose"
                 onClick={() => onSummaryFocus("bed")}
               />
@@ -2584,17 +2635,33 @@ function CheckerView({
                     )}
                   </button>
                 )}
+                {alertTab === "XML3" && onExportSamePatientBed && (
+                  <button
+                    type="button"
+                    onClick={onExportSamePatientBed}
+                    disabled={!categoryCounts.multipleBeds}
+                    className="rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-bold text-amber-950 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm flex items-center gap-1.5"
+                    title="Xuất riêng file Excel đối chiếu chi tiết các ca kê trùng nhiều giường hoặc số lượng > 1 trong ngày của cùng một bệnh nhân (DTsheet45)"
+                  >
+                    <span>🛌 Xuất Ngày giường &gt; 1 (cùng BN)</span>
+                    {categoryCounts.multipleBeds > 0 && (
+                      <span className="rounded-full bg-amber-700 px-1.5 py-0.2 text-[10px] font-black text-white">
+                        {categoryCounts.multipleBeds}
+                      </span>
+                    )}
+                  </button>
+                )}
                 {alertTab === "XML3" && onExportBedSharingComparison && (
                   <button
                     type="button"
                     onClick={onExportBedSharingComparison}
                     disabled={!categoryCounts.bed}
-                    className="rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm flex items-center gap-1.5"
+                    className="rounded-lg border border-stone-300 bg-stone-50 px-2.5 py-1.5 text-xs font-bold text-stone-900 hover:bg-stone-100 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm flex items-center gap-1.5"
                     title="Xuất riêng file Excel đối chiếu chi tiết giường nằm ghép chuẩn mẫu KT251 BHXH"
                   >
                     <span>🛏️ Xuất đối chiếu giường ghép (KT251)</span>
                     {categoryCounts.bed > 0 && (
-                      <span className="rounded-full bg-amber-600 px-1.5 py-0.2 text-[10px] font-black text-white">
+                      <span className="rounded-full bg-stone-700 px-1.5 py-0.2 text-[10px] font-black text-white">
                         {categoryCounts.bed}
                       </span>
                     )}
@@ -2735,6 +2802,7 @@ function CheckerView({
                     "order",
                     "equal",
                     "z000",
+                    "multipleBeds",
                     "bed",
                     "ketLuan",
                     "cccd",

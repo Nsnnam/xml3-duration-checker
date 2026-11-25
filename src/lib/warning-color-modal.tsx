@@ -48,6 +48,7 @@ export function WarningColorModal({
     "order",
     "equal",
     "z000",
+    "multipleBeds",
     "bed",
     "ketLuan",
     "cccd",
