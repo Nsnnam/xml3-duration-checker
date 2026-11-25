@@ -155,11 +155,14 @@ export function ReportExportModal({
         } else if (r.bedWarningType === "missing-bed-code") {
           loaiLabel = "Thiếu mã giường";
         } else if (r.bedWarningType === "multiple-beds") {
-          loaiLabel = "Trùng nhiều giường cùng BN";
+          loaiLabel = "Ngày giường > 1 (cùng BN)";
         }
 
         let tinhTrangStr = "Chỉ cảnh báo";
-        if (r.isRetainedBed) {
+        if (r.bedWarningType === "multiple-beds") {
+          tinhTrangStr =
+            r.bedAuditAction === "rejected" ? "Ngày giường > 1 (XT)" : "Ngày giường > 1 (Giữ lại)";
+        } else if (r.isRetainedBed) {
           tinhTrangStr = "Được giữ lại (0 đ XT)";
         } else if (r.bedAuditAction === "rejected") {
           tinhTrangStr = "Xuất toán do trùng";
@@ -435,6 +438,7 @@ export function ReportExportModal({
             <option value="all">-- Tất cả phân loại --</option>
             <option value="rejected">🚨 Chỉ ca bị xuất toán</option>
             <option value="retained">✅ Chỉ ca được giữ lại (0đ)</option>
+            <option value="multiple-beds">🛏️ Ngày giường &gt; 1 (cùng BN)</option>
             <option value="multi-day-overlap">🛏️ Giường gối đầu (≥2 ngày)</option>
             <option value="bed-sharing">👥 Giường ghép trong ngày</option>
             <option value="minute-duplicate">⏱️ Trùng phút 12:00</option>
@@ -605,7 +609,11 @@ export function ReportExportModal({
         let tagClass = 'tag-sharing';
         let statusBadge = '<span class="tag tag-sharing">Chỉ cảnh báo</span>';
 
-        if (r.isRetained) {
+        if (r.typeKey === 'multiple-beds') {
+          statusBadge = r.action === 'rejected'
+            ? '<span class="tag tag-rejected">🚨 Ngày giường &gt; 1 (XT)</span>'
+            : '<span class="tag tag-retained">✅ Ngày giường &gt; 1 (0đ)</span>';
+        } else if (r.isRetained) {
           statusBadge = '<span class="tag tag-retained">✅ Giữ lại (0đ XT)</span>';
         } else if (r.action === 'rejected') {
           statusBadge = '<span class="tag tag-rejected">🚨 Bị xuất toán</span>';
@@ -617,6 +625,7 @@ export function ReportExportModal({
 
         let typeBadgeClass = 'tag-sharing';
         if (r.typeKey === 'multi-day-overlap') typeBadgeClass = 'tag-multi';
+        else if (r.typeKey === 'multiple-beds') typeBadgeClass = 'tag-multi';
         else if (r.typeKey === 'minute-duplicate') typeBadgeClass = 'tag-minute';
         else if (r.typeKey === 'bed-exceeds-discharge') typeBadgeClass = 'tag-discharge';
         else if (r.action === 'rejected') typeBadgeClass = 'tag-rejected';

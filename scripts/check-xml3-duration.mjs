@@ -1775,10 +1775,68 @@ const bedRecSamePat2 = {
 };
 
 const bedCheckResultSamePat = addBedWarnings([bedRecSamePat1, bedRecSamePat2]);
+assert.equal(bedCheckResultSamePat[0].hasBedWarning, true);
+assert.equal(bedCheckResultSamePat[0].bedWarningType, "minute-duplicate");
 assert.equal(bedCheckResultSamePat[1].hasBedWarning, true);
 assert.equal(bedCheckResultSamePat[1].bedWarningType, "minute-duplicate");
 assert.ok(bedCheckResultSamePat[1].MA_GIUONG_TRUNG?.includes("Trùng phút STT 10"));
 assert.ok(bedCheckResultSamePat[1].detail.includes("Trùng số phút chuyển tiếp kê giường"));
+
+// Case 7b: Chồng lấn thời gian kê nhiều giường cùng 1 BN (Ngày giường > 1 / DTsheet45) - Ca Triệu Thị Bình
+const bedRecMultiSamePat1 = {
+  ...baseBedRecord,
+  STT: "16",
+  MA_LK: "2431676",
+  MA_BN: "BA26183866",
+  HO_TEN: "TRIỆU THỊ BÌNH",
+  MA_KHOA: "K27",
+  MA_GIUONG: "G_SAN_01",
+  MA_DICH_VU: "K27.NO2",
+  TEN_DICH_VU: "Giường Nội khoa loại 2 - Khoa Phụ - Sản",
+  DON_GIA: 250000,
+  SO_LUONG: 1,
+  NGAY_YL: "202611230758",
+  NGAY_TH_YL: "202611230758",
+  NGAY_KQ: "202611240700",
+};
+const bedRecMultiSamePat2 = {
+  ...baseBedRecord,
+  STT: "15",
+  MA_LK: "2431676",
+  MA_BN: "BA26183866",
+  HO_TEN: "TRIỆU THỊ BÌNH",
+  MA_KHOA: "K27",
+  MA_GIUONG: "G_SAN_01",
+  MA_DICH_VU: "K27.NO2",
+  TEN_DICH_VU: "Giường Nội khoa loại 2 - Khoa Phụ - Sản",
+  DON_GIA: 250000,
+  SO_LUONG: 1,
+  NGAY_YL: "202611231032",
+  NGAY_TH_YL: "202611231032",
+  NGAY_KQ: "202611240700",
+};
+
+const bedCheckResultMultiSame = addBedWarnings([bedRecMultiSamePat1, bedRecMultiSamePat2]);
+assert.equal(bedCheckResultMultiSame.length, 2);
+// Dòng 1 (bắt đầu sớm hơn 07:58) được giữ lại thanh toán (0 đ xuất toán)
+assert.equal(bedCheckResultMultiSame[0].hasBedWarning, true);
+assert.equal(bedCheckResultMultiSame[0].bedWarningType, "multiple-beds");
+assert.equal(bedCheckResultMultiSame[0].bedAuditAction, "retained");
+assert.equal(bedCheckResultMultiSame[0].isRetainedBed, true);
+assert.equal(bedCheckResultMultiSame[0].potentialBedRefusal, 0);
+assert.equal(getRecordStatusLabel(bedCheckResultMultiSame[0]), "NGÀY GIƯỜNG > 1");
+assert.ok(bedCheckResultMultiSame[0].detail.includes("Số lượng giường trong ngày lớn hơn 01"));
+assert.ok(bedCheckResultMultiSame[0].detail.includes("Giữ lại thanh toán"));
+
+// Dòng 2 (bắt đầu sau 10:32, chồng lấn 1228 phút) bị xuất toán
+assert.equal(bedCheckResultMultiSame[1].hasBedWarning, true);
+assert.equal(bedCheckResultMultiSame[1].bedWarningType, "multiple-beds");
+assert.equal(bedCheckResultMultiSame[1].bedAuditAction, "rejected");
+assert.equal(bedCheckResultMultiSame[1].isRetainedBed, false);
+assert.equal(bedCheckResultMultiSame[1].potentialBedRefusal, 250000);
+assert.equal(getRecordStatusLabel(bedCheckResultMultiSame[1]), "NGÀY GIƯỜNG > 1 (XT)");
+assert.ok(bedCheckResultMultiSame[1].detail.includes("Số lượng giường trong ngày lớn hơn 01"));
+assert.ok(bedCheckResultMultiSame[1].detail.includes("NGUY CƠ XUẤT TOÁN"));
 
 // Case 8: Thời gian kết thúc kê giường vượt quá thời gian ra viện của bệnh nhân (NGAY_RA)
 const bedRecExceedDischarge = {

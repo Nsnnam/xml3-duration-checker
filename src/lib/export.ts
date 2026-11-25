@@ -455,13 +455,20 @@ export async function createBedSharingWorkbook(
       r.hasBedWarning &&
       (r.bedWarningType === "bed-sharing" ||
         r.bedWarningType === "multi-day-overlap" ||
-        r.bedWarningType === "minute-duplicate"),
+        r.bedWarningType === "minute-duplicate" ||
+        r.bedWarningType === "multiple-beds" ||
+        r.bedWarningType === "bed-exceeds-discharge" ||
+        r.bedWarningType === "missing-bed-code"),
   );
 
-  // Nhóm theo cụm: overlapDay|MA_KHOA|MA_GIUONG
+  // Nhóm theo cụm: overlapDay|MA_KHOA|MA_GIUONG hoặc theo BN nếu là multiple-beds
   const groupMap = new Map<string, Xml3Record[]>();
   for (const r of bedRecords) {
-    const key = `${r.bedOverlapDate || ""}|${(r.MA_KHOA || "").trim()}|${(r.MA_GIUONG || "").trim()}`;
+    const dateKey = r.bedOverlapDate || (r.NGAY_TH_YL ? r.NGAY_TH_YL.slice(0, 8) : "");
+    const key =
+      r.bedWarningType === "multiple-beds"
+        ? `SAME_PAT_${r.MA_LK || r.MA_BN}_${dateKey}`
+        : `${dateKey}|${(r.MA_KHOA || "").trim()}|${(r.MA_GIUONG || "").trim()}`;
     const list = groupMap.get(key) || [];
     list.push(r);
     groupMap.set(key, list);
@@ -481,6 +488,7 @@ export async function createBedSharingWorkbook(
   const count2Patients = bedRecords.filter((r) => (r.bedSharingCount ?? 2) === 2).length;
   const count3PlusPatients = bedRecords.filter((r) => (r.bedSharingCount ?? 2) >= 3).length;
   const countMultiDay = bedRecords.filter((r) => r.bedWarningType === "multi-day-overlap").length;
+  const countMultipleBeds = bedRecords.filter((r) => r.bedWarningType === "multiple-beds").length;
   const countMinuteDup = bedRecords.filter((r) => r.bedWarningType === "minute-duplicate").length;
   const countExceedDischarge = bedRecords.filter(
     (r) => r.bedWarningType === "bed-exceeds-discharge",
@@ -494,6 +502,7 @@ export async function createBedSharingWorkbook(
     { label: "✗ Số lượt giường bị xuất toán (Các giường phía sau)", value: countRejected },
     { label: "⚠ Số lượt cảnh báo nghiệp vụ/thủ tục (0 đ xuất toán)", value: countAdminWarning },
     { label: "Trong đó: Giường gối đầu liên tiếp (>= 2 ngày)", value: countMultiDay },
+    { label: "Trong đó: Ngày giường > 1 (kê trùng cùng BN)", value: countMultipleBeds },
     { label: "Trong đó: Trùng số phút chuyển tiếp kê giường (cùng BN)", value: countMinuteDup },
     {
       label: "Trong đó: Giờ kê giường vượt quá giờ ra viện (chỉ cảnh báo)",
@@ -576,7 +585,12 @@ export async function createBedSharingWorkbook(
         .join(" | ");
 
       let tinhTrangStr = "Chỉ cảnh báo";
-      if (r.isRetainedBed) {
+      if (r.bedWarningType === "multiple-beds") {
+        tinhTrangStr =
+          r.bedAuditAction === "rejected"
+            ? "🚨 Ngày giường > 1 (XT)"
+            : "✅ Ngày giường > 1 (Giữ lại)";
+      } else if (r.isRetainedBed) {
         tinhTrangStr = "✅ Giữ lại (0 đ XT)";
       } else if (r.bedAuditAction === "rejected") {
         tinhTrangStr = "🚨 Xuất toán (Trùng)";
@@ -593,11 +607,17 @@ export async function createBedSharingWorkbook(
         maGiuong: r.MA_GIUONG,
         maGiuongTrung: r.MA_GIUONG_TRUNG || r.MA_GIUONG,
         phanLoai:
-          r.bedWarningType === "multi-day-overlap"
-            ? `Gối đầu ${r.bedOverlapDaysCount || 2} ngày`
-            : r.bedWarningType === "minute-duplicate"
-              ? "Trùng phút giáp ranh"
-              : `Ghép ${r.bedSharingCount ?? 2} người`,
+          r.bedWarningType === "multiple-beds"
+            ? "Ngày giường > 1 (cùng BN)"
+            : r.bedWarningType === "multi-day-overlap"
+              ? `Gối đầu ${r.bedOverlapDaysCount || 2} ngày`
+              : r.bedWarningType === "minute-duplicate"
+                ? "Trùng phút giáp ranh"
+                : r.bedWarningType === "bed-exceeds-discharge"
+                  ? "Vượt giờ ra viện"
+                  : r.bedWarningType === "missing-bed-code"
+                    ? "Thiếu mã giường"
+                    : `Ghép ${r.bedSharingCount ?? 2} người`,
         ngayGhep: r.bedOverlapDate || "",
         soBnGhep: r.bedSharingCount ?? 2,
         soGioGiao: r.bedOverlapHours ? `${r.bedOverlapHours}h` : "",

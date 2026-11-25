@@ -2,12 +2,23 @@ export const APP_META = {
   name: "NsN_XMLcheck",
   title: "NsN_XMLcheck",
   description: "Tổng hợp công cụ xử lý XML_Namns",
-  version: "2.19.0",
-  date: "2026-11-23",
+  version: "2.20.0",
+  date: "2026-11-25",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.20.0",
+      date: "2026-11-25",
+      changes: [
+        "Khôi phục và chuẩn hóa toàn diện cảnh báo 'Số lượng giường trong ngày lớn hơn 01' (Ngày giường > 1 / DTsheet45) cho cùng 1 bệnh nhân: Tự động phát hiện cả trường hợp chồng lấn giờ kê giường và tổng số lượng giường trong cùng ngày dương lịch vượt quá 1.0.",
+        "Sửa triệt để lỗi bỏ sót hiển thị khi lọc 'Chỉ cảnh báo': Đánh dấu hasBedWarning = true cho toàn bộ các dòng giường vi phạm của cùng 1 BN (cả dòng giữ lại thanh toán 0đ và dòng bị xuất toán) để hiển thị đầy đủ, không bị ẩn khi người dùng kích hoạt bộ lọc cảnh báo.",
+        "Chuẩn hóa nhãn trạng thái và phân tách rõ ràng giữa 'NGÀY GIƯỜNG > 1' và 'GIƯỜNG GHÉP': Các ca kê trùng giường cùng 1 BN được hiển thị nhãn trạng thái riêng biệt 'NGÀY GIƯỜNG > 1 (XT)' (cho dòng xuất toán) và 'NGÀY GIƯỜNG > 1' (cho dòng giữ lại 0đ), tránh nhầm lẫn với lỗi giường nằm ghép giữa các bệnh nhân khác nhau.",
+        "Nâng cấp bộ lọc cảnh báo: Cập nhật thẻ lọc phân loại thành 'Giường ghép & Ngày giường > 1 (KT251)', đồng thời bổ sung tùy chọn 'Ngày giường > 1 (cùng BN)' trong modal xuất báo cáo và Infographic HTML tương tác.",
+        "Tích hợp xuất Excel KT251 và Infographic HTML đa chiều: Phân loại chuẩn xác nhóm Ngày giường > 1 (cùng BN), tự động nhóm theo hồ sơ bệnh nhân và ngày điều trị, hiển thị chi tiết số phút chồng lấn và số tiền xuất toán BHYT dự kiến.",
+      ],
+    },
     {
       version: "2.19.0",
       date: "2026-11-23",

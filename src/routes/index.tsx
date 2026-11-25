@@ -3438,6 +3438,15 @@ function WarningRow({
                 </div>
               ) : null}
             </div>
+          ) : record.hasBedWarning &&
+            record.bedWarningType === "multiple-beds" &&
+            record.isRetainedBed ? (
+            <div>
+              <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-tight bg-emerald-600 text-white shadow-2xs border border-emerald-700">
+                NGÀY GIƯỜNG &gt; 1
+              </span>
+              <div className="mt-0.5 text-[9px] font-bold text-emerald-700">Giữ lại (0đ)</div>
+            </div>
           ) : record.hasBedWarning && record.isRetainedBed ? (
             <div>
               <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-tight bg-emerald-600 text-white shadow-2xs border border-emerald-700">
