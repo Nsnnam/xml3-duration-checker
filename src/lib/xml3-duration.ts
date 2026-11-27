@@ -5,6 +5,13 @@ import {
 } from "./mandatory-machine-services-data.ts";
 import { formatXmlDateTime, formatXmlDate } from "./timezone.ts";
 import { addMinutesToXmlDateTime } from "./correction-plan.ts";
+import { checkPatientDiseasesTt01 } from "./tt01-appendix2-diseases.ts";
+import {
+  auditXml3MaMayWithTt12,
+  getUnitCatalog,
+  loadTt12Catalogs,
+  type Tt12UnitData,
+} from "./tt12-library.ts";
 
 export type { MachineServiceRule };
 export { DEFAULT_MANDATORY_MACHINE_SERVICES };
@@ -456,7 +463,8 @@ export type WarningCategory =
   | "multipleBeds"
   | "bed"
   | "ketLuan"
-  | "cccd";
+  | "cccd"
+  | "doiTuongKcb";
 
 export const DEFAULT_WARNING_COLORS: Record<WarningCategory, string> = {
   all: "#E11D48",
@@ -472,6 +480,7 @@ export const DEFAULT_WARNING_COLORS: Record<WarningCategory, string> = {
   bed: "#78716C",
   ketLuan: "#0F766E",
   cccd: "#2563EB",
+  doiTuongKcb: "#0E7490",
 };
 
 export const WARNING_COLORS_KEY = "nsn-xmlcheck-warning-colors";
@@ -640,6 +649,16 @@ export const WARNING_CATEGORY_CONFIG: Record<WarningCategory, WarningCategoryMet
     icon: "🪪",
     defaultColor: DEFAULT_WARNING_COLORS.cccd,
   },
+  doiTuongKcb: {
+    id: "doiTuongKcb",
+    label: "Mã đối tượng KCB (XML1)",
+    badgeText: "ĐỐI TƯỢNG KCB",
+    badgeClass: "bg-cyan-700 text-white border border-cyan-800 shadow-xs",
+    chipClass: "border-cyan-200 bg-cyan-50 text-cyan-900 hover:bg-cyan-100",
+    activeChipClass: "bg-cyan-700 text-white border-cyan-700 shadow-sm",
+    icon: "🏷️",
+    defaultColor: DEFAULT_WARNING_COLORS.doiTuongKcb,
+  },
 };
 
 export function getXml3RecordCategory(record: Xml3Record): WarningCategory {
@@ -719,6 +738,15 @@ export function getValidationWarningCategory(warning: ValidationWarning): Warnin
     (warning.message.includes("CCCD") || warning.message.includes("12 ký tự"))
   )
     return "cccd";
+  if (
+    warning.source === "XML1" &&
+    (warning.message.includes("MA_DOITUONG_KCB") ||
+      warning.message.includes("mã đối tượng") ||
+      warning.message.includes("1.16") ||
+      warning.message.includes("1.7"))
+  ) {
+    return "doiTuongKcb";
+  }
   if (warning.message.includes("Z00.0") || warning.message.includes("Z30.1")) return "z000";
   if (warning.message.includes("TT_THAU")) return "ttThau";
   if (warning.source === "XML4" && warning.message.includes("KET_LUAN")) return "ketLuan";
@@ -946,6 +974,7 @@ export function readXml1Patients(doc: Document): Map<string, PatientInfo> {
 export function readXml1Warnings(
   doc: Document,
   patients: ReadonlyMap<string, PatientInfo> = new Map(),
+  tt12Catalogs?: Record<string, Tt12UnitData>,
 ): ValidationWarning[] {
   const warnings: ValidationWarning[] = [];
   const rows = Array.from(doc.getElementsByTagName("*"))
@@ -1059,6 +1088,87 @@ export function readXml1Warnings(
           "Đặt dụng cụ tránh thai",
         message: formatZ301WarningMessage("XML1", detailIndex),
       });
+    }
+
+    // Kiểm tra MA_DOITUONG_KCB theo Quyết định 3276/QĐ-BYT và Thông tư 01/2025/TT-BYT
+    if (maDoiTuong) {
+      // 1. Kiểm tra bệnh Phụ lục II TT 01/2025/TT-BYT tại CSKCB cấp cơ bản (mã 1.16)
+      const diseaseCheck = checkPatientDiseasesTt01(maBenh, maBenhKt);
+      if (diseaseCheck.hasAppendix2Disease) {
+        const allMatchedStr = diseaseCheck.matchedDiseases
+          .map((d) => `[${d.matchedCode} - ${d.diseaseName}]`)
+          .join(", ");
+        if (maDoiTuong === "1.15" || maDoiTuong === "1.13" || maDoiTuong === "1.14") {
+          warnings.push({
+            ...base,
+            MA_DICH_VU: "MA_DOITUONG_KCB",
+            TEN_DICH_VU: "Mã đối tượng KCB",
+            message: `XML 1. Chi tiết thứ ${detailIndex}: Sai mã đối tượng KCB: Bệnh nhân có mã bệnh ${allMatchedStr} thuộc Phụ lục II Thông tư 01/2025/TT-BYT nhưng đang khai MA_DOITUONG_KCB là '${maDoiTuong}'. Gợi ý: Điều chỉnh sang mã 1.16 theo Quyết định 3276/QĐ-BYT để bảo đảm quyền lợi 100% chi phí KCB BHYT cho người bệnh tự đến KCB tại cơ sở cấp cơ bản.`,
+          });
+        }
+      } else if (maDoiTuong === "1.16") {
+        warnings.push({
+          ...base,
+          MA_DICH_VU: "MA_DOITUONG_KCB",
+          TEN_DICH_VU: "Mã đối tượng KCB",
+          message: `XML 1. Chi tiết thứ ${detailIndex}: Cảnh báo MA_DOITUONG_KCB: Khai mã đối tượng 1.16 (bệnh Phụ lục II TT 01/2025/TT-BYT tại CSKCB cấp cơ bản) nhưng không tìm thấy mã bệnh chính (${maBenh || "trống"}) hoặc bệnh kèm theo (${maBenhKt || "trống"}) nào thuộc danh mục Phụ lục II TT 01/2025/TT-BYT.`,
+        });
+      }
+
+      // 2. Kiểm tra Trẻ sơ sinh điều trị ngay sau khi sinh ra (Mã 1.7)
+      const ngaySinhRaw =
+        directTextOf(node, "NGAY_SINH") ||
+        textOfGeneral(node, "NGAY_SINH") ||
+        patient?.NGAY_SINH ||
+        "";
+      const ngayVaoRaw =
+        directTextOf(node, "NGAY_VAO") ||
+        textOfGeneral(node, "NGAY_VAO") ||
+        directTextOf(node, "NGAY_YL") ||
+        "";
+      if (ngaySinhRaw && ngayVaoRaw) {
+        const birthDate = parseXmlDateTime(ngaySinhRaw);
+        const admitDate = parseXmlDateTime(ngayVaoRaw);
+        if (birthDate && admitDate) {
+          const diffMs = admitDate.getTime() - birthDate.getTime();
+          const ageInDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+          if (ageInDays >= 0 && ageInDays <= 28) {
+            if (maDoiTuong !== "1.7") {
+              warnings.push({
+                ...base,
+                MA_DICH_VU: "MA_DOITUONG_KCB",
+                TEN_DICH_VU: "Mã đối tượng KCB",
+                message: `XML 1. Chi tiết thứ ${detailIndex}: Nghi ngờ sai MA_DOITUONG_KCB: Bệnh nhân là trẻ sơ sinh (${ageInDays} ngày tuổi, sinh ngày ${formatXmlDate(ngaySinhRaw)}) điều trị sau sinh nhưng đang khai MA_DOITUONG_KCB là '${maDoiTuong}'. Gợi ý: Điều chỉnh sang mã 1.7 (Trẻ sơ sinh phải điều trị ngay sau khi sinh ra) theo Quyết định 3276/QĐ-BYT để được hưởng 100% chi phí KCB BHYT.`,
+              });
+            }
+          } else if (maDoiTuong === "1.7" && ageInDays > 28) {
+            warnings.push({
+              ...base,
+              MA_DICH_VU: "MA_DOITUONG_KCB",
+              TEN_DICH_VU: "Mã đối tượng KCB",
+              message: `XML 1. Chi tiết thứ ${detailIndex}: Khai MA_DOITUONG_KCB là 1.7 (Trẻ sơ sinh điều trị ngay sau sinh) nhưng tuổi bệnh nhân tính đến ngày vào viện đã quá 28 ngày (${ageInDays} ngày tuổi, sinh ngày ${formatXmlDate(ngaySinhRaw)}). Cần kiểm tra lại ngày sinh hoặc mã đối tượng theo Quyết định 3276/QĐ-BYT.`,
+            });
+          }
+        }
+      }
+    }
+
+    // 3. Kiểm tra mã khoa theo Bảng 1 Thông tư 12 (nếu cơ sở đã nạp Bảng 1)
+    const unitData = maCskcb ? tt12Catalogs?.[maCskcb] || getUnitCatalog(maCskcb) : undefined;
+    const maKhoa = directTextOf(node, "MA_KHOA") || textOfGeneral(node, "MA_KHOA");
+    if (unitData && unitData.bang1 && unitData.bang1.length > 0 && maKhoa) {
+      const upperKhoa = maKhoa.trim().toUpperCase();
+      const foundDept = unitData.bang1.some(
+        (d) => d.maKhoa && d.maKhoa.trim().toUpperCase() === upperKhoa,
+      );
+      if (!foundDept) {
+        warnings.push({
+          ...base,
+          MA_DICH_VU: "MA_KHOA",
+          TEN_DICH_VU: "Mã khoa phòng",
+          message: `XML 1. Chi tiết thứ ${detailIndex}: Mã khoa '${maKhoa}' không tồn tại trong Danh mục Bảng 1 (Bộ phận chuyên môn) Thông tư 12 của cơ sở KCB ${unitData.unit.maCskcb} (${unitData.unit.tenCskcb}).`,
+        });
+      }
     }
   });
   return warnings;
@@ -1367,6 +1477,7 @@ function readXml3Records(
   patients: Map<string, PatientInfo>,
   serviceRules: ReadonlyMap<string, ServiceRule>,
   mandatoryMachineRules: ReadonlyMap<string, MachineServiceRule> = DEFAULT_MANDATORY_MACHINE_MAP,
+  tt12Catalogs?: Record<string, Tt12UnitData>,
 ): Xml3Record[] {
   const detailTagCandidates = ["CHI_TIET_DVKT", "CHI_TIET_VTYT", "CHI_TIET"];
   let detailElements: Element[] = [];
@@ -1387,6 +1498,8 @@ function readXml3Records(
     );
   }
 
+  const loadedTt12 = tt12Catalogs || loadTt12Catalogs();
+
   return detailElements.map((item) => {
     const rawAllFields: Record<string, string> = {};
     for (let i = 0; i < item.children.length; i++) {
@@ -1405,7 +1518,11 @@ function readXml3Records(
     // Gộp tất cả các thẻ còn lại từ XML (kể cả các thẻ mới hoặc đặc thù của QĐ 130)
     Object.assign(fields, rawAllFields);
 
-    const record = evaluateRecord(fields, fileName, serviceRules, mandatoryMachineRules);
+    const patient = patients.get(fields.MA_LK);
+    const maCskcb = patient?.MA_CSKCB || "";
+    const unitData = maCskcb ? loadedTt12[maCskcb] || getUnitCatalog(maCskcb) : undefined;
+
+    const record = evaluateRecord(fields, fileName, serviceRules, mandatoryMachineRules, unitData);
     return withPatientInfo(record, patients);
   });
 }
@@ -2353,6 +2470,7 @@ export function evaluateRecord(
   mandatoryMachineRules:
     | ReadonlyMap<string, MachineServiceRule>
     | ReadonlyArray<MachineServiceRule> = DEFAULT_MANDATORY_MACHINE_MAP,
+  tt12UnitData?: Tt12UnitData,
 ): Xml3Record {
   const durationMinutes = minutesBetween(fields.NGAY_TH_YL, fields.NGAY_KQ);
   const serviceRule = serviceRules.get(fields.MA_DICH_VU.trim());
@@ -2386,10 +2504,24 @@ export function evaluateRecord(
       } else if (!isValidMaMay(maMayVal)) {
         hasMaMayWarning = true;
         maMayWarningMessage = `XML3: Mã máy '${maMayVal}' sai định dạng chuẩn (yêu cầu XX.3[xxx].Z)`;
+      } else if (tt12UnitData && tt12UnitData.bang6 && tt12UnitData.bang6.length > 0) {
+        const auditRes = auditXml3MaMayWithTt12(maMayVal, fields.NGAY_TH_YL, tt12UnitData);
+        if (auditRes.hasWarning) {
+          hasMaMayWarning = true;
+          maMayWarningMessage = auditRes.message;
+        }
       }
-    } else if (maMayVal && !isValidMaMay(maMayVal)) {
-      hasMaMayWarning = true;
-      maMayWarningMessage = `XML3: Mã máy '${maMayVal}' sai định dạng chuẩn (yêu cầu XX.3[xxx].Z)`;
+    } else if (maMayVal) {
+      if (!isValidMaMay(maMayVal)) {
+        hasMaMayWarning = true;
+        maMayWarningMessage = `XML3: Mã máy '${maMayVal}' sai định dạng chuẩn (yêu cầu XX.3[xxx].Z)`;
+      } else if (tt12UnitData && tt12UnitData.bang6 && tt12UnitData.bang6.length > 0) {
+        const auditRes = auditXml3MaMayWithTt12(maMayVal, fields.NGAY_TH_YL, tt12UnitData);
+        if (auditRes.hasWarning) {
+          hasMaMayWarning = true;
+          maMayWarningMessage = auditRes.message;
+        }
+      }
     }
   }
 
@@ -2810,6 +2942,7 @@ export async function parseXml3FromExcel(
   file: File,
   serviceRules: ReadonlyMap<string, ServiceRule> = new Map(),
   mandatoryMachineRules: ReadonlyMap<string, MachineServiceRule> = DEFAULT_MANDATORY_MACHINE_MAP,
+  tt12Catalogs?: Record<string, Tt12UnitData>,
 ): Promise<{
   records: Xml3Record[];
   patients: Map<string, PatientInfo>;
@@ -2869,6 +3002,7 @@ export async function parseXml3FromExcel(
 
   const records: Xml3Record[] = [];
   const patients = new Map<string, PatientInfo>();
+  const loadedTt12 = tt12Catalogs || loadTt12Catalogs();
 
   worksheet.eachRow((row, rowNumber) => {
     if (rowNumber === 1) return;
@@ -2883,6 +3017,7 @@ export async function parseXml3FromExcel(
     const cccd = getColVal(row, "SO_CCCD", "CCCD");
     const ngayVao = getColVal(row, "NGAY_VAO", "NGAYVAO");
     const ngayRa = getColVal(row, "NGAY_RA", "NGAYRA");
+    const maCskcb = getColVal(row, "MA_CSKCB", "MACSKCB");
 
     if (!patients.has(maLk)) {
       patients.set(maLk, {
@@ -2893,6 +3028,7 @@ export async function parseXml3FromExcel(
         SO_CCCD: cccd,
         NGAY_VAO: ngayVao,
         NGAY_RA: ngayRa,
+        MA_CSKCB: maCskcb,
       });
     }
 
@@ -2935,6 +3071,11 @@ export async function parseXml3FromExcel(
     };
 
     const patient = patients.get(maLk);
+    const unitMaCskcb = patient?.MA_CSKCB || maCskcb || "";
+    const unitData = unitMaCskcb
+      ? loadedTt12[unitMaCskcb] || getUnitCatalog(unitMaCskcb)
+      : undefined;
+
     const record = evaluateRecord(
       fields as Record<Xml3Field, string> & {
         MA_BN?: string;
@@ -2944,6 +3085,7 @@ export async function parseXml3FromExcel(
       file.name,
       serviceRules,
       mandatoryMachineRules,
+      unitData,
     );
     if (patient) {
       record.patient = patient;
@@ -2964,6 +3106,7 @@ export async function analyzeXml3File(
   serviceRules: ReadonlyMap<string, ServiceRule> = new Map(),
   drugRules: ReadonlyMap<string, DrugRule> = new Map(),
   mandatoryMachineRules: ReadonlyMap<string, MachineServiceRule> = DEFAULT_MANDATORY_MACHINE_MAP,
+  tt12Catalogs?: Record<string, Tt12UnitData>,
 ): Promise<Xml3Analysis> {
   const text = await file.text();
   const outer = parseXml(text, file.name);
@@ -2976,6 +3119,7 @@ export async function analyzeXml3File(
   const log: string[] = [`[${file.name}] Bắt đầu đọc XML chứa 15 bảng`];
   const fileNodes = Array.from(outer.getElementsByTagName("FILEHOSO"));
   const patients = sharedPatients;
+  const loadedTt12 = tt12Catalogs || loadTt12Catalogs();
 
   for (const fileNode of fileNodes) {
     const type = fileNode.getElementsByTagName("LOAIHOSO")[0]?.textContent?.trim() ?? "";
@@ -2983,7 +3127,7 @@ export async function analyzeXml3File(
     if (type === "XML1") {
       const inner = decodeFileContent(content, `${file.name} XML1`);
       for (const [maLk, patient] of readXml1Patients(inner)) patients.set(maLk, patient);
-      xml1Warnings.push(...readXml1Warnings(inner, patients));
+      xml1Warnings.push(...readXml1Warnings(inner, patients, loadedTt12));
     }
     if (type === "XML2") {
       const inner = decodeFileContent(content, `${file.name} XML2`);
@@ -3006,14 +3150,28 @@ export async function analyzeXml3File(
     const content = fileNode.getElementsByTagName("NOIDUNGFILE")[0]?.textContent ?? "";
     const inner = decodeFileContent(content, `${file.name} XML3`);
     rawRecords.push(
-      ...readXml3Records(inner, file.name, patients, serviceRules, mandatoryMachineRules),
+      ...readXml3Records(
+        inner,
+        file.name,
+        patients,
+        serviceRules,
+        mandatoryMachineRules,
+        loadedTt12,
+      ),
     );
   }
 
   if (!fileNodes.length && outer.getElementsByTagName("CHI_TIET_DVKT").length) {
     tableFiles = 1;
     rawRecords.push(
-      ...readXml3Records(outer, file.name, patients, serviceRules, mandatoryMachineRules),
+      ...readXml3Records(
+        outer,
+        file.name,
+        patients,
+        serviceRules,
+        mandatoryMachineRules,
+        loadedTt12,
+      ),
     );
   }
   if (!fileNodes.length && outer.getElementsByTagName("CHI_TIET_THUOC").length) {
@@ -3031,7 +3189,7 @@ export async function analyzeXml3File(
 
   if (isStandaloneXml1) {
     for (const [maLk, patient] of readXml1Patients(outer)) patients.set(maLk, patient);
-    xml1Warnings.push(...readXml1Warnings(outer, patients));
+    xml1Warnings.push(...readXml1Warnings(outer, patients, loadedTt12));
   }
 
   const hasOtherXml =
@@ -3097,12 +3255,14 @@ export async function analyzeXml3Files(
   serviceRules: ReadonlyArray<ServiceRule> = [],
   drugRules: ReadonlyArray<DrugRule> = [],
   mandatoryMachineRules: ReadonlyArray<MachineServiceRule> = DEFAULT_MANDATORY_MACHINE_SERVICES,
+  tt12Catalogs?: Record<string, Tt12UnitData>,
 ): Promise<BatchAnalysis> {
   const allRecords: Xml3Record[] = [];
   const errors: string[] = [];
   const logs: string[] = [];
   let tableFiles = 0;
   const sharedPatients = new Map<string, PatientInfo>();
+  const loadedTt12 = tt12Catalogs || loadTt12Catalogs();
   const serviceRuleMap = new Map(serviceRules.map((rule) => [rule.MA_DICH_VU.trim(), rule]));
   const drugRuleMap = new Map(drugRules.map((rule) => [rule.MA_THUOC.trim().toUpperCase(), rule]));
   const mandatoryMachineMap = new Map(
@@ -3134,7 +3294,12 @@ export async function analyzeXml3Files(
   for (const file of files) {
     try {
       if (file.name.toLowerCase().endsWith(".xlsx") || file.name.toLowerCase().endsWith(".xls")) {
-        const parsedExcel = await parseXml3FromExcel(file, serviceRuleMap, mandatoryMachineMap);
+        const parsedExcel = await parseXml3FromExcel(
+          file,
+          serviceRuleMap,
+          mandatoryMachineMap,
+          loadedTt12,
+        );
         tableFiles += parsedExcel.tableFiles;
         allRecords.push(...parsedExcel.records);
         for (const [maLk, pat] of parsedExcel.patients.entries()) {
@@ -3278,6 +3443,7 @@ export async function analyzeXml3Files(
         serviceRuleMap,
         drugRuleMap,
         mandatoryMachineMap,
+        loadedTt12,
       );
       allRecords.push(...analysis.records);
       tableFiles += analysis.tableFiles;

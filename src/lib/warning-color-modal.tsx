@@ -52,6 +52,7 @@ export function WarningColorModal({
     "bed",
     "ketLuan",
     "cccd",
+    "doiTuongKcb",
   ];
 
   const handleColorChange = (cat: WarningCategory, hex: string) => {

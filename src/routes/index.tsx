@@ -45,6 +45,7 @@ function calcDiffMinutes(startRaw?: string, endRaw?: string): number | null {
   return Math.round((end.getTime() - start.getTime()) / 60000);
 }
 import { WarningColorModal } from "../lib/warning-color-modal.tsx";
+import { Tt12LibraryView } from "../lib/tt12-library-view.tsx";
 import {
   loadTelegramConfig,
   saveTelegramConfig,
@@ -1281,6 +1282,7 @@ export function HomePage() {
             onExportToExcel={() => exportLibraryToExcel(serviceRules, drugRules, machineRules)}
             onImportExcel={handleImportExcel}
             onOpenColorModal={() => setShowColorModal(true)}
+            onRefreshXmlAudit={() => reanalyzeWithRules(serviceRules, drugRules, machineRules)}
           />
         )}
 
@@ -1672,6 +1674,7 @@ function CheckerView({
       bed: 0,
       ketLuan: 0,
       cccd: 0,
+      doiTuongKcb: 0,
     };
     for (const r of list) {
       const cat = getXml3RecordCategory(r);
@@ -1690,6 +1693,16 @@ function CheckerView({
         (w) => w.message.includes("CCCD") || w.message.includes("12 ký tự"),
       ).length;
       counts.cccd = cccdCount;
+      const doiTuongCount = analysis.xml1Warnings.filter(
+        (w) =>
+          w.message.includes("MA_DOITUONG_KCB") ||
+          w.message.includes("mã đối tượng") ||
+          w.message.includes("1.16") ||
+          w.message.includes("1.7") ||
+          w.message.includes("Phụ lục II") ||
+          w.message.includes("sơ sinh"),
+      ).length;
+      counts.doiTuongKcb = doiTuongCount;
     }
     return counts;
   }, [onlyWarnings, filteredWarnings, filteredRecords, analysis]);
@@ -2806,6 +2819,7 @@ function CheckerView({
                     "bed",
                     "ketLuan",
                     "cccd",
+                    "doiTuongKcb",
                   ] as WarningCategory[]
                 ).map((catKey) => {
                   const cfg = WARNING_CATEGORY_CONFIG[catKey];
@@ -2817,7 +2831,7 @@ function CheckerView({
                       key={catKey}
                       type="button"
                       onClick={() => {
-                        if (catKey === "cccd") {
+                        if (catKey === "cccd" || catKey === "doiTuongKcb") {
                           onAlertTabChange("XML1");
                         } else if (catKey === "ketLuan") {
                           onAlertTabChange("XML4");
@@ -4864,6 +4878,7 @@ function LibraryView({
   onExportToExcel,
   onImportExcel,
   onOpenColorModal,
+  onRefreshXmlAudit,
 }: {
   serviceRules: ServiceRule[];
   drugRules: DrugRule[];
@@ -4885,8 +4900,9 @@ function LibraryView({
   onExportToExcel: () => Promise<void>;
   onImportExcel: (file: File, mode: "merge" | "overwrite") => Promise<void>;
   onOpenColorModal?: () => void;
+  onRefreshXmlAudit?: () => void;
 }) {
-  const [subTab, setSubTab] = useState<"service" | "drug" | "machine">("service");
+  const [subTab, setSubTab] = useState<"service" | "drug" | "machine" | "tt12">("service");
 
   // Service rule form state
   const [serviceSearch, setServiceSearch] = useState("");
@@ -5314,6 +5330,16 @@ function LibraryView({
           >
             🔬 DVKT bắt buộc mã máy ({machineRules.length.toLocaleString("vi-VN")})
           </button>
+          <button
+            onClick={() => setSubTab("tt12")}
+            className={`rounded-xl px-4 py-2 text-xs font-bold transition ${
+              subTab === "tt12"
+                ? "bg-cyan-700 text-white shadow-sm"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            📋 Danh mục Thông tư 12 theo CSKCB (6 Bảng)
+          </button>
         </div>
 
         {subTab === "service" && (
@@ -5400,6 +5426,36 @@ function LibraryView({
                 >
                   Khôi phục mặc định
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {subTab === "tt12" && (
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-cyan-200 bg-cyan-50/50 p-4">
+              <div className="text-xs font-bold text-cyan-800 uppercase">
+                Hệ thống 6 Bảng danh mục
+              </div>
+              <div className="mt-1 text-2xl font-black text-cyan-900">Thông tư 12/2024</div>
+              <div className="mt-1 text-xs text-slate-500">
+                Khoa phòng, Nhân lực CCHN, Thuốc, VTYT, DVKT, Thiết bị
+              </div>
+            </div>
+            <div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-4">
+              <div className="text-xs font-bold text-indigo-800 uppercase">
+                Rà soát tự động theo CSKCB
+              </div>
+              <div className="mt-1 text-lg font-bold text-indigo-900">Tự nhận diện MA_CSKCB</div>
+              <div className="mt-1 text-xs text-slate-500">
+                Đối chiếu cột MA_MAY (XML3) với Bảng 6 và MA_KHOA (XML1) với Bảng 1
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 flex flex-col justify-center">
+              <div className="text-xs font-bold text-slate-700">Đa cơ sở khám chữa bệnh</div>
+              <div className="mt-1 text-xs text-slate-500">
+                Thiết lập riêng cho từng đơn vị (26066, 26193...), phân cấp KCB và nạp/xuất Excel
+                trực tiếp.
               </div>
             </div>
           </div>
@@ -6290,6 +6346,12 @@ function LibraryView({
             )}
           </div>
         </>
+      )}
+
+      {subTab === "tt12" && (
+        <div className="mt-6">
+          <Tt12LibraryView onRefreshXmlAudit={onRefreshXmlAudit} />
+        </div>
       )}
     </div>
   );

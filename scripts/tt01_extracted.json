@@ -1,0 +1,694 @@
+{
+  "pl2": [
+    {
+      "stt": 1,
+      "content": "Bệnh lao Từ A15 đến A19 (trừ mã A15)"
+    },
+    {
+      "stt": 2,
+      "content": "Bệnh phong (bệnh Hansen) A30"
+    },
+    {
+      "stt": 3,
+      "content": "Nhiễm mycobacteria ở da A31.1"
+    },
+    {
+      "stt": 4,
+      "content": "Nhiễm khuẩn mycobacteria khác A31.8"
+    },
+    {
+      "stt": 5,
+      "content": "Nhiễm khuẩn mycobacteria không xác định A31.9"
+    },
+    {
+      "stt": 6,
+      "content": "Viêm gan virus B mạn, có đồng nhiễm viêm gan virus D B18.0"
+    },
+    {
+      "stt": 7,
+      "content": "Viêm gan virus B mạn, không có đồng nhiễm viêm gan virus D B18.1"
+    },
+    {
+      "stt": 8,
+      "content": "Viêm gan virus C mạn tính B18.2"
+    },
+    {
+      "stt": 9,
+      "content": "HIV/AIDS Từ B20 đến B24"
+    },
+    {
+      "stt": 10,
+      "content": "Nhiễm zygomycota B46"
+    },
+    {
+      "stt": 11,
+      "content": "Nhóm u ác tính Từ C00 đến C97 Đối với mã C38.4  và C83.5 người bệnh được hưởng quyền lợi n gay trong lượt  khám bệnh, chữa bệnh có kết quả chẩn đoán xác định  mắc bệnh."
+    },
+    {
+      "stt": 12,
+      "content": "Nhóm u tân sinh tại chỗ Từ D00 đến D09"
+    },
+    {
+      "stt": 13,
+      "content": "Bệnh tăng hồng cầu mạn (hoặc Đa hồng cầu vô căn) C94.1 (hoặc áp mã D45 theo ICD-10 của W HO cập nhật năm 2021) STT Tên bệnh, nhóm bệnh và các trƣờng hợp Mã ICD-10 Tình trạng, điều kiện"
+    },
+    {
+      "stt": 14,
+      "content": "U tân sinh khác không chắc chắn hoặc không biết sinh chất của mô ulympho, mô tạo huyết và mô liên quan D47"
+    },
+    {
+      "stt": 15,
+      "content": "Nhóm bệnh tan máu bẩm sinh (Thalassemia) D56"
+    },
+    {
+      "stt": 16,
+      "content": "Bệnh hồng cầu liềm D57"
+    },
+    {
+      "stt": 17,
+      "content": "Thiếu máu tan máu mắc phải D59"
+    },
+    {
+      "stt": 18,
+      "content": "Suy tủy xương một dòng hồng cầu mắc phải (giảm nguyên hồng cầu) D60"
+    },
+    {
+      "stt": 19,
+      "content": "Các thể suy tủy xương khác D61 Đối với mã D61.9 người bệnh được hưởng quyền lợi n gay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định mắc bệnh."
+    },
+    {
+      "stt": 20,
+      "content": "Thiếu yếu tố VIII di truyền (Hemophilia A) D66"
+    },
+    {
+      "stt": 21,
+      "content": "Thiếu yếu tố IX di truyền (Hemophilia B) D67"
+    },
+    {
+      "stt": 22,
+      "content": "Các bất thường đông máu khác D68"
+    },
+    {
+      "stt": 23,
+      "content": "Tăng tiểu cầu tiền phát D75.2"
+    },
+    {
+      "stt": 24,
+      "content": "Các bệnh của tổ chức lympho - liên võng và - (tổ chức bào) mô bào - liên võng xác định khác D76"
+    },
+    {
+      "stt": 25,
+      "content": "Bệnh sarcoid D86"
+    },
+    {
+      "stt": 26,
+      "content": "Suy giáp khác E03 (trừ mã E03.5)"
+    },
+    {
+      "stt": 27,
+      "content": "Bướu không độc khác E04 Trường hợp có chèn khí quản. STT Tên bệnh, nhóm bệnh và các trƣờng hợp Mã ICD-10 Tình trạng, điều kiện"
+    },
+    {
+      "stt": 28,
+      "content": "Nhiễm độc giáp (cường giáp) E05"
+    },
+    {
+      "stt": 29,
+      "content": "Nhóm bệnh đái tháo đường Từ E10.2† đến E10.8 và từ E11.2† đến E11.8 và E12 (trừ mã E12.0, E12.1) và E13 (trừ mã E13.0, E13.1) và E14 (trừ mã E14.0, E14.1) Tổn thương đa cơ quan hoặc có biến chứng  loét bàn chân hoặc có bệnh thận mạn hoặc có  một trong các  biến chứng: tim mạch, mắt, thần kinh, mạch máu  hoặc biến chứng khác."
+    },
+    {
+      "stt": 30,
+      "content": "Cường cận giáp và các rối loạn khác của tuyến cận giáp E21"
+    },
+    {
+      "stt": 31,
+      "content": "Cường tuyến yên E22"
+    },
+    {
+      "stt": 32,
+      "content": "Suy tuyến yên E23"
+    },
+    {
+      "stt": 33,
+      "content": "Thiểu năng vỏ thượng thận nguyên phát E27.1"
+    },
+    {
+      "stt": 34,
+      "content": "Tăng năng tủy thượng thận E27.5"
+    },
+    {
+      "stt": 35,
+      "content": "Rối loạn chuyển hóa acid amin thơm E70 Người bệnh được hưởng quyền lợi n gay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định  mắc bệnh."
+    },
+    {
+      "stt": 36,
+      "content": "Rối loạn chuyển hóa acid amin chuỗi nhánh và rối loạn chuyển hóa acid béo E71 Người bệnh được hưởng quyền lợi n gay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định  mắc bệnh."
+    },
+    {
+      "stt": 37,
+      "content": "Các rối loạn khác của chuyển hóa acid amin E72"
+    },
+    {
+      "stt": 38,
+      "content": "Rối loạn chuyển hóa đồng (bao gồm cả bệnh Wilson) E83.0 STT Tên bệnh, nhóm bệnh và các trƣờng hợp Mã ICD-10 Tình trạng, điều kiện"
+    },
+    {
+      "stt": 39,
+      "content": "Nhóm bệnh tâm thần Từ F00 đến F99 (trừ mã F07.2, F51.0) - Đối với các mã: F20 (Tình trạng: Kháng thuốc); F31 (Tình trạng: Kháng thuốc); F32 (Tình trạng: Kháng thuốc); - Người bệnh được hưởng quyền lợi n gay trong lượt  khám bệnh, chữa bệnh có kết quả chẩn đoán xác định  mắc bệnh."
+    },
+    {
+      "stt": 40,
+      "content": "Viêm não - màng não và viêm tủy - màng tủy do vi khuẩn, không phân loại ở mục khác G04.2 Người bệnh được hưởng quyền lợi n gay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định  mắc bệnh."
+    },
+    {
+      "stt": 41,
+      "content": "Bệnh Parkinson G20"
+    },
+    {
+      "stt": 42,
+      "content": "Hội chứng Parkinson thứ phát G21"
+    },
+    {
+      "stt": 43,
+      "content": "Động kinh G40"
+    },
+    {
+      "stt": 44,
+      "content": "Nhược cơ G70.0"
+    },
+    {
+      "stt": 45,
+      "content": "Bại não liệt tứ chi co cứng G80.0 Người bệnh được hưởng quyền lợi n gay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định  mắc bệnh."
+    },
+    {
+      "stt": 46,
+      "content": "Liệt hai chân và liệt tứ chi G82 Người bệnh được hưởng quyền lợi n gay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định  mắc bệnh."
+    },
+    {
+      "stt": 47,
+      "content": "Tắc mạch võng mạc H34"
+    },
+    {
+      "stt": 48,
+      "content": "Điếc thần kinh không đặc hiệu điếc tiếp nhận không đặc hiệu H90.5 STT Tên bệnh, nhóm bệnh và các trƣờng hợp Mã ICD-10 Tình trạng, điều kiện"
+    },
+    {
+      "stt": 49,
+      "content": "Nghe kém (do nguyên nhân) đặc hiệu khác H91.8"
+    },
+    {
+      "stt": 50,
+      "content": "Nhóm bệnh hệ tuần hoàn Từ I00 đến I99 (trừ mã I10, I20, I34, I49.9, I67.9, I83, I95, I99) và I20.0, I20.1, I20.8, I20.9 và I34.0, I34.1, I34.2, I34.8, I34.9 và I83.0, I83.1, I83.2, I83.9 - Có chỉ định phẫu thuật hoặc can thiệp hoặc giai đoạn nặng hoặc có từ 02 biến chứng. - Người bệnh được hưởng quyền lợi n gay trong lượt  khám bệ nh, chữa bệnh có kết quả chẩn đoán xác định  mắc bệnh mà có chỉ định phẫu thuật."
+    },
+    {
+      "stt": 51,
+      "content": "Bệnh phổi tắc nghẽn mạn tính khác J44"
+    },
+    {
+      "stt": 52,
+      "content": "Tăng bạch cầu ái toan ở phổi, chưa được phân loại ở nơi khác J82"
+    },
+    {
+      "stt": 53,
+      "content": "Áp xe phổi và trung thất  J85"
+    },
+    {
+      "stt": 54,
+      "content": "Mủ lồng ngực (nhiễm trùng nặng ở phổi) J86"
+    },
+    {
+      "stt": 55,
+      "content": "Tràn dịch dưỡng trấp J94.0"
+    },
+    {
+      "stt": 56,
+      "content": "Bệnh của cơ hoành J98.6"
+    },
+    {
+      "stt": 57,
+      "content": "Mất khả năng giãn của tâm vị K22.0"
+    },
+    {
+      "stt": 58,
+      "content": "Bệnh Crohn (viêm ruột từng vùng) K50"
+    },
+    {
+      "stt": 59,
+      "content": "Suy gan cấp và bán cấp K72.0"
+    },
+    {
+      "stt": 60,
+      "content": "Viêm gan mãn hoạt động, không phân loại nơi khác K73.2"
+    },
+    {
+      "stt": 61,
+      "content": "Viêm gan tái hoạt động, không đặc hiệu K75.2"
+    },
+    {
+      "stt": 62,
+      "content": "Viêm gan tự miễn K75.4"
+    },
+    {
+      "stt": 63,
+      "content": "Viêm mô bào L03"
+    },
+    {
+      "stt": 64,
+      "content": "Pemphigus L10"
+    },
+    {
+      "stt": 65,
+      "content": "Pemphigoid L12 STT Tên bệnh, nhóm bệnh và các trƣờng hợp Mã ICD-10 Tình trạng, điều kiện"
+    },
+    {
+      "stt": 66,
+      "content": "Vảy nến mủ toàn thân L40.1"
+    },
+    {
+      "stt": 67,
+      "content": "Vảy phấn dạng lichen và đậu mùa cấp tính L41.0"
+    },
+    {
+      "stt": 68,
+      "content": "Vảy phấn đỏ nang lông L44.0"
+    },
+    {
+      "stt": 69,
+      "content": "Tổn thương phổi trong các bệnh lý thấp khớp (J99.0*) M05.1† Tổn thương phổi, tiến triển, đe dọa tính mạng người bệnh"
+    },
+    {
+      "stt": 70,
+      "content": "Viêm khớp trẻ em  M08"
+    },
+    {
+      "stt": 71,
+      "content": "Gút (thống phong) M10"
+    },
+    {
+      "stt": 72,
+      "content": "Bệnh Lupus ban đỏ hệ thống có tổn thương phủ tạng M32.1† Người bệnh được hưởng quyền lợi n gay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định  mắc bệnh."
+    },
+    {
+      "stt": 73,
+      "content": "Các dạng khác của Lupus ban đỏ hệ thống M32.8"
+    },
+    {
+      "stt": 74,
+      "content": "Xơ cứng toàn thể M34"
+    },
+    {
+      "stt": 75,
+      "content": "Các tổn thương hệ thống khác của mô liên kết M35"
+    },
+    {
+      "stt": 76,
+      "content": "Gù và ưỡn cột sống  M40"
+    },
+    {
+      "stt": 77,
+      "content": "Vẹo cột sống  M41"
+    },
+    {
+      "stt": 78,
+      "content": "Bệnh viêm cột sống dính khớp M45"
+    },
+    {
+      "stt": 79,
+      "content": "Viêm xương tủy M86"
+    },
+    {
+      "stt": 80,
+      "content": "Suy thận mạn, giai đoạn 3 N18.3"
+    },
+    {
+      "stt": 81,
+      "content": "Suy thận mạn, giai đoạn 4 N18.4 Người bệnh được hưởng quyền lợi n gay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định  mắc bệnh."
+    },
+    {
+      "stt": 82,
+      "content": "Suy thận mạn, giai đoạn 5 N18.5 Người bệnh được hưởng quyền lợi n gay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định  mắc bệnh. STT Tên bệnh, nhóm bệnh và các trƣờng hợp Mã ICD-10 Tình trạng, điều kiện"
+    },
+    {
+      "stt": 83,
+      "content": "Chửa trứng O01"
+    },
+    {
+      "stt": 84,
+      "content": "Biến chứng sau sẩy thai, chửa ngoài tử cung và chửa trứng O08"
+    },
+    {
+      "stt": 85,
+      "content": "Tiền sản giật O14 Người bệnh được hưởng quyền lợi n gay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định  mắc bệnh."
+    },
+    {
+      "stt": 86,
+      "content": "Đái tháo đường trong khi có thai O24 Người bệnh đái tháo đường có thai."
+    },
+    {
+      "stt": 87,
+      "content": "Rau cài răng lược O43.2 Người bệnh được hưởng quyền lợi n gay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định mắc bệnh."
+    },
+    {
+      "stt": 88,
+      "content": "Rau tiền đạo O44 Người bệnh được hưởng quyền lợi n gay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định  mắc bệnh."
+    },
+    {
+      "stt": 89,
+      "content": "Đa hồng cầu sơ sinh P61.1"
+    },
+    {
+      "stt": 90,
+      "content": "Não úng thủy bẩm sinh Q03"
+    },
+    {
+      "stt": 91,
+      "content": "Các dị tật bẩm sinh của hệ thống tuần hoàn Từ Q20 đến Q28"
+    },
+    {
+      "stt": 92,
+      "content": "Không có thận và các khuyết tật khác của thận Q60"
+    },
+    {
+      "stt": 93,
+      "content": "Biến dạng bẩm sinh của khớp háng Q65"
+    },
+    {
+      "stt": 94,
+      "content": "Các biến dạng bẩm sinh của bàn chân Q66"
+    },
+    {
+      "stt": 95,
+      "content": "Các biến dạng cơ xương bẩm sinh khác Q68"
+    },
+    {
+      "stt": 96,
+      "content": "Tật đa ngón Q69 Có chỉ định phẫu thuật loại I, loại đặc biệt."
+    },
+    {
+      "stt": 97,
+      "content": "Tật dính ngón Q70 Có chỉ định phẫu thuật loại I, loại đặc biệt."
+    },
+    {
+      "stt": 98,
+      "content": "Các khuyết tật thiếu hụt của chi trên Q71 STT Tên bệnh, nhóm bệnh và các trƣờng hợp Mã ICD-10 Tình trạng, điều kiện"
+    },
+    {
+      "stt": 99,
+      "content": "Các khuyết tật thiếu hụt của chi dưới Q72"
+    },
+    {
+      "stt": 100,
+      "content": "Bệnh vảy cá bẩm sinh Q80"
+    },
+    {
+      "stt": 101,
+      "content": "Bong biểu bì bọng nước Q81"
+    },
+    {
+      "stt": 102,
+      "content": "Hội chứng Turner Q96"
+    },
+    {
+      "stt": 103,
+      "content": "Các phát hiện bất thường khác về nước tiểu R82"
+    },
+    {
+      "stt": 104,
+      "content": "Lọc máu ngoài cơ thể (thận nhân tạo) Z49.1 Người bệnh được hưởng quyền lợi n gay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định  mắc bệnh."
+    },
+    {
+      "stt": 105,
+      "content": "Sự có mặt của các thiết bị cấy ghép tim và mạch máu Z95 Người bệnh được hưởng quyền lợi n gay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định  mắc bệnh."
+    },
+    {
+      "stt": 106,
+      "content": "Các bệnh thuộc Danh mục quy định tại Phụ lục I ban hành kèm theo Thông tư này. Theo mã ICD-10 tại Phụ lục I"
+    },
+    {
+      "stt": 1,
+      "content": "Các mã bệnh có 03 ký tự trong Phụ lục này bao gồm tất cả các mã bệnh chi tiết có 04 ký tự. Mã A30 bao gồm các mã A30.0, A30.1, A30.2, A30.3, A30.4, A30.5, A30.8, A30.9"
+    },
+    {
+      "stt": 2,
+      "content": "Trường hợp có mã bệnh chi tiết đến 04 ký tự, khi xác định mã bệnh phải ghi rõ mã chi tiết 04 ký tự."
+    }
+  ],
+  "pl1": [
+    {
+      "stt": 1,
+      "content": "Viêm màng não do lao (G01*) A17.0†"
+    },
+    {
+      "stt": 2,
+      "content": "U lao màng não (G07*) A17.1†"
+    },
+    {
+      "stt": 3,
+      "content": "Lao khác của hệ thần kinh A17.8†"
+    },
+    {
+      "stt": 4,
+      "content": "Lao hệ thần kinh, không xác định (G99.8*) A17.9†"
+    },
+    {
+      "stt": 5,
+      "content": "Nhiễm mycobacteria ở phổi A31.0"
+    },
+    {
+      "stt": 6,
+      "content": "Nhiễm histoplasma capsulatum ở phổi cấp tính B39.0"
+    },
+    {
+      "stt": 7,
+      "content": "Nhiễm nấm blastomyces ở phổi cấp tính B40.0"
+    },
+    {
+      "stt": 8,
+      "content": "Nhiễm nấm paracoccidioides ở phổi B41.0"
+    },
+    {
+      "stt": 9,
+      "content": "Nhiễm sporotrichum ở phổi (J99.8*) B42.0†"
+    },
+    {
+      "stt": 10,
+      "content": "Nhiễm aspergillus ở phổi xâm lấn B44.0"
+    },
+    {
+      "stt": 11,
+      "content": "Nhiễm cryptococcus ở phổi B45.0"
+    },
+    {
+      "stt": 12,
+      "content": "Nhiễm mucor ở phổi B46.0"
+    },
+    {
+      "stt": 13,
+      "content": "Nhiễm mucor lan toả B46.4"
+    },
+    {
+      "stt": 14,
+      "content": "U ác tụy C25 Người bệnh được hưởng quyền lợi n gay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định mắc bệnh. STT Tên bệnh, nhóm bệnh và các trƣờng hợp Mã ICD-10 Tình trạng, điều kiện"
+    },
+    {
+      "stt": 15,
+      "content": "U ác tuyến ức C37 Người bệnh được hưởng quyền lợi ngay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định mắc bệnh."
+    },
+    {
+      "stt": 16,
+      "content": "U ác của tim, trung thất và màng phổi C38 (trừ mã C38.4) Người bệnh được hưởng quyền lợi ngay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định mắc bệnh."
+    },
+    {
+      "stt": 17,
+      "content": "U ác của xương và sụn khớp ở vị trí khác và không xác định C41 Người bệnh được hưởng quyền lợi ngay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định mắc bệnh."
+    },
+    {
+      "stt": 18,
+      "content": "U ác của mãng não C70 Người bệnh được hưởng quyền lợi ngay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định mắc bệnh."
+    },
+    {
+      "stt": 19,
+      "content": "U ác của não C71 Người bệnh được hưởng quyền lợi ngay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định mắc bệnh."
+    },
+    {
+      "stt": 20,
+      "content": "U ác của tủy sống, dây thần kinh sọ và các phần khác của hệ thần kinh trung ương C72 Người bệnh được hưởng quyền lợi ngay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định mắc bệnh."
+    },
+    {
+      "stt": 21,
+      "content": "U ác thứ phát của não và màng não C79.3 Người bệnh được hưởng quyền lợi ngay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định mắc bệnh. STT Tên bệnh, nhóm bệnh và các trƣờng hợp Mã ICD-10 Tình trạng, điều kiện"
+    },
+    {
+      "stt": 22,
+      "content": "Nhóm u ác tính Từ C00 đến C97 Có đủ 02 điều kiện sau đây: - Người dưới 18 tuổi. - Không áp dụng đối với trường hợp đã được chẩn đoán xác định nhưng không có chỉ định  điều trị đặc hiệu."
+    },
+    {
+      "stt": 23,
+      "content": "U ác của hệ lympho, hệ tạo máu và các mô liên quan Từ C81 đến C86 và từ C90 đến C96 (trừ mã C83.5) Không áp dụng đối với trường hợp đã được chẩn đoán xác định nhưng không có chỉ định  điều trị đặc hiệu."
+    },
+    {
+      "stt": 24,
+      "content": "Hội chứng loạn sản tủy xương D46 Không áp dụng đối với trường hợp đã được chẩn đoán xác định nhưng không có chỉ định  điều trị đặc hiệu."
+    },
+    {
+      "stt": 25,
+      "content": "Các thể suy tủy xương khác D61 (trừ mã D61.9) Không áp dụng đối với trường hợp đã được chẩn đoán xác định nhưng không có chỉ định  điều trị đặc hiệu."
+    },
+    {
+      "stt": 26,
+      "content": "Bệnh tăng đông máu khác (Hội chứng kháng phospho lipid) D68.6"
+    },
+    {
+      "stt": 27,
+      "content": "Hội chứng thực bào tế bào máu liên quan đến nhiễm trùng D76.2"
+    },
+    {
+      "stt": 28,
+      "content": "Bệnh đái tháo đường phụ thuộc insuline (Có đa biến chứng) E10.7 Có biến chứng loét bàn chân độ 2 hoặc có bệnh thận mạn giai đoạn 3 trở lên hoặc c ó ít nhất 02 trong số các biến chứng: tim mạch, mắt, thần kinh, mạch máu."
+    },
+    {
+      "stt": 29,
+      "content": "Bệnh đái tháo đường không phụ thuộc E11.7 Có biến chứng loét bàn STT Tên bệnh, nhóm bệnh và các trƣờng hợp Mã ICD-10 Tình trạng, điều kiện insuline (Có đa biến chứng) chân độ 2 hoặc có bệnh thận mạn giai đoạn 3 trở lên."
+    },
+    {
+      "stt": 30,
+      "content": "Rối loạn chuyển hóa acid amin thơm E70 Người dưới 18 tuổi."
+    },
+    {
+      "stt": 31,
+      "content": "Rối loạn chuyển hóa acid amin chuỗi nhánh và rối loạn chuyển hóa acid béo E71 Người dưới 18 tuổi."
+    },
+    {
+      "stt": 32,
+      "content": "Các rối loạn khác của chuyển hóa acid amin E72 Người dưới 18 tuổi."
+    },
+    {
+      "stt": 33,
+      "content": "Nhóm rối loạn dự trữ thể tiêu bào (Bệnh Pompe, bệnh MPS, Bệnh Gaucher, Bệnh Fabry) E74, E75, E76, (Áp mã theo ICD-10 của WHO cập nhật năm 2021) Người bệnh được hưởng quyền lợi ngay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định mắc bệnh."
+    },
+    {
+      "stt": 34,
+      "content": "Rối loạn chuyển hóa đồng (bao gồm cả bệnh Wilson) E83.0 Bệnh Wilson có biến chứng (có một trong các biến chứng của xơ gan, suy gan cấp, tối cấp, suy thận cấp, rối loạn vận động, rối loạn vận ngôn, rối loạn tâm thần, sa sút trí tuệ, động kinh bệnh cơ tim, rối loạn nhịp tim)."
+    },
+    {
+      "stt": 35,
+      "content": "Thoái hóa dạng bột E85 Không áp dụng đối với trường hợp đã được chẩn đoán xác định nhưng không  có chỉ định điều trị đặc hiệu."
+    },
+    {
+      "stt": 36,
+      "content": "Rối loạn trầm cảm tái diễn F33 - Kháng thuốc. STT Tên bệnh, nhóm bệnh và các trƣờng hợp Mã ICD-10 Tình trạng, điều kiện - Người bệnh được hưởng quyền lợi n gay trong lượt  khám bệnh, chữa bệnh có kết quả chẩn đoán xác định  mắc bệnh."
+    },
+    {
+      "stt": 37,
+      "content": "Rối loạn ám ảnh nghi thức F42"
+    },
+    {
+      "stt": 38,
+      "content": "Viêm não, viêm tủy và viêm não-tủy G04 (trừ mã G04.2)"
+    },
+    {
+      "stt": 39,
+      "content": "Xơ cứng rải rác G35"
+    },
+    {
+      "stt": 40,
+      "content": "Viêm tủy thị thần kinh [Devic] G36.0"
+    },
+    {
+      "stt": 41,
+      "content": "Nhược cơ G70.0 - Trường hợp phải lọc máu, suy hô hấp. - Người bệnh được hưởng quyền lợi n gay trong lượt  khám bệnh, chữa bệnh có kết quả chẩn đoán xác định  mắc bệnh."
+    },
+    {
+      "stt": 42,
+      "content": "Bệnh lý võng mạc của trẻ đẻ non H35.1 Người bệnh được hưởng quyền lợi ngay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định mắc bệnh."
+    },
+    {
+      "stt": 43,
+      "content": "Suy tim I50 Đã có kết luận chẩn đoán giai đoạn 3, giai đoạn 4."
+    },
+    {
+      "stt": 44,
+      "content": "Hoại tử thượng bì nhiễm độc (Lyell/Steven Johnson) I51.2"
+    },
+    {
+      "stt": 45,
+      "content": "Hội chứng sau mổ tim I97.0"
+    },
+    {
+      "stt": 46,
+      "content": "Rối loạn chức năng khác sau phẫu thuật tim I97.1"
+    },
+    {
+      "stt": 47,
+      "content": "Bệnh phổi mô kẽ khác J84"
+    },
+    {
+      "stt": 48,
+      "content": "Áp xe phổi và trung thất  J85 Tình trạng tiến triển nặng theo hướng dẫn chẩn STT Tên bệnh, nhóm bệnh và các trƣờng hợp Mã ICD-10 Tình trạng, điều kiện đoán, điều trị."
+    },
+    {
+      "stt": 49,
+      "content": "Mủ lồng ngực (nhiễm trùng nặng ở phổi) J86 Tình trạng tiến triển nặng theo hướng dẫn chẩn đoán, điều trị."
+    },
+    {
+      "stt": 50,
+      "content": "Bệnh Crohn (viêm ruột từng vùng) K50 Mức độ nặng theo thang điểm CDAI từ  450 điểm trở lên, hoặc có biến chứng như rò, thủng, áp xe trong ổ bụng, suy dinh dưỡng nặng."
+    },
+    {
+      "stt": 51,
+      "content": "Pemphigus L10 Một trong các điều kiện sau đây: - Tổn thương da >10% diện tích cơ thể. - Tình trạng  tiến triển bệnh nặng  theo hướng dẫn chẩn đoán và điều trị. - Á u."
+    },
+    {
+      "stt": 52,
+      "content": "Viêm mạch mạng lưới L95.0"
+    },
+    {
+      "stt": 53,
+      "content": "Bệnh da tăng bạch cầu trung tính có sốt [Hội chứng Sweet] L98.2"
+    },
+    {
+      "stt": 54,
+      "content": "Bệnh Lupus ban đỏ hệ thống có tổn thương phủ tạng M32.1† - Tổn thương tim hoặc phổi hoặc thận nặng, tiến triển, đe dọa tính mạng. - Người bệnh được hưởng quyền lợi n gay trong lượt  khám bệnh, chữa bệnh có kết quả chẩn đoán xác định  mắc bệnh."
+    },
+    {
+      "stt": 55,
+      "content": "Đái tháo đường sơ sinh P70.2 Người bệnh được hưởng quyền lợi ngay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định mắc bệnh. STT Tên bệnh, nhóm bệnh và các trƣờng hợp Mã ICD-10 Tình trạng, điều kiện"
+    },
+    {
+      "stt": 56,
+      "content": "Dị tật bẩm sinh khác của não Q04 Người bệnh được hưởng quyền lợi ngay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định mắc bệnh."
+    },
+    {
+      "stt": 57,
+      "content": "Các dị tật bẩm sinh khác của tủy sống  Q06 Người bệnh được hưởng quyền lợi ngay trong lượt khám bệnh, chữa bệnh có kết quả chẩn đoán xác định mắc bệnh."
+    },
+    {
+      "stt": 58,
+      "content": "Nhóm các dị tật bẩm sinh của hệ thống tuần hoàn Từ Q20 đến Q28 Người dưới 18 tuổi thuộc một trong 02 trường hợp sau đây: - Phẫu thuật/can thiệp loại đặc biệt. - 03 phẫu thuật/can thiệp đồng thời trở lên."
+    },
+    {
+      "stt": 59,
+      "content": "Biến dạng bẩm sinh của khớp háng Q65 Có chỉ định thay khớp."
+    },
+    {
+      "stt": 60,
+      "content": "Kháng (các) thuốc chống lao U84.3"
+    },
+    {
+      "stt": 61,
+      "content": "Di chứng của hoạt động chiến tranh (Di chứng do vết thương chiến tranh) Y89.1 Áp dụng đối với thương binh, bệnh binh, người có công với cách mạng."
+    },
+    {
+      "stt": 62,
+      "content": "Tình trạng của mảnh ghép cơ quan và tổ chức Z94 Áp dụng đối với người bệnh có ghép tạng và điều trị sau ghép tạng."
+    },
+    {
+      "stt": 1,
+      "content": "Các mã bệnh có 03 ký tự trong Phụ lục này bao gồm tất cả các mã bệnh chi tiết có 04 ký tự. Ví dụ: Mã C25 bao gồm các mã C25.0, C25.1, C25.2, C25.3, C25.4, C25.7, C25.8, C25.9"
+    },
+    {
+      "stt": 2,
+      "content": "Trường hợp có mã bệnh chi tiết đến 04 ký tự, khi xác định mã bệnh phải ghi rõ mã chi tiết 04 ký tự."
+    }
+  ]
+}

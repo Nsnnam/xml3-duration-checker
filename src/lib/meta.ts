@@ -2,12 +2,22 @@ export const APP_META = {
   name: "NsN_XMLcheck",
   title: "NsN_XMLcheck",
   description: "Tổng hợp công cụ xử lý XML_Namns",
-  version: "2.21.0",
-  date: "2026-11-25",
+  version: "2.22.0",
+  date: "2026-11-27",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.22.0",
+      date: "2026-11-27",
+      changes: [
+        "Xây dựng hệ thống Thư viện danh mục 6 bảng theo Thông tư 12/2024/TT-BYT tương ứng với từng cơ sở KCB (MA_CSKCB), hỗ trợ quản lý đa cơ sở (26066, 26193...), phân cấp KCB (cơ bản / chuyên sâu / ban đầu), nhập/xuất file Excel mẫu chuẩn 6 bảng và khôi phục dữ liệu gốc.",
+        "Tự động nhận diện mã cơ sở KCB khi nạp XML và rà soát chéo: Đối chiếu cột MA_MAY trong XML3 với Bảng 6 (Trang thiết bị y tế) Thông tư 12 của đơn vị, cảnh báo chi tiết các mã máy sai lệch, chưa có trong danh mục hoặc hết hạn hiệu lực; đối chiếu cột MA_KHOA trong XML1 với Bảng 1 (Bộ phận chuyên môn).",
+        "Thêm cảnh báo thông minh MA_DOITUONG_KCB trong XML1 theo Quyết định 3276/QĐ-BYT và Thông tư 01/2025/TT-BYT: Cảnh báo điều chỉnh từ 1.15 sang 1.16 đối với người bệnh tự đến có bệnh thuộc danh mục 106 nhóm bệnh Phụ lục II TT 01/2025/TT-BYT tại CSKCB cấp cơ bản; Cảnh báo trẻ sơ sinh điều trị sau sinh <= 28 ngày tuổi điều chỉnh sang mã 1.7 theo quy định.",
+        "Bổ sung Filter chip phân loại lỗi doiTuongKcb (màu xanh cổ vịt #0E7490) kèm badge cảnh báo và chuyển tab trực tiếp sang XML1.",
+      ],
+    },
     {
       version: "2.21.0",
       date: "2026-11-25",

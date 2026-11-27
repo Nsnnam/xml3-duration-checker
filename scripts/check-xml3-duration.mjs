@@ -43,6 +43,8 @@ import {
   createFullConfigBackupContent,
 } from "../src/lib/backup.ts";
 import { addMinutesToXmlDateTime } from "../src/lib/correction-plan.ts";
+import { checkPatientDiseasesTt01 } from "../src/lib/tt01-appendix2-diseases.ts";
+import { auditXml3MaMayWithTt12 } from "../src/lib/tt12-library.ts";
 
 // 1. Kiểm tra tính phút và thứ tự thời gian
 assert.equal(addMinutesToXmlDateTime("202611041207", 10), "202611041217");
@@ -1407,10 +1409,31 @@ assert.equal(
   }),
   "cccd",
 );
+assert.equal(
+  getValidationWarningCategory({
+    source: "XML1",
+    detailIndex: "1",
+    MA_LK: "LK-01",
+    message:
+      "Sai mã đối tượng KCB: Bệnh nhân có mã bệnh [C50.1] thuộc Phụ lục II Thông tư 01/2025/TT-BYT nhưng đang khai MA_DOITUONG_KCB là '1.15'. Gợi ý: Điều chỉnh sang mã 1.16",
+  }),
+  "doiTuongKcb",
+);
+assert.equal(
+  getValidationWarningCategory({
+    source: "XML1",
+    detailIndex: "1",
+    MA_LK: "LK-01",
+    message:
+      "Trẻ sơ sinh điều trị ngay sau sinh: NGAY_VAO trùng hoặc cách NGAY_SINH trong vòng 28 ngày nhưng MA_DOITUONG_KCB đang khai là '1.1'. Gợi ý: Điều chỉnh sang mã đối tượng '1.7'",
+  }),
+  "doiTuongKcb",
+);
 
 // Test color config & load
-assert.equal(Object.keys(DEFAULT_WARNING_COLORS).length, 13);
-assert.equal(Object.keys(WARNING_CATEGORY_CONFIG).length, 13);
+assert.equal(Object.keys(DEFAULT_WARNING_COLORS).length, 14);
+assert.equal(Object.keys(WARNING_CATEGORY_CONFIG).length, 14);
+assert.equal(typeof DEFAULT_WARNING_COLORS.doiTuongKcb, "string");
 const colors = loadWarningColors();
 assert.equal(typeof colors.dupMachine, "string");
 assert.equal(typeof colors.overMax, "string");
@@ -1864,6 +1887,158 @@ assert.equal(bedCheckResultExceed[0].bedWarningType, "bed-exceeds-discharge");
 assert.ok(bedCheckResultExceed[0].MA_GIUONG_TRUNG?.includes("vượt ra viện"));
 assert.ok(bedCheckResultExceed[0].detail.includes("vượt quá thời gian ra viện"));
 
+// ===========================================================================
+// KIỂM TRA PHỤ LỤC II THÔNG TƯ 01/2025/TT-BYT & QUYẾT ĐỊNH 3276/QĐ-BYT
+// ===========================================================================
+// 1. Kiểm tra khớp danh mục bệnh Phụ lục II TT 01/2025/TT-BYT
+const matchC50 = checkPatientDiseasesTt01("C50.1", "");
+assert.equal(matchC50.hasAppendix2Disease, true);
+assert.equal(matchC50.matchedDiseases[0].matchedCode, "C50.1");
+
+const matchN18 = checkPatientDiseasesTt01("I10", "N18.4;E11");
+assert.equal(matchN18.hasAppendix2Disease, true);
+assert.equal(matchN18.matchedDiseases[0].matchedCode, "N18.4");
+
+const matchNormal = checkPatientDiseasesTt01("J00", "K29;R50");
+assert.equal(matchNormal.hasAppendix2Disease, false);
+assert.equal(matchNormal.matchedDiseases.length, 0);
+
+// 2. Kiểm tra XML1 đối chiếu MA_DOITUONG_KCB (1.15 -> 1.16 cho bệnh Phụ lục II)
+function createXml1DoiTuongElement(
+  maLk,
+  maDoiTuong,
+  maBenh,
+  maBenhKt = "",
+  ngaySinh = "",
+  ngayVao = "",
+) {
+  const map = new Map([
+    ["MA_LK", maLk],
+    ["MA_BN", "BN-" + maLk],
+    ["HO_TEN", "Bệnh nhân " + maLk],
+    ["MA_DOITUONG_KCB", maDoiTuong],
+    ["MA_BENH", maBenh],
+    ["MA_BENH_KT", maBenhKt],
+    ["NGAY_SINH", ngaySinh],
+    ["NGAY_VAO", ngayVao],
+  ]);
+  return {
+    tagName: "TONG_HOP",
+    children: Array.from(map.entries()).map(([tag, text]) => ({
+      tagName: tag,
+      textContent: text,
+    })),
+    getElementsByTagName(tag) {
+      const val = map.get(tag);
+      return val !== undefined ? [{ textContent: val }] : [];
+    },
+  };
+}
+
+const mockDocDoiTuong = {
+  getElementsByTagName() {
+    return [
+      // BN ung thư vú C50.1 nhưng khai mã 1.15 -> Cảnh báo gợi ý đổi sang 1.16
+      createXml1DoiTuongElement("LK-DT-01", "1.15", "C50.1"),
+      // BN khai 1.16 nhưng mã bệnh bình thường J00 -> Cảnh báo không thuộc Phụ lục II
+      createXml1DoiTuongElement("LK-DT-02", "1.16", "J00"),
+      // Trẻ sơ sinh 5 ngày tuổi khai mã 1.1 -> Cảnh báo gợi ý đổi sang 1.7
+      createXml1DoiTuongElement("LK-DT-03", "1.1", "P07", "", "202611100000", "202611150800"),
+      // Trẻ > 28 ngày tuổi (60 ngày) khai mã 1.7 -> Cảnh báo quá 28 ngày tuổi
+      createXml1DoiTuongElement("LK-DT-04", "1.7", "J20", "", "202609010000", "202611010800"),
+      // BN khai 1.16 đúng chuẩn với N18.5 -> Không có cảnh báo sai đối tượng
+      createXml1DoiTuongElement("LK-DT-05", "1.16", "N18.5"),
+    ];
+  },
+};
+
+const dtWarnings = readXml1Warnings(mockDocDoiTuong);
+const wDt01 = dtWarnings.find((w) => w.MA_LK === "LK-DT-01");
+assert.ok(wDt01);
+assert.equal(getValidationWarningCategory(wDt01), "doiTuongKcb");
+assert.ok(wDt01.message.includes("Phụ lục II"));
+assert.ok(wDt01.message.includes("1.16"));
+
+const wDt02 = dtWarnings.find((w) => w.MA_LK === "LK-DT-02");
+assert.ok(wDt02);
+assert.equal(getValidationWarningCategory(wDt02), "doiTuongKcb");
+assert.ok(wDt02.message.includes("không tìm thấy mã bệnh chính"));
+assert.ok(wDt02.message.includes("thuộc danh mục Phụ lục II"));
+
+const wDt03 = dtWarnings.find((w) => w.MA_LK === "LK-DT-03");
+assert.ok(wDt03);
+assert.equal(getValidationWarningCategory(wDt03), "doiTuongKcb");
+assert.ok(wDt03.message.includes("Trẻ sơ sinh"));
+assert.ok(wDt03.message.includes("1.7"));
+
+const wDt04 = dtWarnings.find((w) => w.MA_LK === "LK-DT-04");
+assert.ok(wDt04);
+assert.equal(getValidationWarningCategory(wDt04), "doiTuongKcb");
+assert.ok(wDt04.message.includes("đã quá 28 ngày"));
+
+// LK-DT-05: Hợp lệ -> Không có cảnh báo đối tượng KCB
+assert.equal(
+  dtWarnings.some((w) => w.MA_LK === "LK-DT-05" && w.MA_DICH_VU === "MA_DOITUONG_KCB"),
+  false,
+);
+
+// ===========================================================================
+// KIỂM TRA ĐỐI CHIẾU MÃ MÁY XML3 VỚI BẢNG 6 THÔNG TƯ 12
+// ===========================================================================
+const mockTt12Unit = {
+  unit: { maCskcb: "26066", tenCskcb: "BVĐK Lạc Việt Phúc Yên", capKcb: "co_ban" },
+  bang1: [],
+  bang2: [],
+  bang3: [],
+  bang4: [],
+  bang5: [],
+  bang6: [
+    {
+      stt: 1,
+      tenTb: "Máy chụp cắt lớp vi tính",
+      kyHieu: "Optima CT520",
+      maMay: "26066.302.26066-23-0001",
+      congTySx: "GE Healthcare",
+      tuNgay: "20230101",
+      denNgay: "20281231",
+      maCskcb: "26066",
+    },
+    {
+      stt: 2,
+      tenTb: "Máy xét nghiệm cũ",
+      kyHieu: "XN-01",
+      maMay: "26066.301.OLD-001",
+      congTySx: "Roche",
+      tuNgay: "20200101",
+      denNgay: "20251231", // Hết hạn từ cuối 2025
+      maCskcb: "26066",
+    },
+  ],
+};
+
+// Case A: Mã máy tồn tại và còn hạn -> Hợp lệ
+const resValidMachine = auditXml3MaMayWithTt12(
+  "26066.302.26066-23-0001",
+  "202611200830",
+  mockTt12Unit,
+);
+assert.equal(resValidMachine.hasWarning, false);
+assert.equal(resValidMachine.message, "");
+
+// Case B: Mã máy không tồn tại trong Bảng 6 TT12 -> Cảnh báo
+const resNotFoundMachine = auditXml3MaMayWithTt12(
+  "26066.302.UNKNOWN-99",
+  "202611200830",
+  mockTt12Unit,
+);
+assert.equal(resNotFoundMachine.hasWarning, true);
+assert.ok(resNotFoundMachine.message.includes("không tồn tại trong Bảng 6 TT12"));
+
+// Case C: Mã máy đã hết hạn sử dụng (hết hạn cuối 2025, khám năm 2026) -> Cảnh báo
+const resExpiredMachine = auditXml3MaMayWithTt12("26066.301.OLD-001", "202611200830", mockTt12Unit);
+assert.equal(resExpiredMachine.hasWarning, true);
+assert.ok(resExpiredMachine.message.includes("HẾT HẠN HIỆU LỰC TT12"));
+
 console.log(
-  "All tests passed: XML1 CCCD validation, Z00.0 & Z30.1 validation, XML3 duplicate machine time validation, XML7 NGOAITRU_TUNGAY < NGAY_RA validation (+1 day suggestion), duplicate machine excel export, KT251 bed sharing & multi-day & minute duplicate validation & workbook export, warning colors & column filter/sort helpers: OK",
+  "All tests passed: XML1 CCCD validation, Z00.0 & Z30.1 validation, XML3 duplicate machine time validation, XML7 NGOAITRU_TUNGAY < NGAY_RA validation (+1 day suggestion), duplicate machine excel export, KT251 bed sharing & multi-day & minute duplicate validation & workbook export, warning colors & column filter/sort helpers, TT01 Appendix 2 & QĐ 3276 MA_DOITUONG_KCB validation, and TT12 Bảng 6 machine catalog audit: OK",
 );
