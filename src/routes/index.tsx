@@ -3992,6 +3992,43 @@ function WarningRow({
 // ---------------------------------------------------------------------------
 // VALIDATION TABLE (XML1, XML2, XML4)
 // ---------------------------------------------------------------------------
+function extractSuggestedDoiTuongKcb(warning: ValidationWarning): {
+  code: string;
+  reason: string;
+} | null {
+  if (
+    warning.MA_DICH_VU !== "MA_DOITUONG_KCB" &&
+    !warning.message.includes("MA_DOITUONG_KCB") &&
+    !warning.message.includes("mã đối tượng") &&
+    !warning.message.includes("đối tượng KCB")
+  ) {
+    return null;
+  }
+  // Gợi ý điều chỉnh sang mã 1.16 (bệnh Phụ lục II TT 01/2025 tại CSKCB cấp cơ bản)
+  if (
+    warning.message.includes("1.16") &&
+    (warning.message.includes("Gợi ý") || warning.message.includes("Phụ lục II"))
+  ) {
+    return {
+      code: "1.16",
+      reason:
+        "Điều chỉnh sang mã 1.16 theo QĐ 3276/QĐ-BYT (bệnh thuộc Phụ lục II TT 01/2025/TT-BYT tại CSKCB cấp cơ bản)",
+    };
+  }
+  // Gợi ý điều chỉnh sang mã 1.7 (Trẻ sơ sinh điều trị sau sinh)
+  if (
+    warning.message.includes("1.7") &&
+    (warning.message.includes("Gợi ý") || warning.message.includes("sơ sinh"))
+  ) {
+    return {
+      code: "1.7",
+      reason:
+        "Điều chỉnh sang mã 1.7 theo QĐ 3276/QĐ-BYT (Trẻ sơ sinh điều trị ngay sau khi sinh ra)",
+    };
+  }
+  return null;
+}
+
 function ValidationTable({
   source,
   warnings,
@@ -4163,6 +4200,100 @@ function ValidationTable({
     }
   };
 
+  const handleQuickFixDoiTuongKcb = (w: ValidationWarning, targetCode: string, reason: string) => {
+    if (!onSaveCorrectionItems) return;
+    const dossier = analysis?.dossiers?.find((d) => d.maLk === w.MA_LK);
+    const ngayVao = dossier?.patient?.NGAY_VAO || "";
+    const ngayRa = dossier?.patient?.NGAY_RA || "";
+    const tuNgay = toHisDateString(ngayVao);
+    const denNgay = toHisDateString(ngayRa);
+    const currentCode = dossier?.patient?.MA_DOITUONG_KCB || "1.15";
+
+    const item: CorrectionItem = {
+      id: `plan_xml1_doituong_${w.MA_LK}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      maLk: w.MA_LK,
+      maBa: w.MA_BN || dossier?.patient?.MA_BN || "",
+      hoTen: w.HO_TEN || dossier?.patient?.HO_TEN || "",
+      ngayVao,
+      ngayRa,
+      tuNgay,
+      denNgay,
+      tab: "XML1",
+      stt: String(w.detailIndex || "1"),
+      maDichVu: "MA_DOITUONG_KCB",
+      tenDichVu: "Mã đối tượng KCB",
+      field: "MA_DOITUONG_KCB",
+      oldValue: currentCode,
+      newValue: targetCode,
+      lyDo: reason,
+      createdAt: new Date().toISOString(),
+    };
+
+    onSaveCorrectionItems(
+      [item],
+      `✓ Đã chuyển MA_DOITUONG_KCB của BN ${item.hoTen || w.MA_LK} sang mã ${targetCode}!`,
+    );
+  };
+
+  const handleBatchFixAllDoiTuongKcb = () => {
+    if (!onSaveCorrectionItems) return;
+    const targets = (
+      selectedWarningIds.size > 0
+        ? displayWarnings.filter((w, idx) =>
+            selectedWarningIds.has(`${w.MA_LK}_${w.detailIndex || idx + 1}`),
+          )
+        : displayWarnings
+    )
+      .map((w) => {
+        const suggestion = extractSuggestedDoiTuongKcb(w);
+        return suggestion ? { warning: w, suggestion } : null;
+      })
+      .filter(Boolean) as {
+      warning: ValidationWarning;
+      suggestion: { code: string; reason: string };
+    }[];
+
+    if (targets.length === 0) return;
+
+    const newItems: CorrectionItem[] = [];
+    for (const { warning: w, suggestion } of targets) {
+      const dossier = analysis?.dossiers?.find((d) => d.maLk === w.MA_LK);
+      const ngayVao = dossier?.patient?.NGAY_VAO || "";
+      const ngayRa = dossier?.patient?.NGAY_RA || "";
+      const tuNgay = toHisDateString(ngayVao);
+      const denNgay = toHisDateString(ngayRa);
+      const currentCode = dossier?.patient?.MA_DOITUONG_KCB || "1.15";
+
+      newItems.push({
+        id: `plan_xml1_doituong_${w.MA_LK}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        maLk: w.MA_LK,
+        maBa: w.MA_BN || dossier?.patient?.MA_BN || "",
+        hoTen: w.HO_TEN || dossier?.patient?.HO_TEN || "",
+        ngayVao,
+        ngayRa,
+        tuNgay,
+        denNgay,
+        tab: "XML1",
+        stt: String(w.detailIndex || "1"),
+        maDichVu: "MA_DOITUONG_KCB",
+        tenDichVu: "Mã đối tượng KCB",
+        field: "MA_DOITUONG_KCB",
+        oldValue: currentCode,
+        newValue: suggestion.code,
+        lyDo: suggestion.reason,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    if (newItems.length > 0) {
+      onSaveCorrectionItems(
+        newItems,
+        `✓ Đã tự động điều chỉnh MA_DOITUONG_KCB cho ${newItems.length} hồ sơ theo gợi ý chuẩn!`,
+      );
+      setSelectedWarningIds(new Set());
+    }
+  };
+
   const displayWarnings = useMemo(() => {
     let list = warnings;
 
@@ -4240,6 +4371,19 @@ function ValidationTable({
 
     return list;
   }, [warnings, columnFilters, sortConfig]);
+
+  const doiTuongSuggestionsList = useMemo(() => {
+    if (source !== "XML1") return [];
+    return displayWarnings
+      .map((w) => {
+        const s = extractSuggestedDoiTuongKcb(w);
+        return s ? { warning: w, suggestion: s } : null;
+      })
+      .filter(Boolean) as {
+      warning: ValidationWarning;
+      suggestion: { code: string; reason: string };
+    }[];
+  }, [source, displayWarnings]);
 
   return (
     <div>
@@ -4372,6 +4516,51 @@ function ValidationTable({
             </div>
           )}
 
+          {/* Thanh thao tác nhanh cho MA_DOITUONG_KCB XML1 - Đóng băng đầu trang */}
+          {source === "XML1" && doiTuongSuggestionsList.length > 0 && (
+            <div className="sticky top-0 z-30 mb-2 flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-teal-500 bg-teal-50/95 p-3 shadow-md backdrop-blur-xs animate-in fade-in duration-150">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-teal-700 text-white text-xs font-black shadow-xs">
+                  💡
+                </span>
+                <div>
+                  <div className="text-xs font-black text-teal-950">
+                    Phát hiện{" "}
+                    <span className="text-teal-700 underline font-black">
+                      {doiTuongSuggestionsList.length}
+                    </span>{" "}
+                    hồ sơ có gợi ý điều chỉnh MA_DOITUONG_KCB theo QĐ 3276 & TT 01/2025
+                  </div>
+                  <div className="text-[11px] text-teal-700">
+                    Điều chỉnh sang mã 1.16 (bệnh Phụ lục II tại cơ sở cấp cơ bản) hoặc mã 1.7 (trẻ
+                    sơ sinh điều trị sau sinh) để bảo đảm quyền lợi BHYT 100%
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleBatchFixAllDoiTuongKcb}
+                  className="rounded-xl bg-teal-700 hover:bg-teal-800 text-white px-4 py-2 text-xs font-bold shadow-md flex items-center gap-1.5 transition cursor-pointer"
+                  title="Tự động áp dụng tất cả các gợi ý điều chỉnh mã đối tượng KCB vào kế hoạch sửa"
+                >
+                  <span>⚡</span> Sửa nhanh tất cả theo gợi ý ({doiTuongSuggestionsList.length} ca)
+                </button>
+
+                {onOpenCorrectionPlanModal && (
+                  <button
+                    type="button"
+                    onClick={onOpenCorrectionPlanModal}
+                    className="rounded-xl border border-teal-300 bg-white px-3 py-1.5 text-[11px] font-bold text-teal-900 hover:bg-teal-50 shadow-xs flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>📋</span> Kế hoạch ({correctionPlanCount})
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Bảng dữ liệu cảnh báo với thanh tiêu đề đóng băng (freeze header) khi cuộn */}
           <div className="relative overflow-x-auto overflow-y-auto max-h-[calc(100vh-250px)] min-h-[380px] rounded-2xl border border-slate-200/90 bg-white shadow-xs">
             <table className="w-full text-left text-xs border-collapse">
@@ -4466,6 +4655,7 @@ function ValidationTable({
                   );
                   const warnKey = `${warning.MA_LK}_${warning.detailIndex || index + 1}`;
                   const isSelected = selectedWarningIds.has(warnKey);
+                  const dtSuggestion = extractSuggestedDoiTuongKcb(warning);
                   return (
                     <tr
                       key={`${source}-${warning.MA_LK}-${warning.detailIndex}-${index}`}
@@ -4563,6 +4753,22 @@ function ValidationTable({
                                   </button>
                                 )}
                               </div>
+                            )}
+                            {dtSuggestion && !isPlanned && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleQuickFixDoiTuongKcb(
+                                    warning,
+                                    dtSuggestion.code,
+                                    dtSuggestion.reason,
+                                  )
+                                }
+                                className="inline-flex items-center justify-center gap-1 rounded-md bg-teal-700 hover:bg-teal-800 text-white px-2 py-1 text-[11px] font-bold transition shadow-xs whitespace-nowrap cursor-pointer"
+                                title={`Sửa nhanh thành mã ${dtSuggestion.code}`}
+                              >
+                                <span>⚡</span> Đổi {dtSuggestion.code}
+                              </button>
                             )}
                             {source === "XML2" && warning.MA_DICH_VU && (
                               <button
@@ -4691,6 +4897,36 @@ function ValidationTable({
                             </span>
                           </div>
                           <div>{warning.message}</div>
+                          {dtSuggestion && (
+                            <div className="mt-2 flex flex-wrap items-center gap-2 p-2 rounded-xl bg-teal-50/80 dark:bg-teal-900/40 border border-teal-200 dark:border-teal-700/60 text-slate-800 dark:text-slate-200">
+                              <span className="text-[11px] font-bold text-teal-900 dark:text-teal-200 flex items-center gap-1.5">
+                                <span>💡 Gợi ý điều chỉnh:</span>
+                                <span className="px-2 py-0.5 rounded-md bg-teal-700 text-white font-mono font-black text-xs">
+                                  Mã {dtSuggestion.code}
+                                </span>
+                              </span>
+                              {!isPlanned ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleQuickFixDoiTuongKcb(
+                                      warning,
+                                      dtSuggestion.code,
+                                      dtSuggestion.reason,
+                                    )
+                                  }
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-700 hover:bg-teal-800 text-white text-[11px] font-bold shadow-xs transition cursor-pointer"
+                                  title={`Áp dụng ngay mã ${dtSuggestion.code} vào kế hoạch sửa`}
+                                >
+                                  <span>⚡</span> Áp dụng mã {dtSuggestion.code}
+                                </button>
+                              ) : (
+                                <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                                  <span>✓</span> Đã thêm vào kế hoạch sửa
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </td>
                       )}
                     </tr>

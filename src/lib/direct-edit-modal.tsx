@@ -133,8 +133,18 @@ export function DirectEditModal({
         return "NGOAITRU_TUNGAY";
       }
       if (effectiveTab === "XML1") {
+        if (
+          warning?.MA_DICH_VU === "MA_DOITUONG_KCB" ||
+          warning?.message?.includes("MA_DOITUONG_KCB") ||
+          warning?.message?.includes("mã đối tượng") ||
+          warning?.message?.includes("đối tượng KCB")
+        ) {
+          return "MA_DOITUONG_KCB";
+        }
         if (warning?.message?.includes("CCCD") || warning?.message?.includes("12 ký tự"))
           return "SO_CCCD";
+        if (customRow.headers.includes("MA_DOITUONG_KCB") && warning?.message?.includes("1.16"))
+          return "MA_DOITUONG_KCB";
         if (customRow.headers.includes("SO_CCCD")) return "SO_CCCD";
         if (customRow.headers.includes("NGAY_TTOAN")) return "NGAY_TTOAN";
       }
@@ -163,6 +173,14 @@ export function DirectEditModal({
       return "NGOAITRU_TUNGAY";
     }
     if (source === "XML1") {
+      if (
+        warning?.MA_DICH_VU === "MA_DOITUONG_KCB" ||
+        warning?.message?.includes("MA_DOITUONG_KCB") ||
+        warning?.message?.includes("mã đối tượng") ||
+        warning?.message?.includes("đối tượng KCB")
+      ) {
+        return "MA_DOITUONG_KCB";
+      }
       if (warning?.message?.includes("CCCD") || warning?.message?.includes("12 ký tự"))
         return "SO_CCCD";
       return "NGAY_TTOAN";
@@ -1632,11 +1650,88 @@ export function DirectEditModal({
               </div>
             )}
 
+            {/* Gợi ý cho MA_DOITUONG_KCB theo QĐ 3276/QĐ-BYT & TT 01/2025 */}
+            {selectedField === "MA_DOITUONG_KCB" && (
+              <div className="flex flex-col gap-2">
+                <div className="text-[11px] font-bold text-teal-900 flex items-center gap-1.5">
+                  <span>💡</span> Chọn nhanh mã đối tượng KCB chuẩn theo QĐ 3276/QĐ-BYT & TT
+                  01/2025:
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewValue("1.16");
+                      setLyDo(
+                        "Điều chỉnh sang mã 1.16 theo QĐ 3276/QĐ-BYT (Bệnh thuộc Phụ lục II TT 01/2025 tại CSKCB cấp cơ bản)",
+                      );
+                    }}
+                    className={`rounded-xl border px-3 py-1.5 text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5 ${
+                      newValue === "1.16"
+                        ? "border-teal-600 bg-teal-600 text-white"
+                        : "border-teal-300 bg-teal-50 hover:bg-teal-100 text-teal-900"
+                    }`}
+                    title="Mã 1.16: Người bệnh tự đến KCB có bệnh thuộc Phụ lục II TT 01/2025 tại CSKCB cấp cơ bản (được hưởng 100% chi phí)"
+                  >
+                    <span>⭐</span> <b>1.16</b> — Bệnh Phụ lục II TT 01/2025 (Hưởng 100%)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewValue("1.7");
+                      setLyDo(
+                        "Điều chỉnh sang mã 1.7 theo QĐ 3276/QĐ-BYT (Trẻ sơ sinh điều trị ngay sau sinh)",
+                      );
+                    }}
+                    className={`rounded-xl border px-3 py-1.5 text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5 ${
+                      newValue === "1.7"
+                        ? "border-amber-600 bg-amber-600 text-white"
+                        : "border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900"
+                    }`}
+                    title="Mã 1.7: Trẻ sơ sinh phải điều trị ngay sau khi sinh ra (được hưởng 100% chi phí)"
+                  >
+                    <span>👶</span> <b>1.7</b> — Trẻ sơ sinh điều trị sau sinh
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewValue("1.15");
+                      setLyDo(
+                        "Điều chỉnh về mã 1.15 theo QĐ 3276/QĐ-BYT (Người bệnh tự đến KCB tại cơ sở cấp cơ bản)",
+                      );
+                    }}
+                    className={`rounded-xl border px-3 py-1.5 text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5 ${
+                      newValue === "1.15"
+                        ? "border-slate-600 bg-slate-700 text-white"
+                        : "border-slate-300 bg-white hover:bg-slate-50 text-slate-700"
+                    }`}
+                    title="Mã 1.15: Người bệnh tự đến KCB tại cơ sở cấp cơ bản thông thường"
+                  >
+                    <b>1.15</b> — Tự đến cấp cơ bản
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewValue("1.1");
+                      setLyDo(
+                        "Điều chỉnh sang mã 1.1 theo QĐ 3276/QĐ-BYT (KCB đúng cơ sở đăng ký ban đầu)",
+                      );
+                    }}
+                    className="rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 px-2.5 py-1 text-xs font-medium cursor-pointer"
+                    title="Mã 1.1: Đến KCB đúng CSKCB đăng ký ban đầu ghi trên thẻ BHYT"
+                  >
+                    1.1 — Đúng nơi ĐKBĐ
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Gợi ý cho các trường khác */}
             {!isXml3TimeField &&
               selectedField !== "SO_CCCD" &&
               selectedField !== "NGOAITRU_TUNGAY" &&
               selectedField !== "KET_LUAN" &&
+              selectedField !== "MA_DOITUONG_KCB" &&
               !selectedField.startsWith("MA_BENH") && (
                 <div className="text-[11px] text-slate-600 bg-white/70 rounded-xl p-2 border border-amber-200/60 flex items-center gap-2">
                   <span>💡</span>

@@ -85,6 +85,35 @@ const b2_26066 = await parseExcelRows(
   },
 );
 
+const b5_26066 = await parseExcelRows(
+  path.join(downloadsDir, "FileDichVuBV (1).xlsx"),
+  (row, getVal, stt) => {
+    const maDichVu =
+      getVal(row, "MA_DICH_VU") || getVal(row, "MA_TUONG_DUONG") || getVal(row, "MA");
+    const tenDichVu =
+      getVal(row, "TEN_DICH_VU") ||
+      getVal(row, "TEN_DVKT_PHEDUYET") ||
+      getVal(row, "TEN_DVKT_GIA") ||
+      getVal(row, "TEN");
+    if (!maDichVu && !tenDichVu) return null;
+    return {
+      stt,
+      maDichVu: maDichVu || tenDichVu,
+      tenDichVu: tenDichVu || maDichVu,
+      tenDvktGia: getVal(row, "TEN_DVKT_GIA"),
+      donGia: Number(getVal(row, "DON_GIA")) || Number(getVal(row, "GIA")) || null,
+      quyTrinh: getVal(row, "QUY_TRINH"),
+      soLuongCgkt: Number(getVal(row, "SO_LUONG_CGKT")) || null,
+      cskcbCgkt: getVal(row, "CSKCB_CGKT"),
+      cskcbCls: getVal(row, "CSKCB_CLS"),
+      qdDvkt: getVal(row, "QD_DVKT") || getVal(row, "QUYET_DINH") || getVal(row, "SO_QUYET_DINH"),
+      qdPdGia: getVal(row, "QD_PD_GIA"),
+      ghiChu: getVal(row, "GHI_CHU") || getVal(row, "GHICHU"),
+      maCskcb: "26066",
+    };
+  },
+);
+
 console.log("Parsing 26193 from Downloads...");
 const b1_26193 = await parseExcelRows(
   path.join(downloadsDir, "FileKhoaPhongGiuong.xlsx"),
@@ -257,7 +286,7 @@ const catalogs = {
     bang2: b2_26066,
     bang3: [],
     bang4: [],
-    bang5: [],
+    bang5: b5_26066,
     bang6: b6_26066,
     updatedAt: "2026-04-01T08:00:00+07:00",
   },

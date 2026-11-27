@@ -736,17 +736,34 @@ export async function importTt12FromExcel(
         return String(cell.value ?? "").trim();
       };
 
-      // Nhận diện loại bảng
-      const isBang6 =
-        sheetName.includes("06") ||
-        sheetName.includes("thietbi") ||
-        sheetName.includes("tbyte") ||
-        fileName.includes("thietbi") ||
-        fileName.includes("trangthietbi") ||
-        !!headerMap.MA_MAY ||
-        !!headerMap.TEN_TB;
+      // 1. Bảng 5: Dịch vụ kỹ thuật (Ưu tiên nhận diện trước vì file DVKT xuất từ BHXH thường có các cột thuốc phụ ở cuối)
+      const isBang5 =
+        sheetName.includes("05") ||
+        sheetName.includes("dichvu") ||
+        sheetName.includes("dvkt") ||
+        fileName.includes("dichvu") ||
+        fileName.includes("dvkt") ||
+        !!headerMap.TEN_DVKT_PHEDUYET ||
+        !!headerMap.TEN_DVKT_GIA ||
+        !!headerMap.MA_TUONG_DUONG ||
+        !!headerMap.PHAN_LOAI_PTTT ||
+        !!headerMap.GIA_DVKT ||
+        (!!headerMap.MA_DICH_VU && !headerMap.MA_THUOC && !headerMap.MA_VAT_TU);
 
+      // 2. Bảng 6: Trang thiết bị / Mã máy
+      const isBang6 =
+        !isBang5 &&
+        (sheetName.includes("06") ||
+          sheetName.includes("thietbi") ||
+          sheetName.includes("tbyte") ||
+          fileName.includes("thietbi") ||
+          fileName.includes("trangthietbi") ||
+          !!headerMap.MA_MAY ||
+          !!headerMap.TEN_TB);
+
+      // 3. Bảng 1: Khoa phòng / Giường
       const isBang1 =
+        !isBang5 &&
         !isBang6 &&
         (sheetName.includes("01") ||
           sheetName.includes("khoaphong") ||
@@ -754,9 +771,14 @@ export async function importTt12FromExcel(
           fileName.includes("khoaphong") ||
           fileName.includes("giuong") ||
           (!!headerMap.MA_KHOA &&
-            (!!headerMap.BAN_KHAM || !!headerMap.GIUONG_PD || !!headerMap.GIUONG_TK)));
+            (!!headerMap.BAN_KHAM ||
+              !!headerMap.GIUONG_PD ||
+              !!headerMap.GIUONG_TK ||
+              !!headerMap.LOAI_KHOA)));
 
+      // 4. Bảng 2: Nhân lực KCB (CCHN)
       const isBang2 =
+        !isBang5 &&
         !isBang6 &&
         !isBang1 &&
         (sheetName.includes("02") ||
@@ -766,40 +788,39 @@ export async function importTt12FromExcel(
           fileName.includes("nhanluc") ||
           fileName.includes("nhanvien") ||
           !!headerMap.MACCHN ||
-          !!headerMap.MA_CCHN);
+          !!headerMap.MA_CCHN ||
+          (!!headerMap.HO_TEN &&
+            (!!headerMap.PHAMVI_CM || !!headerMap.CHUCDANH_NN || !!headerMap.SO_CCCD)));
 
-      const isBang3 =
+      // 5. Bảng 4: Vật tư y tế
+      const isBang4 =
+        !isBang5 &&
         !isBang6 &&
         !isBang1 &&
         !isBang2 &&
+        (sheetName.includes("04") ||
+          sheetName.includes("vattu") ||
+          sheetName.includes("vtyt") ||
+          fileName.includes("vattu") ||
+          fileName.includes("vtyt") ||
+          !!headerMap.MA_VAT_TU ||
+          (!!headerMap.TEN_VAT_TU && !headerMap.MA_THUOC));
+
+      // 6. Bảng 3: Thuốc & Chế phẩm máu
+      const isBang3 =
+        !isBang5 &&
+        !isBang6 &&
+        !isBang1 &&
+        !isBang2 &&
+        !isBang4 &&
         (sheetName.includes("03") ||
           sheetName.includes("thuoc") ||
           fileName.includes("thuoc") ||
-          (!!headerMap.MA_THUOC && (!!headerMap.TEN_HOAT_CHAT || !!headerMap.TEN_THUOC)));
-
-      const isBang4 =
-        !isBang6 &&
-        !isBang1 &&
-        !isBang2 &&
-        !isBang3 &&
-        (sheetName.includes("04") ||
-          sheetName.includes("vattu") ||
-          fileName.includes("vattu") ||
-          !!headerMap.MA_VAT_TU);
-
-      const isBang5 =
-        !isBang6 &&
-        !isBang1 &&
-        !isBang2 &&
-        !isBang3 &&
-        !isBang4 &&
-        (sheetName.includes("05") ||
-          sheetName.includes("dichvu") ||
-          fileName.includes("dichvu") ||
-          !!headerMap.MA_DICH_VU ||
-          !!headerMap.MA_TUONG_DUONG ||
-          !!headerMap.TEN_DVKT_PHEDUYET ||
-          !!headerMap.TEN_DVKT_GIA);
+          (!!headerMap.MA_THUOC &&
+            (!!headerMap.TEN_HOAT_CHAT ||
+              !!headerMap.HAM_LUONG ||
+              !!headerMap.DUONG_DUNG ||
+              !!headerMap.TEN_THUOC)));
 
       for (let r = headerRowIndex + 1; r <= sheet.rowCount; r++) {
         const row = sheet.getRow(r);

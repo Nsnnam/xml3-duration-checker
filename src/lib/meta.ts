@@ -2,12 +2,23 @@ export const APP_META = {
   name: "NsN_XMLcheck",
   title: "NsN_XMLcheck",
   description: "Tổng hợp công cụ xử lý XML_Namns",
-  version: "2.23.0",
+  version: "2.24.0",
   date: "2026-11-27",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.24.0",
+      date: "2026-11-27",
+      changes: [
+        "Sửa triệt để lỗi import Bảng 5 (Dịch vụ kỹ thuật): Ưu tiên nhận diện Bảng 5 trước Bảng 3 để không bị các cột phụ MA_THUOC, TEN_THUOC ở cuối file kết xuất BHXH đánh lừa; hỗ trợ hoàn hảo file 'FileDichVuBV (1).xlsx' và mọi biến thể file dịch vụ lẻ.",
+        "Nạp sẵn trọn vẹn 3.860 dịch vụ kỹ thuật cho cơ sở 26066 (Bệnh viện Đa khoa Lạc Việt Phúc Yên) vào hệ thống danh mục mẫu mặc định.",
+        "Bổ sung tính năng gợi ý thông minh và Sửa nhanh 1-Click MA_DOITUONG_KCB trong XML1: Hiển thị nút sửa nhanh '⚡ Đổi sang 1.16' hoặc '⚡ Đổi sang 1.7' trên từng dòng cảnh báo và hộp gợi ý nổi bật.",
+        "Thêm thanh công cụ sửa nhanh hàng loạt: '⚡ Sửa nhanh tất cả đối tượng KCB theo gợi ý' ngay đầu bảng XML1 giúp xử lý toàn bộ các ca chỉ trong 1 thao tác duy nhất.",
+        "Nâng cấp Hộp thoại sửa trực tiếp (DirectEditModal): Tự động chọn trường MA_DOITUONG_KCB khi mở từ cảnh báo đối tượng, tích hợp sẵn các nút chọn nhanh mã đối tượng chuẩn (1.16, 1.7, 1.15, 1.1) kèm căn cứ pháp lý QĐ 3276 & TT 01/2025.",
+      ],
+    },
     {
       version: "2.23.0",
       date: "2026-11-27",
