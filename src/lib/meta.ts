@@ -2,12 +2,21 @@ export const APP_META = {
   name: "NsN_XMLcheck",
   title: "NsN_XMLcheck",
   description: "Tổng hợp công cụ xử lý XML_Namns",
-  version: "2.26.1",
+  version: "2.26.2",
   date: "2026-11-27",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.26.2",
+      date: "2026-11-27",
+      changes: [
+        "Sửa triệt để lỗi bỏ tích checkbox trùng khoảng thời gian: Truyền đầy đủ cấu hình options vào hàm phân tích từng file và làm sạch toàn bộ cờ/message trùng khoảng thời gian khi người dùng tắt tùy chọn (kết quả cảnh báo trùng khoảng về 0 ngay lập tức).",
+        "Ưu tiên tuyệt đối cảnh báo Vượt thời lượng (>70p) và Thời gian thiếu/âm/không hợp lệ: Tách biệt hoàn toàn và ưu tiên số 1 trong phân loại cảnh báo (overMax, underMin), nhãn trạng thái (VƯỢT MAX, THIẾU, THỜI GIAN ÂM) và bộ lọc; không để cảnh báo trùng khoảng thời gian che lấp hay làm mất số lượng ca vi phạm thời lượng.",
+        "Nâng cấp hiển thị cột 'Chi tiết (thu gọn)': Tự động đưa các thông điệp cảnh báo Vượt thời lượng và Thiếu thời gian lên đầu với khung viền đỏ nổi bật, hiển thị tách dòng rõ ràng, giúp bác sĩ và giám định viên theo dõi và xử lý nhanh chóng.",
+      ],
+    },
     {
       version: "2.26.1",
       date: "2026-11-27",

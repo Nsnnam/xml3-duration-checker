@@ -2196,10 +2196,30 @@ assert.ok(checkedOverlap[1].detail.includes("[Trùng khác nhóm: Nhóm 2]"));
 assert.equal(getXml3RecordCategory(checkedOverlap[0]), "timeOverlap");
 assert.equal(getRecordStatusLabel(checkedOverlap[0]), "TRÙNG KHOẢNG");
 
-// Kiểm tra khi tắt tùy chọn checkTimeOverlap = false
-const disabledOverlap = addTimeOverlapWarnings(mockOverlapRecords, { checkTimeOverlap: false });
-assert.equal(disabledOverlap[0].hasTimeOverlapWarning, undefined);
-assert.equal(disabledOverlap[1].hasTimeOverlapWarning, undefined);
+// Kiểm tra ưu tiên cảnh báo Vượt thời lượng và Thiếu thời gian lên trước Trùng khoảng
+const overMaxWithOverlap = {
+  ...checkedOverlap[0],
+  status: "warning",
+  durationMinutes: 95,
+  detail: "Vượt ngưỡng thời gian 70 phút (thực tế 95 phút) · " + checkedOverlap[0].detail,
+};
+assert.equal(getXml3RecordCategory(overMaxWithOverlap), "overMax");
+assert.equal(getRecordStatusLabel(overMaxWithOverlap), "VƯỢT MAX");
+
+const missingWithOverlap = {
+  ...checkedOverlap[1],
+  status: "missing",
+  durationMinutes: null,
+  detail: "Thiếu thời gian thực hiện y lệnh hoặc kết quả · " + checkedOverlap[1].detail,
+};
+assert.equal(getXml3RecordCategory(missingWithOverlap), "underMin");
+assert.equal(getRecordStatusLabel(missingWithOverlap), "THIẾU");
+
+// Kiểm tra khi tắt tùy chọn checkTimeOverlap = false (làm sạch toàn bộ cờ và chuỗi trùng khoảng)
+const disabledOverlap = addTimeOverlapWarnings(checkedOverlap, { checkTimeOverlap: false });
+assert.equal(disabledOverlap[0].hasTimeOverlapWarning, false);
+assert.equal(disabledOverlap[1].hasTimeOverlapWarning, false);
+assert.equal(disabledOverlap[0].detail.includes("Trùng khoảng thời gian"), false);
 
 // 27. Kiểm tra mã khoa XML1 nhiều khoa phân cách bằng dấu ';' (theo QĐ 3176/QĐ-BYT & QĐ 5937/QĐ-BYT)
 function createMockXml1DeptElement(maLk, maKhoa, maCskcb = "26066") {

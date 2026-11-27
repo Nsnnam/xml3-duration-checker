@@ -698,6 +698,28 @@ export function HomePage() {
 
     if (warningCategoryFilter !== "all") {
       source = source.filter((record) => {
+        if (warningCategoryFilter === "overMax") {
+          return (
+            record.status === "warning" ||
+            record.detail.includes("Vượt") ||
+            (record.durationMinutes !== null &&
+              record.durationMinutes > (record.serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES))
+          );
+        }
+        if (warningCategoryFilter === "underMin") {
+          return (
+            record.status === "negative" ||
+            record.status === "missing" ||
+            record.status === "invalid" ||
+            (record.durationMinutes !== null && record.durationMinutes <= 0) ||
+            record.detail.includes("nhỏ hơn thời gian tối thiểu") ||
+            record.detail.includes("Thời lượng 0 phút") ||
+            record.detail.includes("Thiếu thời gian") ||
+            record.detail.includes("thiếu thời gian") ||
+            record.detail.includes("Thời gian âm") ||
+            record.detail.includes("không hợp lệ")
+          );
+        }
         if (warningCategoryFilter === "timeOverlap") {
           return Boolean(record.hasTimeOverlapWarning);
         }
@@ -1744,8 +1766,28 @@ function CheckerView({
       doiTuongKcb: 0,
     };
     for (const r of list) {
+      const isOverMax =
+        r.status === "warning" ||
+        r.detail.includes("Vượt") ||
+        (r.durationMinutes !== null &&
+          r.durationMinutes > (r.serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES));
+      const isUnderMin =
+        r.status === "negative" ||
+        r.status === "missing" ||
+        r.status === "invalid" ||
+        (r.durationMinutes !== null && r.durationMinutes <= 0) ||
+        r.detail.includes("nhỏ hơn thời gian tối thiểu") ||
+        r.detail.includes("Thời lượng 0 phút") ||
+        r.detail.includes("Thiếu thời gian") ||
+        r.detail.includes("thiếu thời gian") ||
+        r.detail.includes("Thời gian âm") ||
+        r.detail.includes("không hợp lệ");
+
+      if (isOverMax) counts.overMax = (counts.overMax || 0) + 1;
+      if (isUnderMin) counts.underMin = (counts.underMin || 0) + 1;
+
       const cat = getXml3RecordCategory(r);
-      if (cat !== "all") {
+      if (cat !== "all" && cat !== "overMax" && cat !== "underMin") {
         counts[cat] = (counts[cat] || 0) + 1;
       }
       if (r.hasTimeOverlapWarning && cat !== "timeOverlap") {
@@ -3850,7 +3892,52 @@ function WarningRow({
       )}
       {isVisible("detail") && (
         <td style={colWidth("detail", 230)} className="px-3 py-2.5 text-slate-600">
-          <div className="text-xs leading-relaxed break-words">{record.detail}</div>
+          <div className="text-xs leading-relaxed break-words">
+            {(() => {
+              const parts = (record.detail || "").split(" · ").filter(Boolean);
+              if (parts.length <= 1) return record.detail;
+
+              const priorityParts: string[] = [];
+              const otherParts: string[] = [];
+              for (const p of parts) {
+                if (
+                  p.includes("Vượt") ||
+                  p.includes("vượt") ||
+                  p.includes("Thiếu") ||
+                  p.includes("thiếu") ||
+                  p.includes("Thời lượng 0") ||
+                  p.includes("Thời gian âm") ||
+                  p.includes("nhỏ hơn") ||
+                  p.includes("thời gian tối thiểu") ||
+                  p.includes("không hợp lệ")
+                ) {
+                  priorityParts.push(p);
+                } else {
+                  otherParts.push(p);
+                }
+              }
+
+              if (priorityParts.length === 0) return record.detail;
+
+              return (
+                <div className="space-y-1">
+                  {priorityParts.map((msg, idx) => (
+                    <div
+                      key={`prio-${idx}`}
+                      className="font-bold text-rose-700 bg-rose-50/90 px-1.5 py-0.5 rounded border border-rose-200/80 leading-snug"
+                    >
+                      {msg}
+                    </div>
+                  ))}
+                  {otherParts.map((msg, idx) => (
+                    <div key={`other-${idx}`} className="text-slate-600 text-[11px] leading-snug">
+                      {msg}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
           {record.MA_DICH_VU && (
             <div className="mt-1.5 flex flex-wrap gap-1">
               <button

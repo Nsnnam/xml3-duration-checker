@@ -698,6 +698,34 @@ export const WARNING_CATEGORY_CONFIG: Record<WarningCategory, WarningCategoryMet
 };
 
 export function getXml3RecordCategory(record: Xml3Record): WarningCategory {
+  // Ưu tiên 1: Cảnh báo vượt thời lượng (> 70p hoặc vượt ngưỡng DVKT)
+  if (
+    record.status === "warning" ||
+    record.detail.includes("Vượt ngưỡng thời gian") ||
+    record.detail.includes("vượt ngưỡng thời gian") ||
+    record.detail.includes("Vượt quá") ||
+    (record.durationMinutes !== null &&
+      record.durationMinutes > (record.serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES))
+  ) {
+    return "overMax";
+  }
+
+  // Ưu tiên 2: Cảnh báo thời gian thiếu / thời gian âm / không hợp lệ / nhỏ hơn tối thiểu
+  if (
+    record.status === "negative" ||
+    record.status === "missing" ||
+    record.status === "invalid" ||
+    (record.durationMinutes !== null && record.durationMinutes <= 0) ||
+    record.detail.includes("nhỏ hơn thời gian tối thiểu") ||
+    record.detail.includes("Thời lượng 0 phút") ||
+    record.detail.includes("Thiếu thời gian") ||
+    record.detail.includes("thiếu thời gian") ||
+    record.detail.includes("Thời gian âm") ||
+    record.detail.includes("không hợp lệ")
+  ) {
+    return "underMin";
+  }
+
   if (record.hasDuplicateMachineWarning) return "dupMachine";
   if (record.hasTimeOverlapWarning) return "timeOverlap";
   if (record.hasZ000Warning) return "z000";
@@ -709,23 +737,17 @@ export function getXml3RecordCategory(record: Xml3Record): WarningCategory {
   }
   if (record.hasEqualWarning) return "equal";
   if (record.hasOrderWarning) return "order";
-  if (
-    record.status === "negative" ||
-    record.status === "missing" ||
-    record.status === "invalid" ||
-    (record.durationMinutes !== null && record.durationMinutes <= 0) ||
-    record.detail.includes("nhỏ hơn thời gian tối thiểu") ||
-    record.detail.includes("Thời lượng 0 phút")
-  ) {
-    return "underMin";
-  }
-  if (record.status === "warning" || record.detail.includes("Vượt")) {
-    return "overMax";
-  }
+
   return "all";
 }
 
 export function getRecordStatusLabel(record: Xml3Record): string {
+  // Ưu tiên 1: Cảnh báo thời lượng & thời gian
+  if (record.status === "warning") return "VƯỢT MAX";
+  if (record.status === "missing") return "THIẾU";
+  if (record.status === "negative") return "THỜI GIAN ÂM";
+  if (record.status === "invalid") return "LỖI";
+
   if (record.hasDuplicateMachineWarning) return "TRÙNG MÁY";
   if (record.hasTimeOverlapWarning) return "TRÙNG KHOẢNG";
   if (record.hasZ000Warning) {
@@ -757,15 +779,40 @@ export function getRecordStatusLabel(record: Xml3Record): string {
   }
   if (record.hasTtThauWarning) return "TT_THAU";
   if (record.hasMaMayWarning) return "MÃ MÁY";
-  if (record.status === "warning") return "VƯỢT MAX";
   if (record.status === "ok") return "ĐẠT";
-  if (record.status === "missing") return "THIẾU";
-  if (record.status === "invalid") return "LỖI";
-  if (record.status === "negative") return "THỜI GIAN ÂM";
   return record.status.toUpperCase();
 }
 
 export function getValidationWarningCategory(warning: ValidationWarning): WarningCategory {
+  // Ưu tiên 1: Cảnh báo vượt thời lượng (XML3)
+  if (
+    warning.source === "XML3" &&
+    (warning.message.includes("Vượt ngưỡng thời gian") ||
+      warning.message.includes("vượt ngưỡng thời gian") ||
+      warning.message.includes("Vượt quá") ||
+      warning.message.includes("VƯỢT MAX") ||
+      warning.record?.status === "warning")
+  ) {
+    return "overMax";
+  }
+
+  // Ưu tiên 2: Cảnh báo thời gian thiếu / không hợp lệ / âm (XML3)
+  if (
+    warning.source === "XML3" &&
+    (warning.message.includes("Thiếu thời gian") ||
+      warning.message.includes("thiếu thời gian") ||
+      warning.message.includes("Thời lượng 0 phút") ||
+      warning.message.includes("nhỏ hơn thời gian tối thiểu") ||
+      warning.message.includes("Thời gian âm") ||
+      warning.message.includes("thời gian âm") ||
+      warning.message.includes("thời gian không hợp lệ") ||
+      warning.record?.status === "missing" ||
+      warning.record?.status === "negative" ||
+      warning.record?.status === "invalid")
+  ) {
+    return "underMin";
+  }
+
   if (
     warning.message.includes("trên cùng mã máy") ||
     warning.message.includes("trùng thời gian thực hiện y lệnh")
@@ -2616,7 +2663,27 @@ export function addTimeOverlapWarnings(
   options?: { checkTimeOverlap?: boolean; groupCodes?: string[] },
 ): Xml3Record[] {
   if (options?.checkTimeOverlap === false) {
-    return records;
+    return records.map((r) => {
+      if (!r.hasTimeOverlapWarning && !r.timeOverlapInfo) return r;
+      const cleanDetail = r.detail
+        ? r.detail
+            .split(" · ")
+            .filter(
+              (part) =>
+                !part.includes("Trùng khoảng thời gian thực hiện") &&
+                !part.includes("trùng khoảng thời gian"),
+            )
+            .join(" · ")
+        : "";
+      return {
+        ...r,
+        hasTimeOverlapWarning: false,
+        timeOverlapInfo: undefined,
+        timeOverlapPeers: undefined,
+        detail: cleanDetail,
+        status: r.status === "time-overlap-warning" ? "ok" : r.status,
+      };
+    });
   }
 
   // Nhóm các bản ghi theo người bệnh: MA_LK hoặc MA_BN
@@ -3848,6 +3915,7 @@ export async function analyzeXml3Files(
         drugRuleMap,
         mandatoryMachineMap,
         loadedTt12,
+        options,
       );
       allRecords.push(...analysis.records);
       tableFiles += analysis.tableFiles;
