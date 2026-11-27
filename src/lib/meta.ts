@@ -2,12 +2,22 @@ export const APP_META = {
   name: "NsN_XMLcheck",
   title: "NsN_XMLcheck",
   description: "Tổng hợp công cụ xử lý XML_Namns",
-  version: "2.22.0",
+  version: "2.23.0",
   date: "2026-11-27",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.23.0",
+      date: "2026-11-27",
+      changes: [
+        "Tích hợp và nạp sẵn 100% trọn vẹn 6 bảng danh mục Thông tư 12 của cơ sở 26193 (Bệnh viện Hữu nghị Lạc Việt) vào thư viện mặc định: Bảng 1 (37 khoa phòng), Bảng 2 (352 nhân viên y tế CCHN), Bảng 3 (1.127 thuốc), Bảng 4 (497 vật tư), Bảng 5 (7.585 dịch vụ kỹ thuật), Bảng 6 (592 thiết bị/máy).",
+        "Nâng cấp bộ nạp Excel Thông tư 12 siêu linh hoạt: Tự động nhận diện mọi file lẻ hoặc gộp từ cổng BHXH/HIS (FileDichVuBV.xlsx, FileDanhMucThuoc.xlsx, FileVatTuYTe.xlsx, FileKhoaPhongGiuong.xlsx, FileNhanVienYTe.xlsx, FileTrangThietBi.xlsx), tự động map thông minh các cột tương đương (MA_TUONG_DUONG, TEN_DVKT_PHEDUYET, TEN_DVKT_GIA, PHAMVI_CM, CHUCDANH_NN, SO_CCCD, CONGTY_SX...).",
+        "Hoàn thiện giao diện hiển thị bảng dữ liệu (Table), tìm kiếm theo thời gian thực và phân trang chuẩn hóa cho toàn bộ 6 bảng trong Thư viện TT12 (Bảng 3 Thuốc - ngọc bích, Bảng 4 Vật tư - xanh da trời, Bảng 5 DVKT - chàm tím).",
+        "Cơ chế Auto-Merge thông minh: Tự động bù đắp dữ liệu danh mục chuẩn từ hệ thống vào bộ nhớ trình duyệt (localStorage) khi các bảng bị rỗng, bảo lưu trọn vẹn các chỉnh sửa của người dùng.",
+      ],
+    },
     {
       version: "2.22.0",
       date: "2026-11-27",

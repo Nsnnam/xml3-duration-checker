@@ -146,8 +146,25 @@ export function loadTt12Catalogs(): Record<string, Tt12UnitData> {
       return { ...DEFAULT_TT12_CATALOGS };
     }
     const parsed = JSON.parse(raw);
-    // Bổ sung các đơn vị mặc định nếu chưa có
-    return { ...DEFAULT_TT12_CATALOGS, ...parsed };
+    const merged: Record<string, Tt12UnitData> = { ...DEFAULT_TT12_CATALOGS };
+    for (const [k, v] of Object.entries(parsed as Record<string, Tt12UnitData>)) {
+      if (!merged[k]) {
+        merged[k] = v;
+      } else {
+        // Tự động bảo lưu dữ liệu người dùng, đồng thời bù đắp các bảng rỗng từ mẫu chuẩn nếu có
+        merged[k] = {
+          unit: v.unit || merged[k].unit,
+          bang1: v.bang1 && v.bang1.length > 0 ? v.bang1 : merged[k].bang1,
+          bang2: v.bang2 && v.bang2.length > 0 ? v.bang2 : merged[k].bang2,
+          bang3: v.bang3 && v.bang3.length > 0 ? v.bang3 : merged[k].bang3,
+          bang4: v.bang4 && v.bang4.length > 0 ? v.bang4 : merged[k].bang4,
+          bang5: v.bang5 && v.bang5.length > 0 ? v.bang5 : merged[k].bang5,
+          bang6: v.bang6 && v.bang6.length > 0 ? v.bang6 : merged[k].bang6,
+          updatedAt: v.updatedAt || merged[k].updatedAt,
+        };
+      }
+    }
+    return merged;
   } catch {
     return { ...DEFAULT_TT12_CATALOGS };
   }
@@ -667,6 +684,12 @@ export async function importTt12FromExcel(
     const b5Items: Tt12Bang5DichVu[] = [];
     const b6Items: Tt12Bang6ThietBi[] = [];
 
+    const fileName = (file.name || "").toLowerCase();
+    if (!resolvedMaCskcb) {
+      const matchUnit = file.name.match(/\b(26\d{3})\b/);
+      if (matchUnit) resolvedMaCskcb = matchUnit[1];
+    }
+
     // Duyệt qua tất cả các sheet trong workbook
     for (const sheet of workbook.worksheets) {
       const sheetName = sheet.name.toLowerCase();
@@ -689,10 +712,16 @@ export async function importTt12FromExcel(
           map.TEN_TB ||
           map.MA_KHOA ||
           map.MACCHN ||
+          map.MA_CCHN ||
           map.HO_TEN ||
           map.MA_THUOC ||
+          map.TEN_THUOC ||
           map.MA_VAT_TU ||
-          map.MA_DICH_VU
+          map.TEN_VAT_TU ||
+          map.MA_DICH_VU ||
+          map.MA_TUONG_DUONG ||
+          map.TEN_DVKT_PHEDUYET ||
+          map.TEN_DVKT_GIA
         ) {
           headerRowIndex = r;
           headerMap = map;
@@ -712,22 +741,32 @@ export async function importTt12FromExcel(
         sheetName.includes("06") ||
         sheetName.includes("thietbi") ||
         sheetName.includes("tbyte") ||
-        !!headerMap.MA_MAY;
+        fileName.includes("thietbi") ||
+        fileName.includes("trangthietbi") ||
+        !!headerMap.MA_MAY ||
+        !!headerMap.TEN_TB;
 
       const isBang1 =
         !isBang6 &&
         (sheetName.includes("01") ||
           sheetName.includes("khoaphong") ||
           sheetName.includes("giuong") ||
-          (!!headerMap.MA_KHOA && !!headerMap.BAN_KHAM));
+          fileName.includes("khoaphong") ||
+          fileName.includes("giuong") ||
+          (!!headerMap.MA_KHOA &&
+            (!!headerMap.BAN_KHAM || !!headerMap.GIUONG_PD || !!headerMap.GIUONG_TK)));
 
       const isBang2 =
         !isBang6 &&
         !isBang1 &&
         (sheetName.includes("02") ||
           sheetName.includes("nhanluc") ||
+          sheetName.includes("nhanvien") ||
           sheetName.includes("cchn") ||
-          !!headerMap.MACCHN);
+          fileName.includes("nhanluc") ||
+          fileName.includes("nhanvien") ||
+          !!headerMap.MACCHN ||
+          !!headerMap.MA_CCHN);
 
       const isBang3 =
         !isBang6 &&
@@ -735,14 +774,18 @@ export async function importTt12FromExcel(
         !isBang2 &&
         (sheetName.includes("03") ||
           sheetName.includes("thuoc") ||
-          (!!headerMap.MA_THUOC && !!headerMap.TEN_HOAT_CHAT));
+          fileName.includes("thuoc") ||
+          (!!headerMap.MA_THUOC && (!!headerMap.TEN_HOAT_CHAT || !!headerMap.TEN_THUOC)));
 
       const isBang4 =
         !isBang6 &&
         !isBang1 &&
         !isBang2 &&
         !isBang3 &&
-        (sheetName.includes("04") || sheetName.includes("vattu") || !!headerMap.MA_VAT_TU);
+        (sheetName.includes("04") ||
+          sheetName.includes("vattu") ||
+          fileName.includes("vattu") ||
+          !!headerMap.MA_VAT_TU);
 
       const isBang5 =
         !isBang6 &&
@@ -750,24 +793,34 @@ export async function importTt12FromExcel(
         !isBang2 &&
         !isBang3 &&
         !isBang4 &&
-        (sheetName.includes("05") || sheetName.includes("dichvu") || !!headerMap.MA_DICH_VU);
+        (sheetName.includes("05") ||
+          sheetName.includes("dichvu") ||
+          fileName.includes("dichvu") ||
+          !!headerMap.MA_DICH_VU ||
+          !!headerMap.MA_TUONG_DUONG ||
+          !!headerMap.TEN_DVKT_PHEDUYET ||
+          !!headerMap.TEN_DVKT_GIA);
 
       for (let r = headerRowIndex + 1; r <= sheet.rowCount; r++) {
         const row = sheet.getRow(r);
-        const rowCskcb = getVal(row, "MA_CSKCB");
+        const rowCskcb =
+          getVal(row, "MA_CSKCB") ||
+          getVal(row, "MA_CO_SO") ||
+          getVal(row, "MA_CS") ||
+          getVal(row, "MA_DON_VI");
         if (rowCskcb && !resolvedMaCskcb) {
           resolvedMaCskcb = rowCskcb;
         }
 
         if (isBang6) {
           const maMay = getVal(row, "MA_MAY");
-          const tenTb = getVal(row, "TEN_TB");
+          const tenTb = getVal(row, "TEN_TB") || getVal(row, "TEN_THIET_BI");
           if (maMay || tenTb) {
             b6Items.push({
               stt: b6Items.length + 1,
               tenTb: tenTb || maMay,
-              kyHieu: getVal(row, "KY_HIEU"),
-              congTySx: getVal(row, "CONGTY_SX"),
+              kyHieu: getVal(row, "KY_HIEU") || getVal(row, "MODEL"),
+              congTySx: getVal(row, "CONGTY_SX") || getVal(row, "HANG_SX"),
               nuocSx: getVal(row, "NUOC_SX"),
               namSx: getVal(row, "NAM_SX"),
               namSd: getVal(row, "NAM_SD"),
@@ -799,8 +852,8 @@ export async function importTt12FromExcel(
             });
           }
         } else if (isBang2) {
-          const macchn = getVal(row, "MACCHN");
-          const hoTen = getVal(row, "HO_TEN");
+          const macchn = getVal(row, "MACCHN") || getVal(row, "MA_CCHN") || getVal(row, "SO_CCHN");
+          const hoTen = getVal(row, "HO_TEN") || getVal(row, "HOTEN");
           if (macchn || hoTen) {
             b2Items.push({
               stt: b2Items.length + 1,
@@ -808,43 +861,47 @@ export async function importTt12FromExcel(
               tenKhoa: getVal(row, "TEN_KHOA"),
               hoTen: hoTen || macchn,
               gioiTinh: getVal(row, "GIOI_TINH"),
-              soDinhDanh: getVal(row, "SO_DINH_DANH"),
-              chucDanhNn: getVal(row, "CHUCDANH_NN"),
+              soDinhDanh:
+                getVal(row, "SO_CCCD") || getVal(row, "CCCD") || getVal(row, "SO_DINH_DANH"),
+              chucDanhNn: getVal(row, "CHUCDANH_NN") || getVal(row, "CHUC_DANH"),
               viTri: getVal(row, "VI_TRI"),
-              macchn: macchn,
-              ngayCapCchn: getVal(row, "NGAYCAP_CCHN"),
-              noiCapCchn: getVal(row, "NOICAP_CCHN"),
-              phamViCm: getVal(row, "PHAMVI_CM"),
+              macchn: macchn || hoTen,
+              ngayCapCchn: getVal(row, "NGAYCAP_CCHN") || getVal(row, "NGAY_CAP_CCHN"),
+              noiCapCchn: getVal(row, "NOICAP_CCHN") || getVal(row, "NOI_CAP_CCHN"),
+              phamViCm:
+                getVal(row, "PHAMVI_CM") ||
+                getVal(row, "PHAM_VI_CM") ||
+                getVal(row, "PHAM_VI_CHUYEN_MON"),
               maCskcb: rowCskcb || resolvedMaCskcb,
             });
           }
         } else if (isBang3) {
           const maThuoc = getVal(row, "MA_THUOC");
           const tenThuoc = getVal(row, "TEN_THUOC");
-          if (maThuoc) {
+          if (maThuoc || tenThuoc) {
             b3Items.push({
               stt: b3Items.length + 1,
-              maThuoc,
+              maThuoc: maThuoc || tenThuoc,
               tenHoatChat: getVal(row, "TEN_HOAT_CHAT"),
               tenThuoc: tenThuoc || maThuoc,
-              donViTinh: getVal(row, "DON_VI_TINH"),
+              donViTinh: getVal(row, "DON_VI_TINH") || getVal(row, "DVT"),
               hamLuong: getVal(row, "HAM_LUONG"),
               duongDung: getVal(row, "DUONG_DUNG"),
               maDuongDung: getVal(row, "MA_DUONG_DUNG"),
               dangBaoChe: getVal(row, "DANG_BAO_CHE"),
-              soDangKy: getVal(row, "SO_DANG_KY"),
+              soDangKy: getVal(row, "SO_DANG_KY") || getVal(row, "SDK"),
               soLuong: Number(getVal(row, "SO_LUONG")) || null,
-              donGia: Number(getVal(row, "DON_GIA")) || null,
+              donGia: Number(getVal(row, "DON_GIA")) || Number(getVal(row, "DON_GIA_BH")) || null,
               maCskcb: rowCskcb || resolvedMaCskcb,
             });
           }
         } else if (isBang4) {
           const maVatTu = getVal(row, "MA_VAT_TU");
           const tenVatTu = getVal(row, "TEN_VAT_TU");
-          if (maVatTu) {
+          if (maVatTu || tenVatTu) {
             b4Items.push({
               stt: b4Items.length + 1,
-              maVatTu,
+              maVatTu: maVatTu || tenVatTu,
               nhomVatTu: getVal(row, "NHOM_VAT_TU"),
               tenVatTu: tenVatTu || maVatTu,
               maHieu: getVal(row, "MA_HIEU"),
@@ -853,28 +910,38 @@ export async function importTt12FromExcel(
               quyCach: getVal(row, "QUY_CACH"),
               hangSx: getVal(row, "HANG_SX"),
               nuocSx: getVal(row, "NUOC_SX"),
-              donViTinh: getVal(row, "DON_VI_TINH"),
-              donGia: Number(getVal(row, "DON_GIA")) || null,
+              donViTinh: getVal(row, "DON_VI_TINH") || getVal(row, "DVT"),
+              donGia: Number(getVal(row, "DON_GIA")) || Number(getVal(row, "DON_GIA_BH")) || null,
               maCskcb: rowCskcb || resolvedMaCskcb,
             });
           }
         } else if (isBang5) {
-          const maDichVu = getVal(row, "MA_DICH_VU");
-          const tenDichVu = getVal(row, "TEN_DICH_VU");
-          if (maDichVu) {
+          const maDichVu =
+            getVal(row, "MA_DICH_VU") || getVal(row, "MA_TUONG_DUONG") || getVal(row, "MA");
+          const tenDichVu =
+            getVal(row, "TEN_DICH_VU") ||
+            getVal(row, "TEN_DVKT_PHEDUYET") ||
+            getVal(row, "TEN_DVKT_GIA") ||
+            getVal(row, "TEN");
+          if (maDichVu || tenDichVu) {
             b5Items.push({
               stt: b5Items.length + 1,
-              maDichVu,
+              maDichVu: maDichVu || tenDichVu,
               tenDichVu: tenDichVu || maDichVu,
               tenDvktGia: getVal(row, "TEN_DVKT_GIA"),
-              donGia: Number(getVal(row, "DON_GIA")) || null,
+              donGia:
+                Number(getVal(row, "DON_GIA")) ||
+                Number(getVal(row, "GIA")) ||
+                Number(getVal(row, "GIA_DVKT")) ||
+                null,
               quyTrinh: getVal(row, "QUY_TRINH"),
               soLuongCgkt: Number(getVal(row, "SO_LUONG_CGKT")) || null,
               cskcbCgkt: getVal(row, "CSKCB_CGKT"),
               cskcbCls: getVal(row, "CSKCB_CLS"),
-              qdDvkt: getVal(row, "QD_DVKT"),
+              qdDvkt:
+                getVal(row, "QD_DVKT") || getVal(row, "QUYET_DINH") || getVal(row, "SO_QUYET_DINH"),
               qdPdGia: getVal(row, "QD_PD_GIA"),
-              ghiChu: getVal(row, "GHI_CHU"),
+              ghiChu: getVal(row, "GHI_CHU") || getVal(row, "GHICHU"),
               maCskcb: rowCskcb || resolvedMaCskcb,
             });
           }
@@ -929,9 +996,20 @@ export async function importTt12FromExcel(
     catalogs[resolvedMaCskcb] = existing;
     saveTt12Catalogs(catalogs);
 
+    const details = [
+      b1Items.length > 0 ? `Bảng 1: ${b1Items.length.toLocaleString("vi-VN")} khoa phòng` : "",
+      b2Items.length > 0 ? `Bảng 2: ${b2Items.length.toLocaleString("vi-VN")} nhân lực CCHN` : "",
+      b3Items.length > 0 ? `Bảng 3: ${b3Items.length.toLocaleString("vi-VN")} thuốc` : "",
+      b4Items.length > 0 ? `Bảng 4: ${b4Items.length.toLocaleString("vi-VN")} vật tư` : "",
+      b5Items.length > 0 ? `Bảng 5: ${b5Items.length.toLocaleString("vi-VN")} DVKT` : "",
+      b6Items.length > 0 ? `Bảng 6: ${b6Items.length.toLocaleString("vi-VN")} thiết bị/máy` : "",
+    ]
+      .filter(Boolean)
+      .join(", ");
+
     return {
       success: true,
-      message: `Đã nạp thành công ${totalImported} dòng dữ liệu cho đơn vị ${resolvedMaCskcb}.`,
+      message: `Đã nạp thành công ${totalImported.toLocaleString("vi-VN")} dòng dữ liệu (${details}) cho cơ sở KCB ${resolvedMaCskcb}.`,
       importedCount: counts,
       unitMaCskcb: resolvedMaCskcb,
     };

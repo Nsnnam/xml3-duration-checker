@@ -5,6 +5,9 @@ import {
   type Tt12Bang6ThietBi,
   type Tt12Bang1KhoaPhong,
   type Tt12Bang2NhanLuc,
+  type Tt12Bang3Thuoc,
+  type Tt12Bang4VatTu,
+  type Tt12Bang5DichVu,
   loadTt12Catalogs,
   saveTt12Catalogs,
   upsertUnitInfo,
@@ -761,17 +764,161 @@ export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () 
             </table>
           )}
 
-          {tableTab !== "bang6" && tableTab !== "bang1" && tableTab !== "bang2" && (
-            <div className="p-8 text-center text-slate-500">
-              <div className="text-3xl mb-2">📑</div>
-              <div className="font-bold text-sm">
-                Danh mục {tableTab.toUpperCase()} của cơ sở KCB {currentUnitData.unit.maCskcb}
-              </div>
-              <div className="text-xs text-slate-400 mt-1">
-                Hiện có {filteredData.length} bản ghi. Sử dụng nút &ldquo;Nạp Excel TT12&rdquo; để
-                nạp danh mục chi tiết.
-              </div>
-            </div>
+          {tableTab === "bang3" && (
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-emerald-700 text-white font-bold">
+                  <th className="py-2.5 px-3 w-12 text-center">STT</th>
+                  <th className="py-2.5 px-3 min-w-[120px]">MÃ THUỐC</th>
+                  <th className="py-2.5 px-3 min-w-[220px]">TÊN THUỐC</th>
+                  <th className="py-2.5 px-3 min-w-[200px]">TÊN HOẠT CHẤT</th>
+                  <th className="py-2.5 px-3 min-w-[100px]">HÀM LƯỢNG</th>
+                  <th className="py-2.5 px-3 min-w-[80px] text-center">ĐVT</th>
+                  <th className="py-2.5 px-3 min-w-[100px]">ĐƯỜNG DÙNG</th>
+                  <th className="py-2.5 px-3 min-w-[120px]">SỐ ĐĂNG KÝ</th>
+                  <th className="py-2.5 px-3 min-w-[110px] text-right">ĐƠN GIÁ (VNĐ)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 font-medium">
+                {pagedData.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="py-8 text-center text-slate-400 font-bold">
+                      Chưa có dữ liệu thuốc trong Bảng 3.
+                    </td>
+                  </tr>
+                ) : (
+                  (pagedData as Tt12Bang3Thuoc[]).map((item, idx) => (
+                    <tr key={item.maThuoc + idx} className="hover:bg-emerald-50/50 transition">
+                      <td className="py-2 px-3 text-center text-slate-400 font-mono">
+                        {(page - 1) * PAGE_SIZE + idx + 1}
+                      </td>
+                      <td className="py-2 px-3 font-mono font-bold text-emerald-800 dark:text-emerald-300">
+                        {item.maThuoc}
+                      </td>
+                      <td className="py-2 px-3 font-semibold text-slate-900 dark:text-white">
+                        {item.tenThuoc}
+                      </td>
+                      <td className="py-2 px-3 text-slate-600">{item.tenHoatChat || "—"}</td>
+                      <td className="py-2 px-3 text-slate-600">{item.hamLuong || "—"}</td>
+                      <td className="py-2 px-3 text-center text-slate-600">
+                        {item.donViTinh || "—"}
+                      </td>
+                      <td className="py-2 px-3 text-slate-600">{item.duongDung || "—"}</td>
+                      <td className="py-2 px-3 font-mono text-slate-500 text-[11px]">
+                        {item.soDangKy || "—"}
+                      </td>
+                      <td className="py-2 px-3 text-right font-mono font-bold text-emerald-700">
+                        {item.donGia != null ? item.donGia.toLocaleString("vi-VN") : "—"}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
+
+          {tableTab === "bang4" && (
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-sky-700 text-white font-bold">
+                  <th className="py-2.5 px-3 w-12 text-center">STT</th>
+                  <th className="py-2.5 px-3 min-w-[160px]">MÃ VẬT TƯ</th>
+                  <th className="py-2.5 px-3 min-w-[240px]">TÊN VẬT TƯ Y TẾ</th>
+                  <th className="py-2.5 px-3 min-w-[180px]">NHÓM VẬT TƯ</th>
+                  <th className="py-2.5 px-3 min-w-[130px]">MÃ HIỆU / QUY CÁCH</th>
+                  <th className="py-2.5 px-3 min-w-[140px]">HÃNG / NƯỚC SX</th>
+                  <th className="py-2.5 px-3 min-w-[80px] text-center">ĐVT</th>
+                  <th className="py-2.5 px-3 min-w-[110px] text-right">ĐƠN GIÁ (VNĐ)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 font-medium">
+                {pagedData.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-8 text-center text-slate-400 font-bold">
+                      Chưa có dữ liệu vật tư y tế trong Bảng 4.
+                    </td>
+                  </tr>
+                ) : (
+                  (pagedData as Tt12Bang4VatTu[]).map((item, idx) => (
+                    <tr key={item.maVatTu + idx} className="hover:bg-sky-50/50 transition">
+                      <td className="py-2 px-3 text-center text-slate-400 font-mono">
+                        {(page - 1) * PAGE_SIZE + idx + 1}
+                      </td>
+                      <td className="py-2 px-3 font-mono font-bold text-sky-800 dark:text-sky-300">
+                        {item.maVatTu}
+                      </td>
+                      <td className="py-2 px-3 font-semibold text-slate-900 dark:text-white">
+                        {item.tenVatTu}
+                      </td>
+                      <td className="py-2 px-3 text-slate-600 text-[11px]">
+                        {item.nhomVatTu || "—"}
+                      </td>
+                      <td className="py-2 px-3 text-slate-600">
+                        {item.maHieu || item.quyCach || "—"}
+                      </td>
+                      <td className="py-2 px-3 text-slate-600">
+                        {item.hangSx || item.nuocSx
+                          ? `${item.hangSx || ""}${item.nuocSx ? ` (${item.nuocSx})` : ""}`
+                          : "—"}
+                      </td>
+                      <td className="py-2 px-3 text-center text-slate-600">
+                        {item.donViTinh || "—"}
+                      </td>
+                      <td className="py-2 px-3 text-right font-mono font-bold text-sky-700">
+                        {item.donGia != null ? item.donGia.toLocaleString("vi-VN") : "—"}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
+
+          {tableTab === "bang5" && (
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-indigo-700 text-white font-bold">
+                  <th className="py-2.5 px-3 w-12 text-center">STT</th>
+                  <th className="py-2.5 px-3 min-w-[130px]">MÃ DVKT</th>
+                  <th className="py-2.5 px-3 min-w-[280px]">TÊN DỊCH VỤ KỸ THUẬT</th>
+                  <th className="py-2.5 px-3 min-w-[200px]">TÊN GIÁ DVKT</th>
+                  <th className="py-2.5 px-3 min-w-[110px] text-right">ĐƠN GIÁ (VNĐ)</th>
+                  <th className="py-2.5 px-3 min-w-[180px]">QUYẾT ĐỊNH / GHI CHÚ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 font-medium">
+                {pagedData.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-slate-400 font-bold">
+                      Chưa có dữ liệu dịch vụ kỹ thuật trong Bảng 5.
+                    </td>
+                  </tr>
+                ) : (
+                  (pagedData as Tt12Bang5DichVu[]).map((item, idx) => (
+                    <tr key={item.maDichVu + idx} className="hover:bg-indigo-50/50 transition">
+                      <td className="py-2 px-3 text-center text-slate-400 font-mono">
+                        {(page - 1) * PAGE_SIZE + idx + 1}
+                      </td>
+                      <td className="py-2 px-3 font-mono font-bold text-indigo-800 dark:text-indigo-300">
+                        {item.maDichVu}
+                      </td>
+                      <td className="py-2 px-3 font-semibold text-slate-900 dark:text-white">
+                        {item.tenDichVu}
+                      </td>
+                      <td className="py-2 px-3 text-slate-600 text-[11px]">
+                        {item.tenDvktGia || "—"}
+                      </td>
+                      <td className="py-2 px-3 text-right font-mono font-bold text-indigo-700">
+                        {item.donGia != null ? item.donGia.toLocaleString("vi-VN") : "—"}
+                      </td>
+                      <td className="py-2 px-3 text-slate-500 text-[11px]">
+                        {item.qdDvkt || item.ghiChu || item.quyTrinh || "—"}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           )}
         </div>
 
