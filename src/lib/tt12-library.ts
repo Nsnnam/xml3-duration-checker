@@ -297,6 +297,101 @@ export function saveUnitTableData<
 // LOGIC RÀ SOÁT ĐỐI CHIẾU MA_MAY TRONG XML3 VỚI BẢNG 6 TT12
 // ---------------------------------------------------------------------------
 
+/**
+ * Chuẩn hóa mã máy để đối chiếu: bỏ khoảng trắng thừa quanh các dấu phân cách ';', chuyển chữ in hoa
+ */
+export function normalizeMaMayKey(code: string): string {
+  return (code || "")
+    .trim()
+    .toUpperCase()
+    .split(";")
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .join(";");
+}
+
+/**
+ * Phân tích chuỗi MA_MAY (theo QĐ 130 & QĐ 3176) thành danh sách các máy hoặc hệ thống máy.
+ * Theo QĐ 3176:
+ * - Cấu trúc máy: XX.n.Z (với n = 1, 2 hoặc 3[xxx]).
+ * - Đối với hệ thống máy gồm nhiều máy thì ghi tất cả các serial của các máy, cách nhau bằng dấu ';'.
+ *   Ví dụ: "HTM.3[vontuco].C249-02;4275-07;22J2-07;22J2-01" là MỘT hệ thống máy duy nhất.
+ * - Khi có nhiều máy độc lập được khai báo cùng nhau:
+ *   Ví dụ: "XQ.1.01;XQ.1.02" sẽ được phân tách thành 2 máy: "XQ.1.01" và "XQ.1.02".
+ */
+export function splitMaMayToMachines(maMay: string): string[] {
+  const clean = (maMay || "").trim();
+  if (!clean) return [];
+  if (!clean.includes(";")) return [clean];
+
+  const rawParts = clean
+    .split(";")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (rawParts.length <= 1) return rawParts;
+
+  // Regex nhận diện sự bắt đầu của một máy mới (có header XX.n. hoặc XX.3[xxx].)
+  const headerRegex = /^[A-Za-zÀ-ỹ0-9]{2,4}\.(?:[1-9]|3\[[^\]\r\n\t]+\])\./u;
+
+  const machines: string[] = [];
+  let currentMachine = "";
+
+  for (const part of rawParts) {
+    const isNewHeader = headerRegex.test(part);
+    if (isNewHeader) {
+      if (currentMachine) {
+        machines.push(currentMachine);
+      }
+      currentMachine = part;
+    } else {
+      // Không có header máy mới -> Là serial con nối tiếp của hệ thống máy
+      if (currentMachine) {
+        currentMachine += `;${part}`;
+      } else {
+        currentMachine = part;
+      }
+    }
+  }
+
+  if (currentMachine) {
+    machines.push(currentMachine);
+  }
+
+  return machines.length > 0 ? machines : [clean];
+}
+
+function checkMachineValidityDates(
+  machine: Tt12Bang6ThietBi,
+  machineLabel: string,
+  ngayThYlRaw: string,
+): string[] {
+  const issues: string[] = [];
+  if (!ngayThYlRaw) return issues;
+
+  const execDigits = ngayThYlRaw.replace(/\D/g, "").slice(0, 8); // YYYYMMDD
+  if (execDigits.length !== 8) return issues;
+
+  if (machine.tuNgay) {
+    const fromDigits = machine.tuNgay.replace(/\D/g, "").slice(0, 8);
+    if (fromDigits.length === 8 && execDigits < fromDigits) {
+      issues.push(
+        `Mã máy '${machineLabel}' (${machine.tenTb}) thực hiện ngày ${formatXmlDate(ngayThYlRaw)} trước ngày hiệu lực TT12 (${formatXmlDate(machine.tuNgay)})`,
+      );
+    }
+  }
+
+  if (machine.denNgay) {
+    const toDigits = machine.denNgay.replace(/\D/g, "").slice(0, 8);
+    if (toDigits.length === 8 && execDigits > toDigits) {
+      issues.push(
+        `Mã máy '${machineLabel}' (${machine.tenTb}) đã HẾT HẠN HIỆU LỰC TT12 vào ngày ${formatXmlDate(machine.denNgay)} (ngày thực hiện ${formatXmlDate(ngayThYlRaw)})`,
+      );
+    }
+  }
+
+  return issues;
+}
+
 export interface MaMayAuditResult {
   hasWarning: boolean;
   message: string;
@@ -327,50 +422,67 @@ export function auditXml3MaMayWithTt12(
     };
   }
 
-  const parts = cleanMaMay
-    .split(";")
-    .map((p) => p.trim())
-    .filter(Boolean);
+  const normalizedInput = normalizeMaMayKey(cleanMaMay);
+
+  // 1. Kiểm tra khớp toàn bộ chuỗi MA_MAY (bao gồm cả hệ thống máy nhiều serial theo QĐ 3176)
+  const exactMatch = unitData.bang6.find(
+    (m) => m.maMay && normalizeMaMayKey(m.maMay) === normalizedInput,
+  );
+
+  if (exactMatch) {
+    const issues = checkMachineValidityDates(exactMatch, cleanMaMay, ngayThYlRaw);
+    return {
+      hasWarning: issues.length > 0,
+      message: issues.length > 0 ? `XML3: ${issues.join(" · ")}` : "",
+      machine: exactMatch,
+    };
+  }
+
+  // 2. Nếu không khớp trực tiếp toàn bộ chuỗi, phân tách thành từng máy / hệ thống máy độc lập
+  const machines = splitMaMayToMachines(cleanMaMay);
   const issues: string[] = [];
   let matchedMachine: Tt12Bang6ThietBi | undefined;
 
-  for (const part of parts) {
-    const upperPart = part.toUpperCase();
-    const machine = unitData.bang6.find(
-      (m) => m.maMay && m.maMay.trim().toUpperCase() === upperPart,
-    );
+  for (const machineStr of machines) {
+    const normMachine = normalizeMaMayKey(machineStr);
+
+    let machine = unitData.bang6.find((m) => m.maMay && normalizeMaMayKey(m.maMay) === normMachine);
+
+    // Nếu không khớp trực tiếp cả hệ thống máy, kiểm tra các trường hợp tương thích theo QĐ 3176:
+    // Ví dụ: Bảng 6 lưu cả hệ thống "HTM.3[vontuco].C249-02;4275-07;22J2-07;22J2-01",
+    // còn XML3 ghi 1 serial hoặc chuỗi serial con thuộc hệ thống đó (hoặc ngược lại)
+    if (!machine) {
+      machine = unitData.bang6.find((m) => {
+        if (!m.maMay) return false;
+        const normTable = normalizeMaMayKey(m.maMay);
+        if (normTable === normMachine) return true;
+
+        const matchTable = normTable.match(/^([A-Za-zÀ-ỹ0-9]{2,4}\.(?:[1-9]|3\[[^\]]+\])\.)(.+)$/u);
+        const matchInput = normMachine.match(
+          /^([A-Za-zÀ-ỹ0-9]{2,4}\.(?:[1-9]|3\[[^\]]+\])\.)(.+)$/u,
+        );
+
+        if (matchTable && matchInput && matchTable[1] === matchInput[1]) {
+          const tableSerials = matchTable[2].split(";").map((s) => s.trim());
+          const inputSerials = matchInput[2].split(";").map((s) => s.trim());
+          const allInputInTable = inputSerials.every((s) => tableSerials.includes(s));
+          if (allInputInTable) return true;
+        }
+        return false;
+      });
+    }
 
     if (!machine) {
       issues.push(
-        `Mã máy '${part}' không tồn tại trong Bảng 6 TT12 của CSKCB ${unitData.unit.maCskcb} (${unitData.unit.tenCskcb})`,
+        `Mã máy '${machineStr}' không tồn tại trong Bảng 6 TT12 của CSKCB ${unitData.unit.maCskcb} (${unitData.unit.tenCskcb})`,
       );
       continue;
     }
 
     matchedMachine = machine;
-
-    // Kiểm tra thời hạn hiệu lực
-    if (ngayThYlRaw) {
-      const execDigits = ngayThYlRaw.replace(/\D/g, "").slice(0, 8); // YYYYMMDD
-      if (execDigits.length === 8) {
-        if (machine.tuNgay) {
-          const fromDigits = machine.tuNgay.replace(/\D/g, "").slice(0, 8);
-          if (fromDigits.length === 8 && execDigits < fromDigits) {
-            issues.push(
-              `Mã máy '${part}' (${machine.tenTb}) thực hiện ngày ${formatXmlDate(ngayThYlRaw)} trước ngày hiệu lực TT12 (${formatXmlDate(machine.tuNgay)})`,
-            );
-          }
-        }
-
-        if (machine.denNgay) {
-          const toDigits = machine.denNgay.replace(/\D/g, "").slice(0, 8);
-          if (toDigits.length === 8 && execDigits > toDigits) {
-            issues.push(
-              `Mã máy '${part}' (${machine.tenTb}) đã HẾT HẠN HIỆU LỰC TT12 vào ngày ${formatXmlDate(machine.denNgay)} (ngày thực hiện ${formatXmlDate(ngayThYlRaw)})`,
-            );
-          }
-        }
-      }
+    const dateIssues = checkMachineValidityDates(machine, machineStr, ngayThYlRaw);
+    if (dateIssues.length > 0) {
+      issues.push(...dateIssues);
     }
   }
 

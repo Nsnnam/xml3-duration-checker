@@ -2,12 +2,22 @@ export const APP_META = {
   name: "NsN_XMLcheck",
   title: "NsN_XMLcheck",
   description: "Tổng hợp công cụ xử lý XML_Namns",
-  version: "2.26.0",
+  version: "2.26.1",
   date: "2026-11-27",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.26.1",
+      date: "2026-11-27",
+      changes: [
+        "Hỗ trợ chuẩn xác hệ thống máy gồm nhiều thiết bị/serial theo Quyết định số 3176/QĐ-BYT (chỉ tiêu 44 MA_MAY): Nhận diện đúng cấu trúc hệ thống thiết bị gồm nhiều serial phân cách bằng dấu chấm phẩy ';' (ví dụ máy sinh hóa miễn dịch 'HTM.3[vontuco].C249-02;4275-07;22J2-07;22J2-01' của Cobas pro).",
+        "Khắc phục triệt để lỗi đối chiếu Bảng 6 Thông tư 12: Không tự động bóc tách từng serial con thành các máy độc lập riêng rẽ khi hệ thống dùng chung tiền tố nhóm máy và nguồn kinh phí; tự động đối chiếu toàn vẹn hệ thống máy với Bảng 6 của cơ sở KCB, loại bỏ hoàn toàn các cảnh báo sai lệch 'không tồn tại trong Bảng 6 TT12'.",
+        "Nâng cấp thuật toán gom nhóm máy trong kiểm tra trùng lịch (addDuplicateMachineWarnings): Giữ nguyên khối hệ thống máy đa serial, ngăn chặn việc các số serial con bị bóc tách nhầm làm trùng chéo với các dịch vụ hoặc cơ sở khác.",
+        "Mở rộng kiểm tra định dạng mã máy (isValidMaMayUnit & isValidMaMay): Hỗ trợ đầy đủ các nguồn kinh phí theo QĐ 130 và QĐ 3176 gồm 1 (ngân sách nhà nước), 2 (tài trợ, viện trợ, hỗ trợ) và 3[xxx] (nguồn khác).",
+      ],
+    },
     {
       version: "2.26.0",
       date: "2026-11-27",

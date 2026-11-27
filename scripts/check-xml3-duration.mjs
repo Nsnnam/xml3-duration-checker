@@ -46,7 +46,7 @@ import {
 } from "../src/lib/backup.ts";
 import { addMinutesToXmlDateTime } from "../src/lib/correction-plan.ts";
 import { checkPatientDiseasesTt01 } from "../src/lib/tt01-appendix2-diseases.ts";
-import { auditXml3MaMayWithTt12 } from "../src/lib/tt12-library.ts";
+import { auditXml3MaMayWithTt12, splitMaMayToMachines } from "../src/lib/tt12-library.ts";
 
 // 1. Kiểm tra tính phút và thứ tự thời gian
 assert.equal(addMinutesToXmlDateTime("202611041207", 10), "202611041217");
@@ -2041,6 +2041,55 @@ assert.ok(resNotFoundMachine.message.includes("không tồn tại trong Bảng 6
 const resExpiredMachine = auditXml3MaMayWithTt12("26066.301.OLD-001", "202611200830", mockTt12Unit);
 assert.equal(resExpiredMachine.hasWarning, true);
 assert.ok(resExpiredMachine.message.includes("HẾT HẠN HIỆU LỰC TT12"));
+
+// Case D: Hệ thống máy gồm nhiều serial theo QĐ 3176 (Cobas pro cơ sở 26193) -> Hợp lệ 100% không cảnh báo sai lệch
+const mockTt12LacViet26193 = {
+  unit: { maCskcb: "26193", tenCskcb: "Bệnh viện Hữu nghị Lạc Việt", capKcb: "co_ban" },
+  bang1: [],
+  bang2: [],
+  bang3: [],
+  bang4: [],
+  bang5: [],
+  bang6: [
+    {
+      stt: 1,
+      tenTb: "Cobas pro",
+      kyHieu: "792-0066;798-0041;792-0010;792-0070",
+      maMay: "HTM.3[vontuco].C249-02;4275-07;22J2-07;22J2-01",
+      congTySx: "Hitachi High-Tech Corporation",
+      tuNgay: "20261117",
+      denNgay: "",
+      maCskcb: "26193",
+    },
+  ],
+};
+
+const resMultiSerialSystem = auditXml3MaMayWithTt12(
+  "HTM.3[vontuco].C249-02;4275-07;22J2-07;22J2-01",
+  "202611200830",
+  mockTt12LacViet26193,
+);
+assert.equal(resMultiSerialSystem.hasWarning, false);
+assert.equal(resMultiSerialSystem.message, "");
+assert.equal(resMultiSerialSystem.machine?.tenTb, "Cobas pro");
+
+// Case E: Hệ thống máy trong XML3 có khoảng trắng ngẫu nhiên quanh dấu chấm phẩy
+const resMultiSerialSpaces = auditXml3MaMayWithTt12(
+  "HTM.3[vontuco].C249-02; 4275-07; 22J2-07; 22J2-01",
+  "202611200830",
+  mockTt12LacViet26193,
+);
+assert.equal(resMultiSerialSpaces.hasWarning, false);
+
+// Case F: Kiểm tra phân tách hàm splitMaMayToMachines theo chuẩn QĐ 3176
+const splitMachines1 = splitMaMayToMachines("HTM.3[vontuco].C249-02;4275-07;22J2-07;22J2-01");
+assert.deepEqual(splitMachines1, ["HTM.3[vontuco].C249-02;4275-07;22J2-07;22J2-01"]);
+
+const splitMachines2 = splitMaMayToMachines("XQ.1.01;XQ.2.02");
+assert.deepEqual(splitMachines2, ["XQ.1.01", "XQ.2.02"]);
+
+// Case G: Kiểm tra isValidMaMay nhận diện đúng hệ thống máy nhiều serial theo QĐ 3176
+assert.equal(isValidMaMay("HTM.3[vontuco].C249-02;4275-07;22J2-07;22J2-01"), true);
 
 // 26. Kiểm tra rà soát trùng trong khoảng thời gian (Interval Overlap) giữa các nhóm DVKT
 const mockOverlapRecords = [

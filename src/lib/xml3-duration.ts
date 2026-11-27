@@ -12,6 +12,8 @@ import {
   loadTt12Catalogs,
   isExcludedDept,
   loadExcludedDepts,
+  splitMaMayToMachines,
+  normalizeMaMayKey,
   type Tt12UnitData,
 } from "./tt12-library.ts";
 
@@ -2340,8 +2342,8 @@ export function addDuplicateMachineWarnings(
       const date = parseXmlDateTime(record.NGAY_TH_YL);
       if (!date) continue;
       const timeMinute = Math.floor(date.getTime() / 60000);
-      const machines = record.MA_MAY.split(";")
-        .map((m) => m.trim().toUpperCase())
+      const machines = splitMaMayToMachines(record.MA_MAY)
+        .map((m) => normalizeMaMayKey(m))
         .filter(Boolean);
       const uniqueMachines = Array.from(new Set(machines));
       for (const machine of uniqueMachines) {
@@ -2426,8 +2428,8 @@ export function addDuplicateMachineWarnings(
       }
 
       const timeDisplay = formatXmlDateTime(record.NGAY_TH_YL) || record.NGAY_TH_YL;
-      const machines = record.MA_MAY.split(";")
-        .map((m) => m.trim().toUpperCase())
+      const machines = splitMaMayToMachines(record.MA_MAY)
+        .map((m) => normalizeMaMayKey(m))
         .filter(Boolean);
       const uniqueMachines = Array.from(new Set(machines));
 
@@ -2800,26 +2802,28 @@ export function isValidMaMay(maMay: string): boolean {
   if (rawParts.length === 0 || rawParts.some((p) => !p)) {
     return false;
   }
-  const parts = rawParts;
 
-  // Trường hợp 1: Tất cả các phần đều là mã máy hoàn chỉnh XX.3[xxx].Z
-  if (parts.every((p) => isValidMaMayUnit(p))) {
-    return true;
+  const machines = splitMaMayToMachines(trimmed);
+  if (machines.length === 0) return false;
+
+  for (const machine of machines) {
+    const parts = machine.split(";").map((p) => p.trim());
+    if (parts.length === 0 || !parts[0]) return false;
+
+    if (parts.length === 1) {
+      if (!isValidMaMayUnit(parts[0])) return false;
+    } else {
+      // Hệ thống máy nhiều serial theo QĐ 3176 (ví dụ: HTM.3[vontuco].C249-02;4275-07;22J2-07;22J2-01)
+      if (!isValidMaMayUnit(parts[0])) return false;
+      const remainingAreSerials = parts.slice(1).every((p) => {
+        if (p.includes("[") || p.includes("]") || /\.\d/u.test(p)) return false;
+        return p.length > 0;
+      });
+      if (!remainingAreSerials) return false;
+    }
   }
 
-  // Trường hợp 2: Phần đầu tiên là XX.3[xxx].Z1 và các phần sau là các số serial bổ sung
-  if (isValidMaMayUnit(parts[0])) {
-    const remainingAreSerials = parts.slice(1).every((p) => {
-      // Nếu có ngoặc vuông hoặc chứa pattern nguồn kinh phí (như .2[, .3.), đây là máy riêng biệt bị gõ sai
-      if (p.includes("[") || p.includes("]") || /\.\d/u.test(p)) {
-        return false;
-      }
-      return p.length > 0;
-    });
-    if (remainingAreSerials) return true;
-  }
-
-  return false;
+  return true;
 }
 
 export function normalizeDichVuCode(code: string): string {
