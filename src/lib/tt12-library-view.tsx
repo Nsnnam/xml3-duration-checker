@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   type CskcbUnit,
   type Tt12UnitData,
@@ -16,8 +16,19 @@ import {
   exportTt12TemplateExcel,
   exportTt12UnitToExcel,
   importTt12FromExcel,
+  loadExcludedDepts,
+  saveExcludedDepts,
+  DEFAULT_EXCLUDED_DEPTS,
 } from "./tt12-library.ts";
 import { DEFAULT_TT12_CATALOGS } from "./tt12-default-data.ts";
+
+export type Tt12RowItem =
+  | Tt12Bang1KhoaPhong
+  | Tt12Bang2NhanLuc
+  | Tt12Bang3Thuoc
+  | Tt12Bang4VatTu
+  | Tt12Bang5DichVu
+  | Tt12Bang6ThietBi;
 
 export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () => void }) {
   const [catalogs, setCatalogs] = useState<Record<string, Tt12UnitData>>(loadTt12Catalogs);
@@ -51,6 +62,21 @@ export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () 
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 40;
+
+  // Multi-select & Shift-click state
+  const [selectedItems, setSelectedItems] = useState<Set<Tt12RowItem>>(new Set());
+  const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null);
+
+  // Khi đổi đơn vị hoặc đổi tab bảng hoặc tìm kiếm -> reset selection
+  useEffect(() => {
+    setSelectedItems(new Set());
+    setLastClickedIndex(null);
+  }, [selectedMaCskcb, tableTab, searchQuery]);
+
+  // Cấu hình mã khoa loại trừ (QĐ 5937 / K01)
+  const [excludedDepts, setExcludedDepts] = useState<string[]>(loadExcludedDepts);
+  const [isExcludedDeptsModalOpen, setIsExcludedDeptsModalOpen] = useState(false);
+  const [newDeptCode, setNewDeptCode] = useState("");
 
   // Modal thêm/sửa đơn vị
   const [isUnitModalOpen, setIsUnitModalOpen] = useState(false);
@@ -181,6 +207,38 @@ export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () 
     }
   };
 
+  // Thao tác với danh sách mã khoa loại trừ (QĐ 5937 / K01)
+  const handleAddExcludedDept = (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = newDeptCode.trim().toUpperCase();
+    if (!code) return;
+    if (excludedDepts.includes(code)) {
+      showNotice(`Mã khoa '${code}' đã có trong danh sách loại trừ.`, "error");
+      return;
+    }
+    const updated = [...excludedDepts, code];
+    saveExcludedDepts(updated);
+    setExcludedDepts(updated);
+    setNewDeptCode("");
+    showNotice(`Đã thêm mã khoa '${code}' vào danh sách loại trừ cảnh báo Bảng 1.`);
+    onRefreshXmlAudit?.();
+  };
+
+  const handleRemoveExcludedDept = (code: string) => {
+    const updated = excludedDepts.filter((d) => d !== code);
+    saveExcludedDepts(updated);
+    setExcludedDepts(updated);
+    showNotice(`Đã xóa mã khoa '${code}' khỏi danh sách loại trừ.`);
+    onRefreshXmlAudit?.();
+  };
+
+  const handleResetExcludedDepts = () => {
+    saveExcludedDepts([...DEFAULT_EXCLUDED_DEPTS]);
+    setExcludedDepts([...DEFAULT_EXCLUDED_DEPTS]);
+    showNotice("Đã khôi phục danh sách mã khoa loại trừ mặc định (K01 - QĐ 5937).");
+    onRefreshXmlAudit?.();
+  };
+
   // Thêm thiết bị vào Bảng 6
   const handleAddMachine = (e: React.FormEvent) => {
     e.preventDefault();
@@ -212,13 +270,42 @@ export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () 
     onRefreshXmlAudit?.();
   };
 
-  const handleDeleteMachine = (idx: number) => {
-    const item = currentUnitData.bang6[idx];
-    if (!window.confirm(`Xóa mã máy '${item.maMay}' (${item.tenTb}) khỏi Bảng 6?`)) return;
-    const updated = currentUnitData.bang6.filter((_, i) => i !== idx);
-    saveUnitTableData(currentUnitData.unit.maCskcb, "bang6", updated);
+  // Xóa 1 dòng duy nhất (dùng object reference trực tiếp)
+  const handleDeleteSingleItem = (
+    tab: "bang1" | "bang2" | "bang3" | "bang4" | "bang5" | "bang6",
+    targetItem: Tt12RowItem,
+  ) => {
+    let desc = "";
+    if (tab === "bang6") {
+      const t = targetItem as Tt12Bang6ThietBi;
+      desc = `máy '${t.maMay}' (${t.tenTb})`;
+    } else if (tab === "bang1") {
+      const t = targetItem as Tt12Bang1KhoaPhong;
+      desc = `khoa '${t.maKhoa}' (${t.tenKhoa})`;
+    } else if (tab === "bang2") {
+      const t = targetItem as Tt12Bang2NhanLuc;
+      desc = `nhân viên '${t.hoTen}' (CCHN: ${t.macchn})`;
+    } else if (tab === "bang3") {
+      const t = targetItem as Tt12Bang3Thuoc;
+      desc = `thuốc '${t.maThuoc}' (${t.tenThuoc})`;
+    } else if (tab === "bang4") {
+      const t = targetItem as Tt12Bang4VatTu;
+      desc = `vật tư '${t.maVatTu}' (${t.tenVatTu})`;
+    } else if (tab === "bang5") {
+      const t = targetItem as Tt12Bang5DichVu;
+      desc = `dịch vụ '${t.maDichVu}' (${t.tenDichVu})`;
+    }
+
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa ${desc} khỏi danh mục?`)) return;
+
+    const currentList = (currentUnitData[tab] || []) as Tt12RowItem[];
+    const updated = currentList.filter((item) => item !== targetItem);
+    saveUnitTableData(currentUnitData.unit.maCskcb, tab, updated as never);
     setCatalogs(loadTt12Catalogs());
-    showNotice(`Đã xóa máy '${item.maMay}'.`);
+    const nextSelected = new Set(selectedItems);
+    nextSelected.delete(targetItem);
+    setSelectedItems(nextSelected);
+    showNotice(`Đã xóa thành công ${desc}.`);
     onRefreshXmlAudit?.();
   };
 
@@ -288,6 +375,96 @@ export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () 
     return filteredData.slice(start, start + PAGE_SIZE);
   }, [filteredData, page]);
 
+  // Kiểm tra trạng thái chọn tất cả trên trang hiện tại
+  const isAllPageSelected =
+    pagedData.length > 0 && pagedData.every((item) => selectedItems.has(item));
+
+  // Toggle chọn tất cả trên trang hiện tại
+  const handleToggleSelectAllPage = () => {
+    const next = new Set(selectedItems);
+    if (isAllPageSelected) {
+      pagedData.forEach((item) => next.delete(item));
+    } else {
+      pagedData.forEach((item) => next.add(item));
+    }
+    setSelectedItems(next);
+  };
+
+  // Click chọn 1 dòng kèm hỗ trợ Shift-click chọn dải
+  const handleToggleRowItem = (item: Tt12RowItem, idxOnPage: number, e: React.MouseEvent) => {
+    const next = new Set(selectedItems);
+    if (e.shiftKey && lastClickedIndex !== null) {
+      const start = Math.min(lastClickedIndex, idxOnPage);
+      const end = Math.max(lastClickedIndex, idxOnPage);
+      for (let i = start; i <= end; i++) {
+        const target = pagedData[i] as Tt12RowItem | undefined;
+        if (target) next.add(target);
+      }
+    } else {
+      if (next.has(item)) {
+        next.delete(item);
+      } else {
+        next.add(item);
+      }
+      setLastClickedIndex(idxOnPage);
+    }
+    setSelectedItems(next);
+  };
+
+  // Xóa các dòng đã chọn
+  const handleDeleteSelected = () => {
+    const count = selectedItems.size;
+    if (count === 0) return;
+    if (
+      !window.confirm(
+        `Bạn có chắc chắn muốn xóa ${count} dòng đã chọn khỏi Bảng danh mục của cơ sở ${currentUnitData.unit.maCskcb}?`,
+      )
+    ) {
+      return;
+    }
+    const currentList = (currentUnitData[tableTab] || []) as Tt12RowItem[];
+    const updated = currentList.filter((item) => !selectedItems.has(item));
+    saveUnitTableData(currentUnitData.unit.maCskcb, tableTab, updated as never);
+    setCatalogs(loadTt12Catalogs());
+    setSelectedItems(new Set());
+    setLastClickedIndex(null);
+    showNotice(`Đã xóa thành công ${count} dòng đã chọn khỏi danh mục.`);
+    onRefreshXmlAudit?.();
+  };
+
+  // Xóa toàn bộ dữ liệu của Bảng hiện tại
+  const handleClearEntireTable = () => {
+    const count = currentUnitData[tableTab]?.length || 0;
+    if (count === 0) {
+      showNotice("Bảng này hiện đang rỗng, không có dữ liệu để xóa.", "error");
+      return;
+    }
+    const tabTitles: Record<string, string> = {
+      bang1: "Bảng 1 (Bộ phận chuyên môn / Khoa phòng)",
+      bang2: "Bảng 2 (Nhân lực KCB / CCHN)",
+      bang3: "Bảng 3 (Thuốc & Chế phẩm máu)",
+      bang4: "Bảng 4 (Vật tư y tế)",
+      bang5: "Bảng 5 (Dịch vụ kỹ thuật)",
+      bang6: "Bảng 6 (Trang thiết bị y tế / Mã máy)",
+    };
+    const title = tabTitles[tableTab] || tableTab;
+    if (
+      !window.confirm(
+        `⚠️ CẢNH BÁO QUAN TRỌNG:\n\nBạn có chắc chắn muốn XÓA TOÀN BỘ ${count.toLocaleString(
+          "vi-VN",
+        )} dòng trong ${title} của cơ sở ${currentUnitData.unit.maCskcb} (${currentUnitData.unit.tenCskcb})?\n\nToàn bộ dữ liệu của bảng này sẽ bị xóa trắng ([]).`,
+      )
+    ) {
+      return;
+    }
+    saveUnitTableData(currentUnitData.unit.maCskcb, tableTab, []);
+    setCatalogs(loadTt12Catalogs());
+    setSelectedItems(new Set());
+    setLastClickedIndex(null);
+    showNotice(`Đã xóa sạch toàn bộ ${count.toLocaleString("vi-VN")} dòng trong ${title}.`);
+    onRefreshXmlAudit?.();
+  };
+
   return (
     <div className="space-y-6">
       {/* Toast Notice */}
@@ -326,6 +503,17 @@ export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () 
 
           {/* Action buttons */}
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsExcludedDeptsModalOpen(true)}
+              className="rounded-xl border border-amber-500/80 bg-amber-50 dark:bg-amber-950/40 px-3 py-1.5 text-xs font-bold text-amber-900 dark:text-amber-300 hover:bg-amber-100 shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+              title="Cấu hình danh sách mã khoa loại trừ cảnh báo (ví dụ K01 theo Quyết định 5937/QĐ-BYT)"
+            >
+              <span>🏛️ Mã khoa loại trừ (QĐ 5937)</span>
+              <span className="rounded-md bg-amber-200 dark:bg-amber-900 px-1.5 py-0.2 text-[11px] font-black">
+                {excludedDepts.length}
+              </span>
+            </button>
             <button
               type="button"
               onClick={exportTt12TemplateExcel}
@@ -574,7 +762,11 @@ export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () 
                     ? "Bảng 1 (Mã khoa, Tên khoa...)"
                     : tableTab === "bang2"
                       ? "Bảng 2 (Họ tên, CCHN, Phạm vi...)"
-                      : "danh mục..."
+                      : tableTab === "bang3"
+                        ? "Bảng 3 (Mã thuốc, Tên thuốc, Hoạt chất...)"
+                        : tableTab === "bang4"
+                          ? "Bảng 4 (Mã vật tư, Tên VT...)"
+                          : "Bảng 5 (Mã DVKT, Tên DVKT...)"
               }`}
               className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500"
             />
@@ -582,22 +774,33 @@ export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () 
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
-                className="text-xs text-slate-400 hover:text-slate-600 font-bold px-1"
+                className="text-xs text-slate-400 hover:text-slate-600 font-bold px-1 cursor-pointer"
               >
                 ✕
               </button>
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-bold text-slate-500">
               Hiển thị: {filteredData.length.toLocaleString("vi-VN")} dòng
             </span>
+
+            {/* Nút Xóa toàn bộ Bảng */}
+            <button
+              type="button"
+              onClick={handleClearEntireTable}
+              className="rounded-xl border border-rose-300 dark:border-rose-800 bg-rose-50/70 dark:bg-rose-950/40 hover:bg-rose-100 text-rose-700 dark:text-rose-300 px-3 py-1.5 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+              title="Xóa trắng toàn bộ dữ liệu của bảng này"
+            >
+              <span>🗑️ Xóa toàn bộ Bảng</span>
+            </button>
+
             {tableTab === "bang6" && (
               <button
                 type="button"
                 onClick={() => setIsAddMachineModalOpen(true)}
-                className="rounded-xl bg-purple-700 hover:bg-purple-800 text-white px-3.5 py-2 text-xs font-bold shadow-xs transition flex items-center gap-1 cursor-pointer"
+                className="rounded-xl bg-purple-700 hover:bg-purple-800 text-white px-3.5 py-1.5 text-xs font-bold shadow-xs transition flex items-center gap-1 cursor-pointer"
               >
                 <span>+ Thêm thiết bị / Mã máy</span>
               </button>
@@ -605,12 +808,55 @@ export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () 
           </div>
         </div>
 
+        {/* Floating / Toolbar khi có dòng được chọn */}
+        {selectedItems.size > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black text-rose-800 dark:text-rose-200">
+                ✅ Đã chọn {selectedItems.size} dòng
+              </span>
+              <span className="text-[11px] text-rose-600 dark:text-rose-300 hidden sm:inline">
+                (Mẹo: Giữ phím{" "}
+                <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 border font-mono font-bold">
+                  Shift
+                </kbd>{" "}
+                khi bấm ô chọn để chọn nhanh cả dải)
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleDeleteSelected}
+                className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-1.5 text-xs font-bold shadow-sm transition flex items-center gap-1 cursor-pointer"
+              >
+                <span>🗑️ Xóa {selectedItems.size} dòng đã chọn</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedItems(new Set())}
+                className="rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Bỏ chọn
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Data Table */}
         <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
           {tableTab === "bang6" && (
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-purple-700 text-white font-bold">
+                  <th className="py-2.5 px-3 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={isAllPageSelected}
+                      onChange={handleToggleSelectAllPage}
+                      className="cursor-pointer"
+                      title="Chọn tất cả trên trang này"
+                    />
+                  </th>
                   <th className="py-2.5 px-3 w-12 text-center">STT</th>
                   <th className="py-2.5 px-3 min-w-[200px]">MÃ MÁY CHUẨN (MA_MAY)</th>
                   <th className="py-2.5 px-3 min-w-[220px]">TÊN THIẾT BỊ Y TẾ</th>
@@ -625,15 +871,28 @@ export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () 
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 font-medium">
                 {pagedData.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="py-8 text-center text-slate-400 font-bold">
+                    <td colSpan={10} className="py-8 text-center text-slate-400 font-bold">
                       Không có thiết bị y tế nào phù hợp với tìm kiếm trong Bảng 6.
                     </td>
                   </tr>
                 ) : (
                   (pagedData as Tt12Bang6ThietBi[]).map((item, idx) => {
                     const realIdx = (page - 1) * PAGE_SIZE + idx;
+                    const isSelected = selectedItems.has(item);
                     return (
-                      <tr key={item.maMay + idx} className="hover:bg-purple-50/50 transition">
+                      <tr
+                        key={item.maMay + idx}
+                        className={`transition ${isSelected ? "bg-purple-100/70 dark:bg-purple-950/40" : "hover:bg-purple-50/50"}`}
+                      >
+                        <td className="py-2 px-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onClick={(e) => handleToggleRowItem(item, idx, e)}
+                            onChange={() => {}}
+                            className="cursor-pointer"
+                          />
+                        </td>
                         <td className="py-2 px-3 text-center text-slate-400 font-mono">
                           {realIdx + 1}
                         </td>
@@ -661,8 +920,8 @@ export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () 
                         <td className="py-2 px-3 text-center">
                           <button
                             type="button"
-                            onClick={() => handleDeleteMachine(realIdx)}
-                            className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1 rounded-lg transition"
+                            onClick={() => handleDeleteSingleItem("bang6", item)}
+                            className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1 rounded-lg transition cursor-pointer"
                             title="Xóa máy này"
                           >
                             🗑️
@@ -680,6 +939,15 @@ export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () 
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-teal-700 text-white font-bold">
+                  <th className="py-2.5 px-3 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={isAllPageSelected}
+                      onChange={handleToggleSelectAllPage}
+                      className="cursor-pointer"
+                      title="Chọn tất cả trên trang này"
+                    />
+                  </th>
                   <th className="py-2.5 px-3 w-12 text-center">STT</th>
                   <th className="py-2.5 px-3 min-w-[130px]">MÃ KHOA</th>
                   <th className="py-2.5 px-3 min-w-[220px]">TÊN KHOA PHÒNG</th>
@@ -688,34 +956,63 @@ export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () 
                   <th className="py-2.5 px-3 min-w-[100px]">GIƯỜNG TK</th>
                   <th className="py-2.5 px-3 min-w-[120px]">TỪ NGÀY</th>
                   <th className="py-2.5 px-3 min-w-[120px]">ĐẾN NGÀY</th>
+                  <th className="py-2.5 px-3 w-16 text-center">XÓA</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 font-medium">
                 {pagedData.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center text-slate-400 font-bold">
+                    <td colSpan={10} className="py-8 text-center text-slate-400 font-bold">
                       Chưa có dữ liệu khoa phòng trong Bảng 1.
                     </td>
                   </tr>
                 ) : (
-                  (pagedData as Tt12Bang1KhoaPhong[]).map((item, idx) => (
-                    <tr key={item.maKhoa + idx} className="hover:bg-teal-50/50 transition">
-                      <td className="py-2 px-3 text-center text-slate-400 font-mono">
-                        {(page - 1) * PAGE_SIZE + idx + 1}
-                      </td>
-                      <td className="py-2 px-3 font-mono font-bold text-teal-800 dark:text-teal-300">
-                        {item.maKhoa}
-                      </td>
-                      <td className="py-2 px-3 text-slate-800 dark:text-slate-100 font-semibold">
-                        {item.tenKhoa}
-                      </td>
-                      <td className="py-2 px-3 text-slate-600">{item.banKham || "—"}</td>
-                      <td className="py-2 px-3 font-mono">{item.giuongPd ?? "—"}</td>
-                      <td className="py-2 px-3 font-mono">{item.giuongTk ?? "—"}</td>
-                      <td className="py-2 px-3 text-slate-500 font-mono">{item.tuNgay || "—"}</td>
-                      <td className="py-2 px-3 text-slate-500 font-mono">{item.denNgay || "—"}</td>
-                    </tr>
-                  ))
+                  (pagedData as Tt12Bang1KhoaPhong[]).map((item, idx) => {
+                    const realIdx = (page - 1) * PAGE_SIZE + idx;
+                    const isSelected = selectedItems.has(item);
+                    return (
+                      <tr
+                        key={item.maKhoa + idx}
+                        className={`transition ${isSelected ? "bg-teal-100/70 dark:bg-teal-950/40" : "hover:bg-teal-50/50"}`}
+                      >
+                        <td className="py-2 px-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onClick={(e) => handleToggleRowItem(item, idx, e)}
+                            onChange={() => {}}
+                            className="cursor-pointer"
+                          />
+                        </td>
+                        <td className="py-2 px-3 text-center text-slate-400 font-mono">
+                          {realIdx + 1}
+                        </td>
+                        <td className="py-2 px-3 font-mono font-bold text-teal-800 dark:text-teal-300">
+                          {item.maKhoa}
+                        </td>
+                        <td className="py-2 px-3 text-slate-800 dark:text-slate-100 font-semibold">
+                          {item.tenKhoa}
+                        </td>
+                        <td className="py-2 px-3 text-slate-600">{item.banKham || "—"}</td>
+                        <td className="py-2 px-3 font-mono">{item.giuongPd ?? "—"}</td>
+                        <td className="py-2 px-3 font-mono">{item.giuongTk ?? "—"}</td>
+                        <td className="py-2 px-3 text-slate-500 font-mono">{item.tuNgay || "—"}</td>
+                        <td className="py-2 px-3 text-slate-500 font-mono">
+                          {item.denNgay || "—"}
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSingleItem("bang1", item)}
+                            className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1 rounded-lg transition cursor-pointer"
+                            title="Xóa khoa này"
+                          >
+                            🗑️
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -725,40 +1022,76 @@ export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () 
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-blue-700 text-white font-bold">
+                  <th className="py-2.5 px-3 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={isAllPageSelected}
+                      onChange={handleToggleSelectAllPage}
+                      className="cursor-pointer"
+                      title="Chọn tất cả trên trang này"
+                    />
+                  </th>
                   <th className="py-2.5 px-3 w-12 text-center">STT</th>
                   <th className="py-2.5 px-3 min-w-[180px]">HỌ VÀ TÊN</th>
                   <th className="py-2.5 px-3 min-w-[150px]">SỐ CCHN BÁC SĨ</th>
                   <th className="py-2.5 px-3 min-w-[100px]">MÃ KHOA</th>
                   <th className="py-2.5 px-3 min-w-[160px]">CHỨC DANH</th>
                   <th className="py-2.5 px-3 min-w-[200px]">PHẠM VI CHUYÊN MÔN</th>
+                  <th className="py-2.5 px-3 w-16 text-center">XÓA</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 font-medium">
                 {pagedData.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-slate-400 font-bold">
+                    <td colSpan={8} className="py-8 text-center text-slate-400 font-bold">
                       Chưa có dữ liệu nhân lực KCB trong Bảng 2.
                     </td>
                   </tr>
                 ) : (
-                  (pagedData as Tt12Bang2NhanLuc[]).map((item, idx) => (
-                    <tr key={item.macchn + idx} className="hover:bg-blue-50/50 transition">
-                      <td className="py-2 px-3 text-center text-slate-400 font-mono">
-                        {(page - 1) * PAGE_SIZE + idx + 1}
-                      </td>
-                      <td className="py-2 px-3 font-bold text-slate-900 dark:text-white">
-                        {item.hoTen}
-                      </td>
-                      <td className="py-2 px-3 font-mono font-black text-blue-700 dark:text-blue-300">
-                        {item.macchn || "—"}
-                      </td>
-                      <td className="py-2 px-3 font-mono text-slate-600">{item.maKhoa || "—"}</td>
-                      <td className="py-2 px-3 text-slate-600">{item.chucDanhNn || "—"}</td>
-                      <td className="py-2 px-3 text-slate-500 text-[11px]">
-                        {item.phamViCm || "—"}
-                      </td>
-                    </tr>
-                  ))
+                  (pagedData as Tt12Bang2NhanLuc[]).map((item, idx) => {
+                    const realIdx = (page - 1) * PAGE_SIZE + idx;
+                    const isSelected = selectedItems.has(item);
+                    return (
+                      <tr
+                        key={item.macchn + idx}
+                        className={`transition ${isSelected ? "bg-blue-100/70 dark:bg-blue-950/40" : "hover:bg-blue-50/50"}`}
+                      >
+                        <td className="py-2 px-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onClick={(e) => handleToggleRowItem(item, idx, e)}
+                            onChange={() => {}}
+                            className="cursor-pointer"
+                          />
+                        </td>
+                        <td className="py-2 px-3 text-center text-slate-400 font-mono">
+                          {realIdx + 1}
+                        </td>
+                        <td className="py-2 px-3 font-bold text-slate-900 dark:text-white">
+                          {item.hoTen}
+                        </td>
+                        <td className="py-2 px-3 font-mono font-black text-blue-700 dark:text-blue-300">
+                          {item.macchn || "—"}
+                        </td>
+                        <td className="py-2 px-3 font-mono text-slate-600">{item.maKhoa || "—"}</td>
+                        <td className="py-2 px-3 text-slate-600">{item.chucDanhNn || "—"}</td>
+                        <td className="py-2 px-3 text-slate-500 text-[11px]">
+                          {item.phamViCm || "—"}
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSingleItem("bang2", item)}
+                            className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1 rounded-lg transition cursor-pointer"
+                            title="Xóa nhân sự này"
+                          >
+                            🗑️
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -768,6 +1101,15 @@ export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () 
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-emerald-700 text-white font-bold">
+                  <th className="py-2.5 px-3 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={isAllPageSelected}
+                      onChange={handleToggleSelectAllPage}
+                      className="cursor-pointer"
+                      title="Chọn tất cả trên trang này"
+                    />
+                  </th>
                   <th className="py-2.5 px-3 w-12 text-center">STT</th>
                   <th className="py-2.5 px-3 min-w-[120px]">MÃ THUỐC</th>
                   <th className="py-2.5 px-3 min-w-[220px]">TÊN THUỐC</th>
@@ -777,41 +1119,68 @@ export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () 
                   <th className="py-2.5 px-3 min-w-[100px]">ĐƯỜNG DÙNG</th>
                   <th className="py-2.5 px-3 min-w-[120px]">SỐ ĐĂNG KÝ</th>
                   <th className="py-2.5 px-3 min-w-[110px] text-right">ĐƠN GIÁ (VNĐ)</th>
+                  <th className="py-2.5 px-3 w-16 text-center">XÓA</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 font-medium">
                 {pagedData.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="py-8 text-center text-slate-400 font-bold">
+                    <td colSpan={11} className="py-8 text-center text-slate-400 font-bold">
                       Chưa có dữ liệu thuốc trong Bảng 3.
                     </td>
                   </tr>
                 ) : (
-                  (pagedData as Tt12Bang3Thuoc[]).map((item, idx) => (
-                    <tr key={item.maThuoc + idx} className="hover:bg-emerald-50/50 transition">
-                      <td className="py-2 px-3 text-center text-slate-400 font-mono">
-                        {(page - 1) * PAGE_SIZE + idx + 1}
-                      </td>
-                      <td className="py-2 px-3 font-mono font-bold text-emerald-800 dark:text-emerald-300">
-                        {item.maThuoc}
-                      </td>
-                      <td className="py-2 px-3 font-semibold text-slate-900 dark:text-white">
-                        {item.tenThuoc}
-                      </td>
-                      <td className="py-2 px-3 text-slate-600">{item.tenHoatChat || "—"}</td>
-                      <td className="py-2 px-3 text-slate-600">{item.hamLuong || "—"}</td>
-                      <td className="py-2 px-3 text-center text-slate-600">
-                        {item.donViTinh || "—"}
-                      </td>
-                      <td className="py-2 px-3 text-slate-600">{item.duongDung || "—"}</td>
-                      <td className="py-2 px-3 font-mono text-slate-500 text-[11px]">
-                        {item.soDangKy || "—"}
-                      </td>
-                      <td className="py-2 px-3 text-right font-mono font-bold text-emerald-700">
-                        {item.donGia != null ? item.donGia.toLocaleString("vi-VN") : "—"}
-                      </td>
-                    </tr>
-                  ))
+                  (pagedData as Tt12Bang3Thuoc[]).map((item, idx) => {
+                    const realIdx = (page - 1) * PAGE_SIZE + idx;
+                    const isSelected = selectedItems.has(item);
+                    return (
+                      <tr
+                        key={item.maThuoc + idx}
+                        className={`transition ${isSelected ? "bg-emerald-100/70 dark:bg-emerald-950/40" : "hover:bg-emerald-50/50"}`}
+                      >
+                        <td className="py-2 px-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onClick={(e) => handleToggleRowItem(item, idx, e)}
+                            onChange={() => {}}
+                            className="cursor-pointer"
+                          />
+                        </td>
+                        <td className="py-2 px-3 text-center text-slate-400 font-mono">
+                          {realIdx + 1}
+                        </td>
+                        <td className="py-2 px-3 font-mono font-bold text-emerald-800 dark:text-emerald-300">
+                          {item.maThuoc}
+                        </td>
+                        <td className="py-2 px-3 font-semibold text-slate-900 dark:text-white">
+                          {item.tenThuoc}
+                        </td>
+                        <td className="py-2 px-3 text-slate-600">{item.tenHoatChat || "—"}</td>
+                        <td className="py-2 px-3 text-slate-600">{item.hamLuong || "—"}</td>
+                        <td className="py-2 px-3 text-center text-slate-600">
+                          {item.donViTinh || "—"}
+                        </td>
+                        <td className="py-2 px-3 text-slate-600">{item.duongDung || "—"}</td>
+                        <td className="py-2 px-3 font-mono text-slate-500 text-[11px]">
+                          {item.soDangKy || "—"}
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono font-bold text-emerald-700">
+                          {item.donGia != null ? item.donGia.toLocaleString("vi-VN") : "—"}
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSingleItem("bang3", item)}
+                            className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1 rounded-lg transition cursor-pointer"
+                            title="Xóa thuốc này"
+                          >
+                            🗑️
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -821,6 +1190,15 @@ export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () 
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-sky-700 text-white font-bold">
+                  <th className="py-2.5 px-3 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={isAllPageSelected}
+                      onChange={handleToggleSelectAllPage}
+                      className="cursor-pointer"
+                      title="Chọn tất cả trên trang này"
+                    />
+                  </th>
                   <th className="py-2.5 px-3 w-12 text-center">STT</th>
                   <th className="py-2.5 px-3 min-w-[160px]">MÃ VẬT TƯ</th>
                   <th className="py-2.5 px-3 min-w-[240px]">TÊN VẬT TƯ Y TẾ</th>
@@ -829,46 +1207,73 @@ export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () 
                   <th className="py-2.5 px-3 min-w-[140px]">HÃNG / NƯỚC SX</th>
                   <th className="py-2.5 px-3 min-w-[80px] text-center">ĐVT</th>
                   <th className="py-2.5 px-3 min-w-[110px] text-right">ĐƠN GIÁ (VNĐ)</th>
+                  <th className="py-2.5 px-3 w-16 text-center">XÓA</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 font-medium">
                 {pagedData.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center text-slate-400 font-bold">
+                    <td colSpan={10} className="py-8 text-center text-slate-400 font-bold">
                       Chưa có dữ liệu vật tư y tế trong Bảng 4.
                     </td>
                   </tr>
                 ) : (
-                  (pagedData as Tt12Bang4VatTu[]).map((item, idx) => (
-                    <tr key={item.maVatTu + idx} className="hover:bg-sky-50/50 transition">
-                      <td className="py-2 px-3 text-center text-slate-400 font-mono">
-                        {(page - 1) * PAGE_SIZE + idx + 1}
-                      </td>
-                      <td className="py-2 px-3 font-mono font-bold text-sky-800 dark:text-sky-300">
-                        {item.maVatTu}
-                      </td>
-                      <td className="py-2 px-3 font-semibold text-slate-900 dark:text-white">
-                        {item.tenVatTu}
-                      </td>
-                      <td className="py-2 px-3 text-slate-600 text-[11px]">
-                        {item.nhomVatTu || "—"}
-                      </td>
-                      <td className="py-2 px-3 text-slate-600">
-                        {item.maHieu || item.quyCach || "—"}
-                      </td>
-                      <td className="py-2 px-3 text-slate-600">
-                        {item.hangSx || item.nuocSx
-                          ? `${item.hangSx || ""}${item.nuocSx ? ` (${item.nuocSx})` : ""}`
-                          : "—"}
-                      </td>
-                      <td className="py-2 px-3 text-center text-slate-600">
-                        {item.donViTinh || "—"}
-                      </td>
-                      <td className="py-2 px-3 text-right font-mono font-bold text-sky-700">
-                        {item.donGia != null ? item.donGia.toLocaleString("vi-VN") : "—"}
-                      </td>
-                    </tr>
-                  ))
+                  (pagedData as Tt12Bang4VatTu[]).map((item, idx) => {
+                    const realIdx = (page - 1) * PAGE_SIZE + idx;
+                    const isSelected = selectedItems.has(item);
+                    return (
+                      <tr
+                        key={item.maVatTu + idx}
+                        className={`transition ${isSelected ? "bg-sky-100/70 dark:bg-sky-950/40" : "hover:bg-sky-50/50"}`}
+                      >
+                        <td className="py-2 px-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onClick={(e) => handleToggleRowItem(item, idx, e)}
+                            onChange={() => {}}
+                            className="cursor-pointer"
+                          />
+                        </td>
+                        <td className="py-2 px-3 text-center text-slate-400 font-mono">
+                          {realIdx + 1}
+                        </td>
+                        <td className="py-2 px-3 font-mono font-bold text-sky-800 dark:text-sky-300">
+                          {item.maVatTu}
+                        </td>
+                        <td className="py-2 px-3 font-semibold text-slate-900 dark:text-white">
+                          {item.tenVatTu}
+                        </td>
+                        <td className="py-2 px-3 text-slate-600 text-[11px]">
+                          {item.nhomVatTu || "—"}
+                        </td>
+                        <td className="py-2 px-3 text-slate-600">
+                          {item.maHieu || item.quyCach || "—"}
+                        </td>
+                        <td className="py-2 px-3 text-slate-600">
+                          {item.hangSx || item.nuocSx
+                            ? `${item.hangSx || ""}${item.nuocSx ? ` (${item.nuocSx})` : ""}`
+                            : "—"}
+                        </td>
+                        <td className="py-2 px-3 text-center text-slate-600">
+                          {item.donViTinh || "—"}
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono font-bold text-sky-700">
+                          {item.donGia != null ? item.donGia.toLocaleString("vi-VN") : "—"}
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSingleItem("bang4", item)}
+                            className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1 rounded-lg transition cursor-pointer"
+                            title="Xóa vật tư này"
+                          >
+                            🗑️
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -878,44 +1283,80 @@ export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () 
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-indigo-700 text-white font-bold">
+                  <th className="py-2.5 px-3 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={isAllPageSelected}
+                      onChange={handleToggleSelectAllPage}
+                      className="cursor-pointer"
+                      title="Chọn tất cả trên trang này"
+                    />
+                  </th>
                   <th className="py-2.5 px-3 w-12 text-center">STT</th>
                   <th className="py-2.5 px-3 min-w-[130px]">MÃ DVKT</th>
                   <th className="py-2.5 px-3 min-w-[280px]">TÊN DỊCH VỤ KỸ THUẬT</th>
                   <th className="py-2.5 px-3 min-w-[200px]">TÊN GIÁ DVKT</th>
                   <th className="py-2.5 px-3 min-w-[110px] text-right">ĐƠN GIÁ (VNĐ)</th>
                   <th className="py-2.5 px-3 min-w-[180px]">QUYẾT ĐỊNH / GHI CHÚ</th>
+                  <th className="py-2.5 px-3 w-16 text-center">XÓA</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 font-medium">
                 {pagedData.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-slate-400 font-bold">
+                    <td colSpan={8} className="py-8 text-center text-slate-400 font-bold">
                       Chưa có dữ liệu dịch vụ kỹ thuật trong Bảng 5.
                     </td>
                   </tr>
                 ) : (
-                  (pagedData as Tt12Bang5DichVu[]).map((item, idx) => (
-                    <tr key={item.maDichVu + idx} className="hover:bg-indigo-50/50 transition">
-                      <td className="py-2 px-3 text-center text-slate-400 font-mono">
-                        {(page - 1) * PAGE_SIZE + idx + 1}
-                      </td>
-                      <td className="py-2 px-3 font-mono font-bold text-indigo-800 dark:text-indigo-300">
-                        {item.maDichVu}
-                      </td>
-                      <td className="py-2 px-3 font-semibold text-slate-900 dark:text-white">
-                        {item.tenDichVu}
-                      </td>
-                      <td className="py-2 px-3 text-slate-600 text-[11px]">
-                        {item.tenDvktGia || "—"}
-                      </td>
-                      <td className="py-2 px-3 text-right font-mono font-bold text-indigo-700">
-                        {item.donGia != null ? item.donGia.toLocaleString("vi-VN") : "—"}
-                      </td>
-                      <td className="py-2 px-3 text-slate-500 text-[11px]">
-                        {item.qdDvkt || item.ghiChu || item.quyTrinh || "—"}
-                      </td>
-                    </tr>
-                  ))
+                  (pagedData as Tt12Bang5DichVu[]).map((item, idx) => {
+                    const realIdx = (page - 1) * PAGE_SIZE + idx;
+                    const isSelected = selectedItems.has(item);
+                    return (
+                      <tr
+                        key={item.maDichVu + idx}
+                        className={`transition ${isSelected ? "bg-indigo-100/70 dark:bg-indigo-950/40" : "hover:bg-indigo-50/50"}`}
+                      >
+                        <td className="py-2 px-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onClick={(e) => handleToggleRowItem(item, idx, e)}
+                            onChange={() => {}}
+                            className="cursor-pointer"
+                          />
+                        </td>
+                        <td className="py-2 px-3 text-center text-slate-400 font-mono">
+                          {realIdx + 1}
+                        </td>
+                        <td className="py-2 px-3 font-mono font-bold text-indigo-800 dark:text-indigo-300">
+                          {item.maDichVu}
+                        </td>
+                        <td className="py-2 px-3 font-semibold text-slate-900 dark:text-white">
+                          {item.tenDichVu}
+                        </td>
+                        <td className="py-2 px-3 text-slate-600 text-[11px]">
+                          {item.tenDvktGia || "—"}
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono font-bold text-indigo-700">
+                          {item.donGia != null ? item.donGia.toLocaleString("vi-VN") : "—"}
+                        </td>
+                        <td className="py-2 px-3 text-slate-500 text-[11px]">
+                          {item.qdDvkt || item.ghiChu || item.quyTrinh || "—"}
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSingleItem("bang5", item)}
+                            className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1 rounded-lg transition cursor-pointer"
+                            title="Xóa dịch vụ này"
+                          >
+                            🗑️
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -950,6 +1391,111 @@ export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () 
         )}
       </div>
 
+      {/* MODAL CẤU HÌNH MÃ KHOA LOẠI TRỪ (QĐ 5937 / K01) */}
+      {isExcludedDeptsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="relative w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 shadow-2xl p-6 space-y-4 border border-slate-200 dark:border-slate-800">
+            <div className="flex items-start justify-between border-b pb-3 border-slate-100 dark:border-slate-800">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🏛️</span>
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                    Mã khoa loại trừ cảnh báo (QĐ 5937)
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Theo Quyết định số 5937/QĐ-BYT (Phụ lục 5), mã <strong>K01</strong> là{" "}
+                  <strong>Khoa Khám bệnh</strong>. Các mã khoa trong danh sách này sẽ không bị cảnh
+                  báo lỗi nếu chưa được khai báo trong Bảng 1 Thông tư 12.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsExcludedDeptsModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Danh sách badge mã khoa hiện hành */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                Các mã khoa đang được loại trừ:
+              </label>
+              <div className="flex flex-wrap items-center gap-2 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 min-h-[56px]">
+                {excludedDepts.length === 0 ? (
+                  <span className="text-xs text-slate-400 italic">
+                    Chưa có mã khoa nào được loại trừ.
+                  </span>
+                ) : (
+                  excludedDepts.map((d) => (
+                    <span
+                      key={d}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-100 dark:bg-amber-900/60 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 text-xs font-mono font-black shadow-2xs"
+                    >
+                      <span>{d}</span>
+                      {d === "K01" && (
+                        <span className="font-sans text-[10px] font-normal text-amber-700 dark:text-amber-300">
+                          (Khám bệnh - QĐ 5937)
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveExcludedDept(d)}
+                        className="text-rose-500 hover:text-rose-700 font-bold ml-1 text-sm cursor-pointer"
+                        title="Xóa mã khoa này"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Form thêm mã khoa */}
+            <form onSubmit={handleAddExcludedDept} className="space-y-3 pt-1">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                Thêm mã khoa mới cần loại trừ:
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={newDeptCode}
+                  onChange={(e) => setNewDeptCode(e.target.value)}
+                  placeholder="Ví dụ: K01, K00, K02..."
+                  className="flex-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3.5 py-2 text-xs font-mono font-bold text-slate-800 dark:text-slate-200 uppercase focus:ring-2 focus:ring-amber-500"
+                />
+                <button
+                  type="submit"
+                  className="rounded-xl bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 text-xs font-bold shadow-xs transition cursor-pointer"
+                >
+                  + Thêm
+                </button>
+              </div>
+            </form>
+
+            <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={handleResetExcludedDepts}
+                className="text-xs text-slate-500 hover:text-amber-700 font-semibold underline cursor-pointer"
+              >
+                Khôi phục mặc định (K01)
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsExcludedDeptsModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 text-white text-xs font-bold hover:bg-slate-900 transition cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL THÊM / SỬA CSKCB */}
       {isUnitModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in">
@@ -968,7 +1514,7 @@ export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () 
               <button
                 type="button"
                 onClick={() => setIsUnitModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 font-bold"
+                className="text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
               >
                 ✕
               </button>
@@ -1013,7 +1559,7 @@ export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () 
                   onChange={(e) =>
                     setUnitFormCap(e.target.value as "co_ban" | "chuyen_sau" | "ban_dau")
                   }
-                  className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-2.5 font-bold text-teal-800 dark:text-cyan-400 focus:ring-2 focus:ring-teal-500"
+                  className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-2.5 font-bold text-teal-800 dark:text-cyan-400 focus:ring-2 focus:ring-teal-500 cursor-pointer"
                 >
                   <option value="co_ban">
                     Cấp cơ bản (áp dụng quy tắc 1.15 ➔ 1.16 theo TT 01/2025)
@@ -1044,13 +1590,13 @@ export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () 
                 <button
                   type="button"
                   onClick={() => setIsUnitModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold"
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold cursor-pointer"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-bold shadow-xs"
+                  className="px-5 py-2 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-bold shadow-xs cursor-pointer"
                 >
                   Lưu đơn vị
                 </button>
@@ -1076,7 +1622,7 @@ export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () 
               <button
                 type="button"
                 onClick={() => setIsAddMachineModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 font-bold"
+                className="text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
               >
                 ✕
               </button>
@@ -1171,13 +1717,13 @@ export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () 
                 <button
                   type="button"
                   onClick={() => setIsAddMachineModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold"
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold cursor-pointer"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold shadow-xs"
+                  className="px-5 py-2 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold shadow-xs cursor-pointer"
                 >
                   Lưu thiết bị
                 </button>

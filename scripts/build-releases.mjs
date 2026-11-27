@@ -15,6 +15,10 @@ const copyDir = (from, to) => {
 };
 
 run("npx", ["vite", "build", "--config", "vite.spa.config.ts"]);
+const faviconSource = path.join(root, "spa", "favicon.svg");
+if (fs.existsSync(faviconSource)) {
+  fs.copyFileSync(faviconSource, path.join(root, "dist-web", "favicon.svg"));
+}
 const web = path.join(root, "releases", "web");
 copyDir(path.join(root, "dist-web"), web);
 fs.writeFileSync(
@@ -48,6 +52,14 @@ let html = fs.readFileSync(htmlPath, "utf8");
 const assetDir = path.join(root, "dist-web", "assets");
 
 // Bước 1: Thay thế các file ảnh thành Data URI Base64
+if (fs.existsSync(faviconSource)) {
+  const svgData = fs.readFileSync(faviconSource, "utf8");
+  const svgDataUrl = `data:image/svg+xml;base64,${Buffer.from(svgData).toString("base64")}`;
+  html = html
+    .replaceAll("/favicon.svg", svgDataUrl)
+    .replaceAll("./favicon.svg", svgDataUrl)
+    .replaceAll("favicon.svg", svgDataUrl);
+}
 for (const asset of fs.readdirSync(assetDir)) {
   const absolute = path.join(assetDir, asset);
   if (!fs.statSync(absolute).isFile()) continue;

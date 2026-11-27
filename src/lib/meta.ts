@@ -2,12 +2,24 @@ export const APP_META = {
   name: "NsN_XMLcheck",
   title: "NsN_XMLcheck",
   description: "Tổng hợp công cụ xử lý XML_Namns",
-  version: "2.24.0",
+  version: "2.25.0",
   date: "2026-11-27",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.25.0",
+      date: "2026-11-27",
+      changes: [
+        "Thiết kế và tích hợp Icon thương hiệu (Favicon SVG) y tế chuyên nghiệp: squircle gradient ngọc teal/cyan, biểu tượng trang hồ sơ XML kết hợp huy hiệu kiểm định an toàn xanh lục, hỗ trợ đầy đủ cho cả bản online web và bản offline single-page HTML qua Data URI Base64.",
+        "Sửa triệt để lỗi xóa dữ liệu trong Thư viện Thông tư 12: Khắc phục lỗi sai index khi xóa trong trạng thái tìm kiếm/lọc (chuyển sang đối chiếu bản ghi trực tiếp), và khắc phục lỗi auto-merge không bị rollback về mẫu gốc khi người dùng chủ động xóa sạch dữ liệu của một bảng.",
+        "Bổ sung tính năng Multi-Select & Shift-Click chọn dải dòng: Cho phép chọn nhiều dòng bằng Checkbox, hỗ trợ giữ phím Shift để chọn hàng loạt bản ghi liên tiếp trong cả 6 bảng Thông tư 12.",
+        "Thêm thanh công cụ xóa hàng loạt: '🗑️ Xóa các dòng đã chọn (N dòng)' và nút '🗑️ Xóa toàn bộ Bảng' với hộp thoại xác nhận bảo vệ dữ liệu an toàn.",
+        "Cột thao tác xóa (🗑️) được phủ rộng khắp cả 6 bảng danh mục (Bảng 1 Khoa phòng, Bảng 2 Nhân sự CCHN, Bảng 3 Thuốc, Bảng 4 Vật tư, Bảng 5 DVKT, Bảng 6 Trang thiết bị).",
+        "Bổ sung cơ chế và giao diện Cấu hình Mã khoa loại trừ cảnh báo (theo Quyết định số 5937/QĐ-BYT Phụ lục 5): Mặc định công nhận mã 'K01' (Khoa Khám bệnh) là mã khoa chuẩn dùng chung của Bộ Y tế, không cảnh báo sai lệch khi hồ sơ KCB ngoại trú dùng mã K01 mà chưa khai báo trong Bảng 1 TT12; cho phép linh hoạt thêm/bớt mã khoa loại trừ và khôi phục mặc định.",
+      ],
+    },
     {
       version: "2.24.0",
       date: "2026-11-27",

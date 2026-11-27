@@ -135,6 +135,51 @@ export interface Tt12UnitData {
 }
 
 export const TT12_CATALOGS_STORAGE_KEY = "nsn-xmlcheck-tt12-catalogs";
+export const EXCLUDED_DEPTS_STORAGE_KEY = "nsn-xmlcheck-excluded-depts";
+export const DEFAULT_EXCLUDED_DEPTS: readonly string[] = ["K01"];
+
+/**
+ * Tải danh sách mã khoa loại trừ kiểm tra Bảng 1 Thông tư 12
+ * Mặc định có K01 (Khoa Khám bệnh theo Phụ lục 5 Quyết định 5937/QĐ-BYT).
+ */
+export function loadExcludedDepts(): string[] {
+  try {
+    const raw = localStorage.getItem(EXCLUDED_DEPTS_STORAGE_KEY);
+    if (!raw) return [...DEFAULT_EXCLUDED_DEPTS];
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      const cleaned = parsed.map((x) => String(x).trim().toUpperCase()).filter((x) => Boolean(x));
+      return cleaned.length > 0 ? cleaned : [...DEFAULT_EXCLUDED_DEPTS];
+    }
+    return [...DEFAULT_EXCLUDED_DEPTS];
+  } catch {
+    return [...DEFAULT_EXCLUDED_DEPTS];
+  }
+}
+
+/**
+ * Lưu danh sách mã khoa loại trừ vào localStorage
+ */
+export function saveExcludedDepts(depts: string[]): void {
+  try {
+    const cleaned = Array.from(
+      new Set(depts.map((x) => x.trim().toUpperCase()).filter((x) => Boolean(x))),
+    );
+    localStorage.setItem(EXCLUDED_DEPTS_STORAGE_KEY, JSON.stringify(cleaned));
+  } catch (err) {
+    console.error("Lỗi khi lưu danh sách mã khoa loại trừ:", err);
+  }
+}
+
+/**
+ * Kiểm tra xem một mã khoa có thuộc danh sách loại trừ cảnh báo không
+ */
+export function isExcludedDept(maKhoa: string, customList?: string[]): boolean {
+  if (!maKhoa) return false;
+  const upper = maKhoa.trim().toUpperCase();
+  const list = customList && customList.length > 0 ? customList : loadExcludedDepts();
+  return list.some((item) => item.trim().toUpperCase() === upper);
+}
 
 /**
  * Tải danh mục TT12 từ localStorage, nếu chưa có thì khởi tạo từ DEFAULT_TT12_CATALOGS
@@ -151,15 +196,15 @@ export function loadTt12Catalogs(): Record<string, Tt12UnitData> {
       if (!merged[k]) {
         merged[k] = v;
       } else {
-        // Tự động bảo lưu dữ liệu người dùng, đồng thời bù đắp các bảng rỗng từ mẫu chuẩn nếu có
+        // Tự động bảo lưu dữ liệu người dùng (kể cả khi mảng rỗng [] do người dùng chủ động xóa)
         merged[k] = {
           unit: v.unit || merged[k].unit,
-          bang1: v.bang1 && v.bang1.length > 0 ? v.bang1 : merged[k].bang1,
-          bang2: v.bang2 && v.bang2.length > 0 ? v.bang2 : merged[k].bang2,
-          bang3: v.bang3 && v.bang3.length > 0 ? v.bang3 : merged[k].bang3,
-          bang4: v.bang4 && v.bang4.length > 0 ? v.bang4 : merged[k].bang4,
-          bang5: v.bang5 && v.bang5.length > 0 ? v.bang5 : merged[k].bang5,
-          bang6: v.bang6 && v.bang6.length > 0 ? v.bang6 : merged[k].bang6,
+          bang1: Array.isArray(v.bang1) ? v.bang1 : merged[k].bang1,
+          bang2: Array.isArray(v.bang2) ? v.bang2 : merged[k].bang2,
+          bang3: Array.isArray(v.bang3) ? v.bang3 : merged[k].bang3,
+          bang4: Array.isArray(v.bang4) ? v.bang4 : merged[k].bang4,
+          bang5: Array.isArray(v.bang5) ? v.bang5 : merged[k].bang5,
+          bang6: Array.isArray(v.bang6) ? v.bang6 : merged[k].bang6,
           updatedAt: v.updatedAt || merged[k].updatedAt,
         };
       }

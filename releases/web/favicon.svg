@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f766e"/>
+      <stop offset="50%" stop-color="#0d9488"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+    <linearGradient id="crossGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#042f2e" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  
+  <!-- Nền Squircle Gradient -->
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#bgGrad)" filter="url(#shadow)"/>
+  
+  <!-- Khung viền tinh tế -->
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-opacity="0.35"/>
+  
+  <!-- Biểu tượng chữ thập y tế mờ ở nền -->
+  <path d="M28 14 h8 v10 h10 v8 h-10 v10 h-8 v-10 h-10 v-8 h10 z" fill="#ffffff" fill-opacity="0.15"/>
+  
+  <!-- Biểu tượng trang tài liệu XML / Khiên kiểm tra -->
+  <path d="M18 16 h20 l10 10 v22 a4 4 0 0 1 -4 4 h-26 a4 4 0 0 1 -4 -4 v-28 a4 4 0 0 1 4 -4 z" fill="#ffffff" fill-opacity="0.95" filter="url(#shadow)"/>
+  
+  <!-- Góc gập trang tài liệu -->
+  <path d="M38 16 v10 h10 z" fill="#ccfbf1"/>
+  
+  <!-- Biểu tượng code XML: < / > cách điệu -->
+  <path d="M25 32 l-4 4 l4 4" fill="none" stroke="#0f766e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M39 32 l4 4 l-4 4" fill="none" stroke="#0f766e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M34 30 l-4 12" fill="none" stroke="#0d9488" stroke-width="2" stroke-linecap="round"/>
+  
+  <!-- Dấu kiểm tra hoàn thành (Tick Checkmark tròn nổi bật) -->
+  <circle cx="44" cy="44" r="11" fill="#10b981" stroke="#ffffff" stroke-width="2.5" filter="url(#shadow)"/>
+  <path d="M39 44 l3.5 3.5 l7 -7.5" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

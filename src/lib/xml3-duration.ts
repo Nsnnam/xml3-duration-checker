@@ -10,6 +10,8 @@ import {
   auditXml3MaMayWithTt12,
   getUnitCatalog,
   loadTt12Catalogs,
+  isExcludedDept,
+  loadExcludedDepts,
   type Tt12UnitData,
 } from "./tt12-library.ts";
 
@@ -1158,16 +1160,19 @@ export function readXml1Warnings(
     const maKhoa = directTextOf(node, "MA_KHOA") || textOfGeneral(node, "MA_KHOA");
     if (unitData && unitData.bang1 && unitData.bang1.length > 0 && maKhoa) {
       const upperKhoa = maKhoa.trim().toUpperCase();
-      const foundDept = unitData.bang1.some(
-        (d) => d.maKhoa && d.maKhoa.trim().toUpperCase() === upperKhoa,
-      );
-      if (!foundDept) {
-        warnings.push({
-          ...base,
-          MA_DICH_VU: "MA_KHOA",
-          TEN_DICH_VU: "Mã khoa phòng",
-          message: `XML 1. Chi tiết thứ ${detailIndex}: Mã khoa '${maKhoa}' không tồn tại trong Danh mục Bảng 1 (Bộ phận chuyên môn) Thông tư 12 của cơ sở KCB ${unitData.unit.maCskcb} (${unitData.unit.tenCskcb}).`,
-        });
+      // Kiểm tra danh mục mã khoa loại trừ (mặc định K01 - Khoa Khám bệnh theo QĐ 5937/QĐ-BYT)
+      if (!isExcludedDept(upperKhoa)) {
+        const foundDept = unitData.bang1.some(
+          (d) => d.maKhoa && d.maKhoa.trim().toUpperCase() === upperKhoa,
+        );
+        if (!foundDept) {
+          warnings.push({
+            ...base,
+            MA_DICH_VU: "MA_KHOA",
+            TEN_DICH_VU: "Mã khoa phòng",
+            message: `XML 1. Chi tiết thứ ${detailIndex}: Mã khoa '${maKhoa}' không tồn tại trong Danh mục Bảng 1 (Bộ phận chuyên môn) Thông tư 12 của cơ sở KCB ${unitData.unit.maCskcb} (${unitData.unit.tenCskcb}). Nếu đây là mã khoa hợp lệ (như K01 theo QĐ 5937), bạn có thể thêm vào Danh sách mã khoa loại trừ trong Thư viện TT12.`,
+          });
+        }
       }
     }
   });
