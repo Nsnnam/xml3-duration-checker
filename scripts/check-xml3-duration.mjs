@@ -25,6 +25,8 @@ import {
   DEFAULT_MANDATORY_MACHINE_SERVICES,
   formatDuplicateMachineWarningMessage,
   addDuplicateMachineWarnings,
+  addTimeOverlapWarnings,
+  formatTimeOverlapWarningMessage,
   getXml3RecordCategory,
   getRecordStatusLabel,
   getValidationWarningCategory,
@@ -1431,8 +1433,9 @@ assert.equal(
 );
 
 // Test color config & load
-assert.equal(Object.keys(DEFAULT_WARNING_COLORS).length, 14);
-assert.equal(Object.keys(WARNING_CATEGORY_CONFIG).length, 14);
+assert.equal(Object.keys(DEFAULT_WARNING_COLORS).length, 15);
+assert.equal(Object.keys(WARNING_CATEGORY_CONFIG).length, 15);
+assert.equal(typeof DEFAULT_WARNING_COLORS.timeOverlap, "string");
 assert.equal(typeof DEFAULT_WARNING_COLORS.doiTuongKcb, "string");
 const colors = loadWarningColors();
 assert.equal(typeof colors.dupMachine, "string");
@@ -2039,6 +2042,171 @@ const resExpiredMachine = auditXml3MaMayWithTt12("26066.301.OLD-001", "202611200
 assert.equal(resExpiredMachine.hasWarning, true);
 assert.ok(resExpiredMachine.message.includes("HẾT HẠN HIỆU LỰC TT12"));
 
+// 26. Kiểm tra rà soát trùng trong khoảng thời gian (Interval Overlap) giữa các nhóm DVKT
+const mockOverlapRecords = [
+  {
+    fileName: "test_overlap.xml",
+    table: "XML3",
+    MA_LK: "LK-OVERLAP-1",
+    MA_BN: "BN-OVERLAP-1",
+    HO_TEN: "Bệnh nhân trùng khoảng thời gian",
+    STT: "1",
+    MA_DICH_VU: "DV_SA_01",
+    MA_VAT_TU: "",
+    TEN_DICH_VU: "Siêu âm ổ bụng",
+    TEN_VAT_TU: "",
+    MA_NHOM: "2", // Nhóm 2 CĐHA
+    MA_KHOA: "K01",
+    MA_GIUONG: "",
+    MA_BAC_SI: "",
+    NGUOI_THUC_HIEN: "",
+    MA_BENH: "",
+    MA_BENH_YHCT: "",
+    NGAY_YL: "202611240800",
+    NGAY_TH_YL: "202611240800",
+    NGAY_KQ: "202611240830", // 08:00 - 08:30 (30 phút)
+    hasOrderWarning: false,
+    hasEqualWarning: false,
+    hasBedWarning: false,
+    hasTtThauWarning: false,
+    hasMaMayWarning: false,
+    orderIssues: [],
+    status: "ok",
+    detail: "",
+  },
+  {
+    fileName: "test_overlap.xml",
+    table: "XML3",
+    MA_LK: "LK-OVERLAP-1",
+    MA_BN: "BN-OVERLAP-1",
+    HO_TEN: "Bệnh nhân trùng khoảng thời gian",
+    STT: "2",
+    MA_DICH_VU: "DV_NS_01",
+    MA_VAT_TU: "",
+    TEN_DICH_VU: "Nội soi dạ dày",
+    TEN_VAT_TU: "",
+    MA_NHOM: "3", // Nhóm 3 TDCN (khác nhóm)
+    MA_KHOA: "K01",
+    MA_GIUONG: "",
+    MA_BAC_SI: "",
+    NGUOI_THUC_HIEN: "",
+    MA_BENH: "",
+    MA_BENH_YHCT: "",
+    NGAY_YL: "202611240810",
+    NGAY_TH_YL: "202611240815",
+    NGAY_KQ: "202611240845", // 08:15 - 08:45 (30 phút) -> trùng 08:15 - 08:30 (15 phút)
+    hasOrderWarning: false,
+    hasEqualWarning: false,
+    hasBedWarning: false,
+    hasTtThauWarning: false,
+    hasMaMayWarning: false,
+    orderIssues: [],
+    status: "ok",
+    detail: "",
+  },
+  {
+    fileName: "test_overlap.xml",
+    table: "XML3",
+    MA_LK: "LK-OVERLAP-1",
+    MA_BN: "BN-OVERLAP-1",
+    HO_TEN: "Bệnh nhân trùng khoảng thời gian",
+    STT: "3",
+    MA_DICH_VU: "DV_XQ_01",
+    MA_VAT_TU: "",
+    TEN_DICH_VU: "Chụp X-quang phổi",
+    TEN_VAT_TU: "",
+    MA_NHOM: "2", // Nhóm 2 CĐHA
+    MA_KHOA: "K01",
+    MA_GIUONG: "",
+    MA_BAC_SI: "",
+    NGUOI_THUC_HIEN: "",
+    MA_BENH: "",
+    MA_BENH_YHCT: "",
+    NGAY_YL: "202611240845",
+    NGAY_TH_YL: "202611240845",
+    NGAY_KQ: "202611240900", // 08:45 - 09:00 -> bắt đầu đúng lúc DV 2 kết thúc, KHÔNG trùng
+    hasOrderWarning: false,
+    hasEqualWarning: false,
+    hasBedWarning: false,
+    hasTtThauWarning: false,
+    hasMaMayWarning: false,
+    orderIssues: [],
+    status: "ok",
+    detail: "",
+  },
+];
+
+const checkedOverlap = addTimeOverlapWarnings(mockOverlapRecords, { checkTimeOverlap: true });
+assert.equal(checkedOverlap[0].hasTimeOverlapWarning, true);
+assert.equal(checkedOverlap[1].hasTimeOverlapWarning, true);
+assert.equal(checkedOverlap[2].hasTimeOverlapWarning, undefined); // Không trùng
+assert.ok(checkedOverlap[0].detail.includes("Trùng khoảng thời gian thực hiện (15 phút)"));
+assert.ok(checkedOverlap[0].detail.includes("[Trùng khác nhóm: Nhóm 3]"));
+assert.ok(checkedOverlap[1].detail.includes("Trùng khoảng thời gian thực hiện (15 phút)"));
+assert.ok(checkedOverlap[1].detail.includes("[Trùng khác nhóm: Nhóm 2]"));
+assert.equal(getXml3RecordCategory(checkedOverlap[0]), "timeOverlap");
+assert.equal(getRecordStatusLabel(checkedOverlap[0]), "TRÙNG KHOẢNG");
+
+// Kiểm tra khi tắt tùy chọn checkTimeOverlap = false
+const disabledOverlap = addTimeOverlapWarnings(mockOverlapRecords, { checkTimeOverlap: false });
+assert.equal(disabledOverlap[0].hasTimeOverlapWarning, undefined);
+assert.equal(disabledOverlap[1].hasTimeOverlapWarning, undefined);
+
+// 27. Kiểm tra mã khoa XML1 nhiều khoa phân cách bằng dấu ';' (theo QĐ 3176/QĐ-BYT & QĐ 5937/QĐ-BYT)
+function createMockXml1DeptElement(maLk, maKhoa, maCskcb = "26066") {
+  const map = new Map([
+    ["MA_LK", maLk],
+    ["MA_BN", "BN-" + maLk],
+    ["HO_TEN", "Bệnh nhân " + maLk],
+    ["MA_CSKCB", maCskcb],
+    ["MA_KHOA", maKhoa],
+    ["SO_CCCD", "001200000001"],
+    ["MA_DOITUONG_KCB", "1.1"],
+  ]);
+  return {
+    tagName: "TONG_HOP",
+    children: Array.from(map.entries()).map(([tag, text]) => ({
+      tagName: tag,
+      textContent: text,
+    })),
+    getElementsByTagName(tag) {
+      const val = map.get(tag);
+      return val !== undefined ? [{ textContent: val }] : [];
+    },
+  };
+}
+
+const mockDocMultiDept = {
+  getElementsByTagName() {
+    return [
+      createMockXml1DeptElement("LK-MULTI-KHOA-1", "K01;02.11"),
+      createMockXml1DeptElement("LK-MULTI-KHOA-2", "K01;KHOA_KHONG_TON_TAI_999"),
+    ];
+  },
+};
+
+const mockTt12WithBang1 = {
+  ...mockTt12Unit,
+  bang1: [{ stt: 1, maKhoa: "02.11", tenKhoa: "Khoa Nội tổng hợp" }],
+};
+
+const multiDeptWarnings = readXml1Warnings(mockDocMultiDept, new Map(), {
+  26066: mockTt12WithBang1,
+});
+
+// LK-MULTI-KHOA-1: K01 là mã khoa loại trừ chuẩn Bộ Y tế, 02.11 có trong Bảng 1 mockTt12Unit -> KHÔNG cảnh báo mã khoa!
+const wValid = multiDeptWarnings.find(
+  (w) => w.MA_LK === "LK-MULTI-KHOA-1" && w.MA_DICH_VU === "MA_KHOA",
+);
+assert.equal(wValid, undefined);
+
+// LK-MULTI-KHOA-2: K01 hợp lệ, KHOA_KHONG_TON_TAI_999 không hợp lệ -> Có cảnh báo chỉ rõ mã không hợp lệ!
+const wInvalid = multiDeptWarnings.find(
+  (w) => w.MA_LK === "LK-MULTI-KHOA-2" && w.MA_DICH_VU === "MA_KHOA",
+);
+assert.ok(wInvalid);
+assert.ok(wInvalid.message.includes("KHOA_KHONG_TON_TAI_999"));
+
 console.log(
-  "All tests passed: XML1 CCCD validation, Z00.0 & Z30.1 validation, XML3 duplicate machine time validation, XML7 NGOAITRU_TUNGAY < NGAY_RA validation (+1 day suggestion), duplicate machine excel export, KT251 bed sharing & multi-day & minute duplicate validation & workbook export, warning colors & column filter/sort helpers, TT01 Appendix 2 & QĐ 3276 MA_DOITUONG_KCB validation, and TT12 Bảng 6 machine catalog audit: OK",
+  "All tests passed: XML1 CCCD validation, Z00.0 & Z30.1 validation, XML3 duplicate machine time validation, XML7 NGOAITRU_TUNGAY < NGAY_RA validation (+1 day suggestion), duplicate machine excel export, KT251 bed sharing & multi-day & minute duplicate validation & workbook export, warning colors & column filter/sort helpers, TT01 Appendix 2 & QĐ 3276 MA_DOITUONG_KCB validation, TT12 Bảng 6 machine catalog audit, TT12 Bảng 1 multi-department ';' validation, and interval overlap detection: OK",
 );

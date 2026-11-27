@@ -70,6 +70,21 @@ export type DuplicateMachineInfo = {
   peerMaDichVu: string;
   peerStt: string;
   peerFile: string;
+  overlapMinutes?: number;
+};
+
+export type TimeOverlapPeerInfo = {
+  peerStt: string | number;
+  peerMaDichVu: string;
+  peerTenDichVu: string;
+  peerMaNhom: string;
+  peerStart: string;
+  peerEnd: string;
+  overlapMinutes: number;
+  isDifferentGroup: boolean;
+  peerMaLk?: string;
+  peerMaBn?: string;
+  peerHoTen?: string;
 };
 
 export type BedSharingPeerInfo = {
@@ -150,6 +165,8 @@ export type Xml3Record = {
   hasMaMayWarning: boolean;
   hasDuplicateMachineWarning?: boolean;
   duplicateMachineInfo?: DuplicateMachineInfo[];
+  hasTimeOverlapWarning?: boolean;
+  timeOverlapInfo?: TimeOverlapPeerInfo[];
   hasZ000Warning?: boolean;
   orderIssues: string[];
   status:
@@ -160,6 +177,7 @@ export type Xml3Record = {
     | "tt-thau-warning"
     | "ma-may-warning"
     | "duplicate-machine-warning"
+    | "time-overlap-warning"
     | "ok"
     | "missing"
     | "invalid"
@@ -232,6 +250,7 @@ export type Xml3Analysis = {
   ttThauWarnings: number;
   maMayWarnings: number;
   duplicateMachineWarnings: number;
+  timeOverlapWarnings: number;
   log: string[];
 };
 
@@ -256,6 +275,7 @@ export type BatchAnalysis = {
   ttThauWarnings: number;
   maMayWarnings: number;
   duplicateMachineWarnings: number;
+  timeOverlapWarnings: number;
   dossiers: PatientDossier[];
   dossierMap: Map<string, PatientDossier>;
   patients: Map<string, PatientInfo>;
@@ -457,6 +477,7 @@ export type WarningCategory =
   | "overMax"
   | "underMin"
   | "dupMachine"
+  | "timeOverlap"
   | "maMay"
   | "ttThau"
   | "order"
@@ -473,6 +494,7 @@ export const DEFAULT_WARNING_COLORS: Record<WarningCategory, string> = {
   overMax: "#E11D48",
   underMin: "#D97706",
   dupMachine: "#4338CA",
+  timeOverlap: "#EA580C",
   maMay: "#7C3AED",
   ttThau: "#0284C7",
   order: "#CA8A04",
@@ -560,6 +582,16 @@ export const WARNING_CATEGORY_CONFIG: Record<WarningCategory, WarningCategoryMet
     activeChipClass: "bg-indigo-700 text-white border-indigo-700 shadow-sm",
     icon: "⚡",
     defaultColor: DEFAULT_WARNING_COLORS.dupMachine,
+  },
+  timeOverlap: {
+    id: "timeOverlap",
+    label: "Trùng khoảng thời gian",
+    badgeText: "TRÙNG KHOẢNG",
+    badgeClass: "bg-amber-700 text-white border border-amber-800 shadow-xs",
+    chipClass: "border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100",
+    activeChipClass: "bg-amber-700 text-white border-amber-700 shadow-sm",
+    icon: "⏱️",
+    defaultColor: DEFAULT_WARNING_COLORS.timeOverlap,
   },
   maMay: {
     id: "maMay",
@@ -665,6 +697,7 @@ export const WARNING_CATEGORY_CONFIG: Record<WarningCategory, WarningCategoryMet
 
 export function getXml3RecordCategory(record: Xml3Record): WarningCategory {
   if (record.hasDuplicateMachineWarning) return "dupMachine";
+  if (record.hasTimeOverlapWarning) return "timeOverlap";
   if (record.hasZ000Warning) return "z000";
   if (record.hasMaMayWarning) return "maMay";
   if (record.hasTtThauWarning) return "ttThau";
@@ -692,6 +725,7 @@ export function getXml3RecordCategory(record: Xml3Record): WarningCategory {
 
 export function getRecordStatusLabel(record: Xml3Record): string {
   if (record.hasDuplicateMachineWarning) return "TRÙNG MÁY";
+  if (record.hasTimeOverlapWarning) return "TRÙNG KHOẢNG";
   if (record.hasZ000Warning) {
     return record.detail.includes("Z30.1") ? "Z30.1" : "Z00.0";
   }
@@ -735,6 +769,11 @@ export function getValidationWarningCategory(warning: ValidationWarning): Warnin
     warning.message.includes("trùng thời gian thực hiện y lệnh")
   )
     return "dupMachine";
+  if (
+    warning.message.includes("Trùng khoảng thời gian") ||
+    warning.message.includes("trùng khoảng thời gian")
+  )
+    return "timeOverlap";
   if (
     warning.source === "XML1" &&
     (warning.message.includes("CCCD") || warning.message.includes("12 ký tự"))
@@ -1159,20 +1198,37 @@ export function readXml1Warnings(
     const unitData = maCskcb ? tt12Catalogs?.[maCskcb] || getUnitCatalog(maCskcb) : undefined;
     const maKhoa = directTextOf(node, "MA_KHOA") || textOfGeneral(node, "MA_KHOA");
     if (unitData && unitData.bang1 && unitData.bang1.length > 0 && maKhoa) {
-      const upperKhoa = maKhoa.trim().toUpperCase();
-      // Kiểm tra danh mục mã khoa loại trừ (mặc định K01 - Khoa Khám bệnh theo QĐ 5937/QĐ-BYT)
-      if (!isExcludedDept(upperKhoa)) {
-        const foundDept = unitData.bang1.some(
-          (d) => d.maKhoa && d.maKhoa.trim().toUpperCase() === upperKhoa,
-        );
-        if (!foundDept) {
-          warnings.push({
-            ...base,
-            MA_DICH_VU: "MA_KHOA",
-            TEN_DICH_VU: "Mã khoa phòng",
-            message: `XML 1. Chi tiết thứ ${detailIndex}: Mã khoa '${maKhoa}' không tồn tại trong Danh mục Bảng 1 (Bộ phận chuyên môn) Thông tư 12 của cơ sở KCB ${unitData.unit.maCskcb} (${unitData.unit.tenCskcb}). Nếu đây là mã khoa hợp lệ (như K01 theo QĐ 5937), bạn có thể thêm vào Danh sách mã khoa loại trừ trong Thư viện TT12.`,
-          });
+      // Trường hợp người bệnh điều trị ở nhiều khoa thì ghi lần lượt mã khoa phân cách bằng dấu ';' (theo Quyết định số 3176/QĐ-BYT & QĐ 5937/QĐ-BYT)
+      const deptCodes = maKhoa
+        .split(";")
+        .map((k) => k.trim())
+        .filter(Boolean);
+
+      const invalidDepts: string[] = [];
+      for (const dept of deptCodes) {
+        const upperKhoa = dept.toUpperCase();
+        // Kiểm tra danh mục mã khoa loại trừ (mặc định K01 - Khoa Khám bệnh theo QĐ 5937/QĐ-BYT)
+        if (!isExcludedDept(upperKhoa)) {
+          const foundDept = unitData.bang1.some(
+            (d) => d.maKhoa && d.maKhoa.trim().toUpperCase() === upperKhoa,
+          );
+          if (!foundDept) {
+            invalidDepts.push(dept);
+          }
         }
+      }
+
+      if (invalidDepts.length > 0) {
+        const displayCode =
+          invalidDepts.length === 1 && deptCodes.length === 1
+            ? `'${invalidDepts[0]}'`
+            : `'${invalidDepts.join("', '")}' (trong chuỗi '${maKhoa}')`;
+        warnings.push({
+          ...base,
+          MA_DICH_VU: "MA_KHOA",
+          TEN_DICH_VU: "Mã khoa phòng",
+          message: `XML 1. Chi tiết thứ ${detailIndex}: Mã khoa ${displayCode} không tồn tại trong Danh mục Bảng 1 (Bộ phận chuyên môn) Thông tư 12 của cơ sở KCB ${unitData.unit.maCskcb} (${unitData.unit.tenCskcb}). Nếu đây là mã khoa hợp lệ (như K01 theo QĐ 5937), bạn có thể thêm vào Danh sách mã khoa loại trừ trong Thư viện TT12.`,
+        });
       }
     }
   });
@@ -2251,35 +2307,21 @@ export function addBedWarnings(
 export function formatDuplicateMachineWarningMessage(
   detailIndex: string | number,
   machineCode?: string,
+  maxOverlapMinutes?: number,
 ): string {
+  const overlapText =
+    maxOverlapMinutes && maxOverlapMinutes > 0 ? ` (trùng khoảng ${maxOverlapMinutes} phút)` : "";
   if (machineCode) {
-    return `XML3. Chi tiết thứ ${detailIndex}: DVKT trùng thời gian thực hiện y lệnh cho một hoặc nhiều người bệnh trên cùng mã máy (${machineCode}).`;
+    return `XML3. Chi tiết thứ ${detailIndex}: DVKT trùng thời gian thực hiện y lệnh cho một hoặc nhiều người bệnh trên cùng mã máy (${machineCode})${overlapText}.`;
   }
-  return `XML3. Chi tiết thứ ${detailIndex}: DVKT trùng thời gian thực hiện y lệnh cho một hoặc nhiều người bệnh trên cùng mã máy.`;
+  return `XML3. Chi tiết thứ ${detailIndex}: DVKT trùng thời gian thực hiện y lệnh cho một hoặc nhiều người bệnh trên cùng mã máy${overlapText}.`;
 }
 
-export function addDuplicateMachineWarnings(records: Xml3Record[]): Xml3Record[] {
-  const groups = new Map<string, Xml3Record[]>();
-  for (const record of records) {
-    if (!record.MA_MAY || !record.MA_MAY.trim()) continue;
-    // Bỏ qua cảnh báo trùng thời gian trên cùng mã máy đối với các dịch vụ có mã nhóm bằng 1 (MA_NHOM = 1) hoặc mã nhóm 10 (vật tư đi kèm DVKT)
-    const nhom = String(record.MA_NHOM || "").trim();
-    if (nhom === "1" || nhom === "01" || nhom === "10") continue;
-
-    const date = parseXmlDateTime(record.NGAY_TH_YL);
-    if (!date) continue;
-    const timeMinute = Math.floor(date.getTime() / 60000);
-    const machines = record.MA_MAY.split(";")
-      .map((m) => m.trim().toUpperCase())
-      .filter(Boolean);
-    const uniqueMachines = Array.from(new Set(machines));
-    for (const machine of uniqueMachines) {
-      const key = `${machine}|${timeMinute}`;
-      const list = groups.get(key) ?? [];
-      list.push(record);
-      groups.set(key, list);
-    }
-  }
+export function addDuplicateMachineWarnings(
+  records: Xml3Record[],
+  options?: { checkTimeOverlap?: boolean },
+): Xml3Record[] {
+  const checkOverlap = options?.checkTimeOverlap !== false;
 
   // Thu thập danh sách các bản ghi đối chiếu cho từng record
   const flaggedDetails = new Map<
@@ -2287,51 +2329,198 @@ export function addDuplicateMachineWarnings(records: Xml3Record[]): Xml3Record[]
     { machines: Set<string>; peers: DuplicateMachineInfo[] }
   >();
 
-  for (const [key, rows] of groups.entries()) {
-    if (rows.length <= 1) continue;
-    const [machine, timeMinStr] = key.split("|");
-    const timeMinute = Number(timeMinStr);
+  if (!checkOverlap) {
+    // Chế độ cũ: Chỉ so khớp chính xác cùng 1 phút bắt đầu (NGAY_TH_YL)
+    const groups = new Map<string, Xml3Record[]>();
+    for (const record of records) {
+      if (!record.MA_MAY || !record.MA_MAY.trim()) continue;
+      const nhom = String(record.MA_NHOM || "").trim();
+      if (nhom === "1" || nhom === "01" || nhom === "10") continue;
 
-    for (let i = 0; i < rows.length; i++) {
-      const current = rows[i];
-      let entry = flaggedDetails.get(current);
-      if (!entry) {
-        entry = { machines: new Set<string>(), peers: [] };
-        flaggedDetails.set(current, entry);
+      const date = parseXmlDateTime(record.NGAY_TH_YL);
+      if (!date) continue;
+      const timeMinute = Math.floor(date.getTime() / 60000);
+      const machines = record.MA_MAY.split(";")
+        .map((m) => m.trim().toUpperCase())
+        .filter(Boolean);
+      const uniqueMachines = Array.from(new Set(machines));
+      for (const machine of uniqueMachines) {
+        const key = `${machine}|${timeMinute}`;
+        const list = groups.get(key) ?? [];
+        list.push(record);
+        groups.set(key, list);
       }
-      entry.machines.add(machine);
+    }
 
-      for (let j = 0; j < rows.length; j++) {
-        if (i === j) continue;
-        const peer = rows[j];
-        const isSamePatient =
-          Boolean(peer.MA_LK && current.MA_LK && peer.MA_LK === current.MA_LK) ||
-          Boolean(peer.MA_BN && current.MA_BN && peer.MA_BN === current.MA_BN);
-        const timeDisplay = formatXmlDateTime(peer.NGAY_TH_YL) || peer.NGAY_TH_YL;
+    for (const [key, rows] of groups.entries()) {
+      if (rows.length <= 1) continue;
+      const [machine, timeMinStr] = key.split("|");
+      const timeMinute = Number(timeMinStr);
 
-        // Tránh trùng lặp peer
-        if (
-          !entry.peers.some(
-            (p) =>
-              p.machineCode === machine &&
-              p.peerMaLk === peer.MA_LK &&
-              p.peerStt === peer.STT &&
-              p.peerMaDichVu === (peer.MA_DICH_VU || peer.MA_VAT_TU),
-          )
-        ) {
-          entry.peers.push({
-            machineCode: machine,
-            timeMinute,
-            timeDisplay,
-            isSamePatient,
-            peerMaLk: peer.MA_LK,
-            peerMaBn: peer.MA_BN,
-            peerHoTen: peer.HO_TEN || peer.patient?.HO_TEN || "",
-            peerDichVu: peer.TEN_DICH_VU || peer.TEN_VAT_TU || peer.MA_DICH_VU,
-            peerMaDichVu: peer.MA_DICH_VU || peer.MA_VAT_TU,
-            peerStt: peer.STT || "",
-            peerFile: peer.fileName,
-          });
+      for (let i = 0; i < rows.length; i++) {
+        const current = rows[i];
+        let entry = flaggedDetails.get(current);
+        if (!entry) {
+          entry = { machines: new Set<string>(), peers: [] };
+          flaggedDetails.set(current, entry);
+        }
+        entry.machines.add(machine);
+
+        for (let j = 0; j < rows.length; j++) {
+          if (i === j) continue;
+          const peer = rows[j];
+          const isSamePatient =
+            Boolean(peer.MA_LK && current.MA_LK && peer.MA_LK === current.MA_LK) ||
+            Boolean(peer.MA_BN && current.MA_BN && peer.MA_BN === current.MA_BN);
+          const timeDisplay = formatXmlDateTime(peer.NGAY_TH_YL) || peer.NGAY_TH_YL;
+
+          if (
+            !entry.peers.some(
+              (p) =>
+                p.machineCode === machine &&
+                p.peerMaLk === peer.MA_LK &&
+                p.peerStt === peer.STT &&
+                p.peerMaDichVu === (peer.MA_DICH_VU || peer.MA_VAT_TU),
+            )
+          ) {
+            entry.peers.push({
+              machineCode: machine,
+              timeMinute,
+              timeDisplay,
+              isSamePatient,
+              peerMaLk: peer.MA_LK,
+              peerMaBn: peer.MA_BN,
+              peerHoTen: peer.HO_TEN || peer.patient?.HO_TEN || "",
+              peerDichVu: peer.TEN_DICH_VU || peer.TEN_VAT_TU || peer.MA_DICH_VU,
+              peerMaDichVu: peer.MA_DICH_VU || peer.MA_VAT_TU,
+              peerStt: peer.STT || "",
+              peerFile: peer.fileName,
+            });
+          }
+        }
+      }
+    }
+  } else {
+    // Chế độ rà soát trùng trong khoảng thời gian (Interval Overlap) trên cùng mã máy
+    type MachineRecordItem = {
+      record: Xml3Record;
+      sMin: number;
+      eMin: number;
+      timeDisplay: string;
+    };
+    const machineMap = new Map<string, MachineRecordItem[]>();
+
+    for (const record of records) {
+      if (!record.MA_MAY || !record.MA_MAY.trim()) continue;
+      const nhom = String(record.MA_NHOM || "").trim();
+      if (nhom === "1" || nhom === "01" || nhom === "10") continue;
+
+      const sDate = parseXmlDateTime(record.NGAY_TH_YL);
+      if (!sDate) continue;
+      const sMin = Math.floor(sDate.getTime() / 60000);
+
+      const eDate = parseXmlDateTime(record.NGAY_KQ);
+      let eMin = eDate ? Math.floor(eDate.getTime() / 60000) : sMin + 1;
+      if (eMin <= sMin) {
+        eMin = sMin + 1; // Tối thiểu 1 phút
+      }
+
+      const timeDisplay = formatXmlDateTime(record.NGAY_TH_YL) || record.NGAY_TH_YL;
+      const machines = record.MA_MAY.split(";")
+        .map((m) => m.trim().toUpperCase())
+        .filter(Boolean);
+      const uniqueMachines = Array.from(new Set(machines));
+
+      for (const machine of uniqueMachines) {
+        const list = machineMap.get(machine) ?? [];
+        list.push({ record, sMin, eMin, timeDisplay });
+        machineMap.set(machine, list);
+      }
+    }
+
+    for (const [machine, items] of machineMap.entries()) {
+      if (items.length <= 1) continue;
+
+      for (let i = 0; i < items.length; i++) {
+        for (let j = i + 1; j < items.length; j++) {
+          const a = items[i];
+          const b = items[j];
+
+          const startOverlap = Math.max(a.sMin, b.sMin);
+          const endOverlap = Math.min(a.eMin, b.eMin);
+          const overlapMinutes = endOverlap - startOverlap;
+
+          if (overlapMinutes > 0) {
+            // Flag a
+            let entryA = flaggedDetails.get(a.record);
+            if (!entryA) {
+              entryA = { machines: new Set<string>(), peers: [] };
+              flaggedDetails.set(a.record, entryA);
+            }
+            entryA.machines.add(machine);
+
+            const isSamePat =
+              Boolean(b.record.MA_LK && a.record.MA_LK && b.record.MA_LK === a.record.MA_LK) ||
+              Boolean(b.record.MA_BN && a.record.MA_BN && b.record.MA_BN === a.record.MA_BN);
+
+            if (
+              !entryA.peers.some(
+                (p) =>
+                  p.machineCode === machine &&
+                  p.peerMaLk === b.record.MA_LK &&
+                  p.peerStt === b.record.STT &&
+                  p.peerMaDichVu === (b.record.MA_DICH_VU || b.record.MA_VAT_TU),
+              )
+            ) {
+              entryA.peers.push({
+                machineCode: machine,
+                timeMinute: b.sMin,
+                timeDisplay: b.timeDisplay,
+                isSamePatient: isSamePat,
+                peerMaLk: b.record.MA_LK,
+                peerMaBn: b.record.MA_BN,
+                peerHoTen: b.record.HO_TEN || b.record.patient?.HO_TEN || "",
+                peerDichVu: b.record.TEN_DICH_VU || b.record.TEN_VAT_TU || b.record.MA_DICH_VU,
+                peerMaDichVu: b.record.MA_DICH_VU || b.record.MA_VAT_TU,
+                peerStt: b.record.STT || "",
+                peerFile: b.record.fileName,
+                overlapMinutes,
+              });
+            }
+
+            // Flag b
+            let entryB = flaggedDetails.get(b.record);
+            if (!entryB) {
+              entryB = { machines: new Set<string>(), peers: [] };
+              flaggedDetails.set(b.record, entryB);
+            }
+            entryB.machines.add(machine);
+
+            if (
+              !entryB.peers.some(
+                (p) =>
+                  p.machineCode === machine &&
+                  p.peerMaLk === a.record.MA_LK &&
+                  p.peerStt === a.record.STT &&
+                  p.peerMaDichVu === (a.record.MA_DICH_VU || a.record.MA_VAT_TU),
+              )
+            ) {
+              entryB.peers.push({
+                machineCode: machine,
+                timeMinute: a.sMin,
+                timeDisplay: a.timeDisplay,
+                isSamePatient: isSamePat,
+                peerMaLk: a.record.MA_LK,
+                peerMaBn: a.record.MA_BN,
+                peerHoTen: a.record.HO_TEN || a.record.patient?.HO_TEN || "",
+                peerDichVu: a.record.TEN_DICH_VU || a.record.TEN_VAT_TU || a.record.MA_DICH_VU,
+                peerMaDichVu: a.record.MA_DICH_VU || a.record.MA_VAT_TU,
+                peerStt: a.record.STT || "",
+                peerFile: a.record.fileName,
+                overlapMinutes,
+              });
+            }
+          }
         }
       }
     }
@@ -2344,6 +2533,9 @@ export function addDuplicateMachineWarnings(records: Xml3Record[]): Xml3Record[]
     const detailIndex = record.STT || "xx";
     const machineListStr = Array.from(detailData.machines).join(", ");
 
+    // Tính thời lượng trùng lớn nhất (nếu có)
+    const maxOverlap = Math.max(...detailData.peers.map((p) => p.overlapMinutes || 0), 0);
+
     // Tạo chuỗi tóm tắt đối chiếu
     let peerSummary = "";
     if (detailData.peers.length > 0) {
@@ -2352,28 +2544,36 @@ export function addDuplicateMachineWarnings(records: Xml3Record[]): Xml3Record[]
 
       const parts: string[] = [];
       if (diffPatientPeers.length > 0) {
-        const bnNames = Array.from(
-          new Set(
-            diffPatientPeers.map(
-              (p) =>
-                `${p.peerHoTen || "BN chưa rõ tên"} (Mã BN: ${p.peerMaBn || "—"}, LK: ${p.peerMaLk})`,
-            ),
-          ),
+        const bnSummaries = diffPatientPeers.map(
+          (p) =>
+            `${p.peerHoTen || "BN chưa rõ tên"} (LK: ${p.peerMaLk}${p.overlapMinutes ? `, trùng ${p.overlapMinutes}p` : ""})`,
         );
-        parts.push(`Trùng với BN: ${bnNames.join("; ")} lúc ${diffPatientPeers[0].timeDisplay}`);
+        const uniqueBn = Array.from(new Set(bnSummaries));
+        parts.push(
+          `Trùng với BN: ${uniqueBn.join("; ")} từ lúc ${diffPatientPeers[0].timeDisplay}`,
+        );
       }
       if (samePatientPeers.length > 0) {
         const dvNames = Array.from(
-          new Set(samePatientPeers.map((p) => `"${p.peerDichVu}" (STT ${p.peerStt})`)),
+          new Set(
+            samePatientPeers.map(
+              (p) =>
+                `"${p.peerDichVu}" (STT ${p.peerStt}${p.overlapMinutes ? `, trùng ${p.overlapMinutes}p` : ""})`,
+            ),
+          ),
         );
         parts.push(
-          `Trùng cùng BN: DV ${dvNames.join(", ")} lúc ${samePatientPeers[0].timeDisplay}`,
+          `Trùng cùng BN: DV ${dvNames.join(", ")} từ lúc ${samePatientPeers[0].timeDisplay}`,
         );
       }
       peerSummary = ` [${parts.join(" · ")}]`;
     }
 
-    const baseMessage = formatDuplicateMachineWarningMessage(detailIndex, machineListStr);
+    const baseMessage = formatDuplicateMachineWarningMessage(
+      detailIndex,
+      machineListStr,
+      maxOverlap,
+    );
     const message = `${baseMessage}${peerSummary}`;
 
     const alreadyHasMessage = record.detail.includes("trùng thời gian thực hiện y lệnh");
@@ -2388,6 +2588,193 @@ export function addDuplicateMachineWarnings(records: Xml3Record[]): Xml3Record[]
       hasDuplicateMachineWarning: true,
       duplicateMachineInfo: detailData.peers,
       status: record.status === "ok" ? "duplicate-machine-warning" : record.status,
+      detail: newDetail,
+    };
+  });
+}
+
+export function formatTimeOverlapWarningMessage(
+  detailIndex: string | number,
+  overlapMinutes: number,
+  peerTenDichVu: string,
+  peerStt: string | number,
+  peerMaNhom: string,
+  peerStart: string,
+  peerEnd: string,
+  isDifferentGroup: boolean,
+): string {
+  const groupNotice = isDifferentGroup
+    ? ` [Trùng khác nhóm: Nhóm ${peerMaNhom}]`
+    : ` [Cùng Nhóm ${peerMaNhom}]`;
+  return `XML3. Chi tiết thứ ${detailIndex}: Trùng khoảng thời gian thực hiện (${overlapMinutes} phút) với DVKT "${peerTenDichVu}" (STT ${peerStt}, ${peerStart} ➔ ${peerEnd})${groupNotice}.`;
+}
+
+export function addTimeOverlapWarnings(
+  records: Xml3Record[],
+  options?: { checkTimeOverlap?: boolean; groupCodes?: string[] },
+): Xml3Record[] {
+  if (options?.checkTimeOverlap === false) {
+    return records;
+  }
+
+  // Nhóm các bản ghi theo người bệnh: MA_LK hoặc MA_BN
+  const patientGroups = new Map<string, Xml3Record[]>();
+  for (const record of records) {
+    const patKey = (record.MA_LK || record.MA_BN || "").trim();
+    if (!patKey) continue;
+
+    // Loại trừ các nhóm không phải DVKT thực hiện trực tiếp: thuốc, máu, vật tư, giường, vận chuyển
+    const nhom = String(record.MA_NHOM || "").trim();
+    if (
+      nhom === "4" ||
+      nhom === "04" ||
+      nhom === "7" ||
+      nhom === "07" ||
+      nhom === "17" ||
+      nhom === "10" ||
+      nhom === "11" ||
+      nhom === "12" ||
+      nhom === "14" ||
+      nhom === "15" ||
+      nhom === "16"
+    ) {
+      continue;
+    }
+
+    const list = patientGroups.get(patKey) ?? [];
+    list.push(record);
+    patientGroups.set(patKey, list);
+  }
+
+  const flaggedPeers = new Map<Xml3Record, TimeOverlapPeerInfo[]>();
+
+  for (const [, rows] of patientGroups.entries()) {
+    if (rows.length <= 1) continue;
+
+    // Chuẩn bị khoảng thời gian [sMin, eMin] cho từng record
+    const parsedRows = rows
+      .map((r) => {
+        const sDate = parseXmlDateTime(r.NGAY_TH_YL);
+        const eDate = parseXmlDateTime(r.NGAY_KQ);
+        const sMin = sDate ? Math.floor(sDate.getTime() / 60000) : NaN;
+        let eMin = eDate ? Math.floor(eDate.getTime() / 60000) : NaN;
+        if (!Number.isNaN(sMin) && !Number.isNaN(eMin) && eMin <= sMin) {
+          eMin = sMin + 1; // Tối thiểu 1 phút nếu thời gian kết thúc bằng thời gian bắt đầu
+        }
+        return {
+          record: r,
+          sMin,
+          eMin,
+          sDisplay: formatXmlDateTime(r.NGAY_TH_YL) || r.NGAY_TH_YL || "",
+          eDisplay: formatXmlDateTime(r.NGAY_KQ) || r.NGAY_KQ || "",
+        };
+      })
+      .filter((item) => !Number.isNaN(item.sMin) && !Number.isNaN(item.eMin));
+
+    for (let i = 0; i < parsedRows.length; i++) {
+      for (let j = i + 1; j < parsedRows.length; j++) {
+        const a = parsedRows[i];
+        const b = parsedRows[j];
+
+        const startOverlap = Math.max(a.sMin, b.sMin);
+        const endOverlap = Math.min(a.eMin, b.eMin);
+        const overlapMinutes = endOverlap - startOverlap;
+
+        if (overlapMinutes > 0) {
+          const isDiff =
+            String(a.record.MA_NHOM || "").trim() !== String(b.record.MA_NHOM || "").trim();
+
+          // Thêm peer cho a
+          let listA = flaggedPeers.get(a.record);
+          if (!listA) {
+            listA = [];
+            flaggedPeers.set(a.record, listA);
+          }
+          if (
+            !listA.some(
+              (p) =>
+                p.peerStt === b.record.STT &&
+                p.peerMaDichVu === (b.record.MA_DICH_VU || b.record.MA_VAT_TU),
+            )
+          ) {
+            listA.push({
+              peerStt: b.record.STT || "",
+              peerMaDichVu: b.record.MA_DICH_VU || b.record.MA_VAT_TU,
+              peerTenDichVu: b.record.TEN_DICH_VU || b.record.TEN_VAT_TU || b.record.MA_DICH_VU,
+              peerMaNhom: b.record.MA_NHOM,
+              peerStart: b.sDisplay,
+              peerEnd: b.eDisplay,
+              overlapMinutes,
+              isDifferentGroup: isDiff,
+              peerMaLk: b.record.MA_LK,
+              peerMaBn: b.record.MA_BN,
+              peerHoTen: b.record.HO_TEN || b.record.patient?.HO_TEN,
+            });
+          }
+
+          // Thêm peer cho b
+          let listB = flaggedPeers.get(b.record);
+          if (!listB) {
+            listB = [];
+            flaggedPeers.set(b.record, listB);
+          }
+          if (
+            !listB.some(
+              (p) =>
+                p.peerStt === a.record.STT &&
+                p.peerMaDichVu === (a.record.MA_DICH_VU || a.record.MA_VAT_TU),
+            )
+          ) {
+            listB.push({
+              peerStt: a.record.STT || "",
+              peerMaDichVu: a.record.MA_DICH_VU || a.record.MA_VAT_TU,
+              peerTenDichVu: a.record.TEN_DICH_VU || a.record.TEN_VAT_TU || a.record.MA_DICH_VU,
+              peerMaNhom: a.record.MA_NHOM,
+              peerStart: a.sDisplay,
+              peerEnd: a.eDisplay,
+              overlapMinutes,
+              isDifferentGroup: isDiff,
+              peerMaLk: a.record.MA_LK,
+              peerMaBn: a.record.MA_BN,
+              peerHoTen: a.record.HO_TEN || a.record.patient?.HO_TEN,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return records.map((record) => {
+    const peers = flaggedPeers.get(record);
+    if (!peers || peers.length === 0) return record;
+
+    const detailIndex = record.STT || "xx";
+    const messages = peers.map((p) =>
+      formatTimeOverlapWarningMessage(
+        detailIndex,
+        p.overlapMinutes,
+        p.peerTenDichVu,
+        p.peerStt,
+        p.peerMaNhom,
+        p.peerStart,
+        p.peerEnd,
+        p.isDifferentGroup,
+      ),
+    );
+
+    const fullOverlapMessage = messages.join(" · ");
+    const alreadyHasMessage = record.detail.includes("Trùng khoảng thời gian thực hiện");
+    const newDetail = alreadyHasMessage
+      ? record.detail
+      : record.detail
+        ? `${record.detail} · ${fullOverlapMessage}`
+        : fullOverlapMessage;
+
+    return {
+      ...record,
+      hasTimeOverlapWarning: true,
+      timeOverlapInfo: peers,
+      status: record.status === "ok" ? "time-overlap-warning" : record.status,
       detail: newDetail,
     };
   });
@@ -2682,6 +3069,7 @@ export function evaluateRecord(
     hasTtThauWarning,
     hasMaMayWarning,
     hasDuplicateMachineWarning: false,
+    hasTimeOverlapWarning: false,
     hasZ000Warning: Boolean(hasZ000Warning || hasZ301Warning),
     orderIssues,
     status,
@@ -2699,6 +3087,7 @@ export function isWarning(record: Xml3Record): boolean {
     record.status === "tt-thau-warning" ||
     record.status === "ma-may-warning" ||
     record.status === "duplicate-machine-warning" ||
+    record.status === "time-overlap-warning" ||
     record.status === "bed-warning" ||
     record.hasOrderWarning ||
     record.hasEqualWarning ||
@@ -2706,6 +3095,7 @@ export function isWarning(record: Xml3Record): boolean {
     record.hasTtThauWarning ||
     record.hasMaMayWarning ||
     Boolean(record.hasDuplicateMachineWarning) ||
+    Boolean(record.hasTimeOverlapWarning) ||
     Boolean(record.hasZ000Warning)
   );
 }
@@ -3112,6 +3502,7 @@ export async function analyzeXml3File(
   drugRules: ReadonlyMap<string, DrugRule> = new Map(),
   mandatoryMachineRules: ReadonlyMap<string, MachineServiceRule> = DEFAULT_MANDATORY_MACHINE_MAP,
   tt12Catalogs?: Record<string, Tt12UnitData>,
+  options?: { checkTimeOverlap?: boolean; groupCodes?: string[] },
 ): Promise<Xml3Analysis> {
   const text = await file.text();
   const outer = parseXml(text, file.name);
@@ -3208,7 +3599,8 @@ export async function analyzeXml3File(
     throw new Error(`${file.name}: không tìm thấy FILEHOSO có LOAIHOSO=XML3`);
 
   const recordsWithBed = addBedWarnings(rawRecords, patients);
-  const records = addDuplicateMachineWarnings(recordsWithBed);
+  const recordsWithMachines = addDuplicateMachineWarnings(recordsWithBed, options);
+  const records = addTimeOverlapWarnings(recordsWithMachines, options);
   const warnings = records.filter(isWarning);
   const xml3Warnings = warnings.map(toXml3Warning);
   const xml4Warnings = createXml4Warnings(records, xml4Records, patients);
@@ -3228,9 +3620,10 @@ export async function analyzeXml3File(
   const duplicateMachineWarnings = records.filter(
     (record) => record.hasDuplicateMachineWarning,
   ).length;
+  const timeOverlapWarnings = records.filter((record) => record.hasTimeOverlapWarning).length;
 
   log.push(
-    `XML3: ${records.length} dòng; cảnh báo: ${warnings.length}; mã máy: ${maMayWarnings}; trùng máy: ${duplicateMachineWarnings}; thứ tự: ${orderWarnings}; giường: ${bedWarnings}; TT_THAU (nhóm 10/11): ${ttThauWarnings}; Z00.0/Z30.1: ${z000Warnings.length}; XML1: ${xml1Warnings.length}; XML2: ${xml2Warnings.length}; XML4: ${xml4Warnings.length}; thiếu thời gian: ${missingTimes}; không hợp lệ: ${invalidTimes}; âm: ${negativeTimes}`,
+    `XML3: ${records.length} dòng; cảnh báo: ${warnings.length}; mã máy: ${maMayWarnings}; trùng máy: ${duplicateMachineWarnings}; trùng khoảng: ${timeOverlapWarnings}; thứ tự: ${orderWarnings}; giường: ${bedWarnings}; TT_THAU (nhóm 10/11): ${ttThauWarnings}; Z00.0/Z30.1: ${z000Warnings.length}; XML1: ${xml1Warnings.length}; XML2: ${xml2Warnings.length}; XML4: ${xml4Warnings.length}; thiếu thời gian: ${missingTimes}; không hợp lệ: ${invalidTimes}; âm: ${negativeTimes}`,
   );
   return {
     fileName: file.name,
@@ -3251,6 +3644,7 @@ export async function analyzeXml3File(
     ttThauWarnings,
     maMayWarnings,
     duplicateMachineWarnings,
+    timeOverlapWarnings,
     log,
   };
 }
@@ -3261,6 +3655,7 @@ export async function analyzeXml3Files(
   drugRules: ReadonlyArray<DrugRule> = [],
   mandatoryMachineRules: ReadonlyArray<MachineServiceRule> = DEFAULT_MANDATORY_MACHINE_SERVICES,
   tt12Catalogs?: Record<string, Tt12UnitData>,
+  options?: { checkTimeOverlap?: boolean; groupCodes?: string[] },
 ): Promise<BatchAnalysis> {
   const allRecords: Xml3Record[] = [];
   const errors: string[] = [];
@@ -3483,8 +3878,12 @@ export async function analyzeXml3Files(
   }
 
   // Quét kiểm tra trùng thời gian mã máy trên toàn bộ các file (cross-patient / cross-file)
-  const updatedRecordsWithMachines = addDuplicateMachineWarnings(allRecords);
+  const updatedRecordsWithMachines = addDuplicateMachineWarnings(allRecords, options);
   allRecords.splice(0, allRecords.length, ...updatedRecordsWithMachines);
+
+  // Quét kiểm tra trùng khoảng thời gian giữa các nhóm & cùng nhóm trên cùng bệnh nhân
+  const updatedRecordsWithTimeOverlap = addTimeOverlapWarnings(allRecords, options);
+  allRecords.splice(0, allRecords.length, ...updatedRecordsWithTimeOverlap);
 
   // Quét kiểm tra tiền giường & giường nằm ghép KT251 trên toàn bộ các file (cross-patient / cross-file)
   const updatedRecordsWithBeds = addBedWarnings(allRecords, sharedPatients);
@@ -3608,6 +4007,7 @@ export async function analyzeXml3Files(
     maMayWarnings: allRecords.filter((record) => record.hasMaMayWarning).length,
     duplicateMachineWarnings: allRecords.filter((record) => record.hasDuplicateMachineWarning)
       .length,
+    timeOverlapWarnings: allRecords.filter((record) => record.hasTimeOverlapWarning).length,
     dossiers,
     dossierMap,
     patients: sharedPatients,

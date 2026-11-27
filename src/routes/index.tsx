@@ -299,6 +299,7 @@ type SummaryFocus =
   | "ttThau"
   | "maMay"
   | "dupMachine"
+  | "timeOverlap"
   | "z000"
   | "missing"
   | "invalid"
@@ -307,6 +308,8 @@ type SummaryFocus =
   | "xml2"
   | "xml4";
 
+const CHECK_TIME_OVERLAP_STORAGE_KEY = "nsn-xmlcheck-check-time-overlap";
+
 export function HomePage() {
   const [view, setView] = useState<View>("checker");
   const [files, setFiles] = useState<File[]>([]);
@@ -314,6 +317,14 @@ export function HomePage() {
   const [busy, setBusy] = useState(false);
   const [onlyWarnings, setOnlyWarnings] = useState(true);
   const [groupCodes, setGroupCodes] = useState<string[]>([...DEFAULT_GROUP_CODES]);
+  const [checkTimeOverlap, setCheckTimeOverlap] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(CHECK_TIME_OVERLAP_STORAGE_KEY);
+      return saved !== null ? JSON.parse(saved) : true;
+    } catch {
+      return true;
+    }
+  });
   const [patientQuery, setPatientQuery] = useState("");
   const [alertTab, setAlertTab] = useState<AlertTab>("XML3");
   const [summaryFocus, setSummaryFocus] = useState<SummaryFocus>("warnings");
@@ -675,6 +686,8 @@ export function HomePage() {
     else if (summaryFocus === "maMay") source = source.filter((record) => record.hasMaMayWarning);
     else if (summaryFocus === "dupMachine")
       source = source.filter((record) => record.hasDuplicateMachineWarning);
+    else if (summaryFocus === "timeOverlap")
+      source = source.filter((record) => record.hasTimeOverlapWarning);
     else if (summaryFocus === "z000") source = source.filter((record) => record.hasZ000Warning);
     else if (summaryFocus === "missing")
       source = source.filter((record) => record.status === "missing");
@@ -684,7 +697,15 @@ export function HomePage() {
       source = source.filter((record) => record.status === "negative");
 
     if (warningCategoryFilter !== "all") {
-      source = source.filter((record) => getXml3RecordCategory(record) === warningCategoryFilter);
+      source = source.filter((record) => {
+        if (warningCategoryFilter === "timeOverlap") {
+          return Boolean(record.hasTimeOverlapWarning);
+        }
+        if (warningCategoryFilter === "dupMachine") {
+          return Boolean(record.hasDuplicateMachineWarning);
+        }
+        return getXml3RecordCategory(record) === warningCategoryFilter;
+      });
     }
 
     return source;
@@ -710,6 +731,7 @@ export function HomePage() {
       else if (focus === "ttThau") setWarningCategoryFilter("ttThau");
       else if (focus === "maMay") setWarningCategoryFilter("maMay");
       else if (focus === "dupMachine") setWarningCategoryFilter("dupMachine");
+      else if (focus === "timeOverlap") setWarningCategoryFilter("timeOverlap");
       else if (focus === "missing" || focus === "invalid" || focus === "negative")
         setWarningCategoryFilter("underMin");
       else if (focus === "warnings") setWarningCategoryFilter("all");
@@ -769,7 +791,14 @@ export function HomePage() {
     setBusy(true);
     setNotice("");
     try {
-      const nextAnalysis = await analyzeXml3Files(files, serviceRules, drugRules, machineRules);
+      const nextAnalysis = await analyzeXml3Files(
+        files,
+        serviceRules,
+        drugRules,
+        machineRules,
+        undefined,
+        { checkTimeOverlap, groupCodes },
+      );
       setSummaryFocus("warnings");
       setAlertTab("XML3");
       setAnalysis(nextAnalysis);
@@ -797,9 +826,40 @@ export function HomePage() {
     setBusy(true);
     try {
       setSummaryFocus("warnings");
-      setAnalysis(await analyzeXml3Files(files, nextServiceRules, nextDrugRules, nextMachineRules));
+      setAnalysis(
+        await analyzeXml3Files(
+          files,
+          nextServiceRules,
+          nextDrugRules,
+          nextMachineRules,
+          undefined,
+          { checkTimeOverlap, groupCodes },
+        ),
+      );
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleCheckTimeOverlapChange(nextChecked: boolean) {
+    setCheckTimeOverlap(nextChecked);
+    try {
+      localStorage.setItem(CHECK_TIME_OVERLAP_STORAGE_KEY, JSON.stringify(nextChecked));
+    } catch {
+      // ignore
+    }
+    if (files.length > 0) {
+      setBusy(true);
+      try {
+        setAnalysis(
+          await analyzeXml3Files(files, serviceRules, drugRules, machineRules, undefined, {
+            checkTimeOverlap: nextChecked,
+            groupCodes,
+          }),
+        );
+      } finally {
+        setBusy(false);
+      }
     }
   }
 
@@ -1212,6 +1272,8 @@ export function HomePage() {
             onClear={clearAll}
             onAnalyze={runAnalysis}
             onGroupCodesChange={setGroupCodes}
+            checkTimeOverlap={checkTimeOverlap}
+            onCheckTimeOverlapChange={handleCheckTimeOverlapChange}
             onPatientQueryChange={setPatientQuery}
             onAlertTabChange={setAlertTab}
             onSummaryFocus={focusSummary}
@@ -1570,6 +1632,8 @@ function CheckerView({
   onClear,
   onAnalyze,
   onGroupCodesChange,
+  checkTimeOverlap,
+  onCheckTimeOverlapChange,
   onPatientQueryChange,
   onAlertTabChange,
   onSummaryFocus,
@@ -1620,6 +1684,8 @@ function CheckerView({
   onClear: () => void;
   onAnalyze: () => void;
   onGroupCodesChange: (value: string[]) => void;
+  checkTimeOverlap: boolean;
+  onCheckTimeOverlapChange: (checked: boolean) => void;
   onPatientQueryChange: (value: string) => void;
   onAlertTabChange: (value: AlertTab) => void;
   onSummaryFocus: (value: SummaryFocus) => void;
@@ -1665,6 +1731,7 @@ function CheckerView({
       overMax: 0,
       underMin: 0,
       dupMachine: 0,
+      timeOverlap: 0,
       maMay: 0,
       ttThau: 0,
       order: 0,
@@ -1680,6 +1747,12 @@ function CheckerView({
       const cat = getXml3RecordCategory(r);
       if (cat !== "all") {
         counts[cat] = (counts[cat] || 0) + 1;
+      }
+      if (r.hasTimeOverlapWarning && cat !== "timeOverlap") {
+        counts.timeOverlap = (counts.timeOverlap || 0) + 1;
+      }
+      if (r.hasDuplicateMachineWarning && cat !== "dupMachine") {
+        counts.dupMachine = (counts.dupMachine || 0) + 1;
       }
     }
     if (analysis?.z000Warnings) {
@@ -2366,6 +2439,39 @@ function CheckerView({
               </p>
             </details>
 
+            {/* Tùy chọn kiểm tra trùng khoảng thời gian (Interval Overlap) */}
+            <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50/80 p-4 shadow-2xs transition hover:bg-amber-50">
+              <label className="flex cursor-pointer items-start gap-3 select-none">
+                <input
+                  type="checkbox"
+                  checked={checkTimeOverlap}
+                  onChange={(e) => onCheckTimeOverlapChange(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded accent-amber-600 focus:ring-amber-500 cursor-pointer"
+                />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
+                      <span>⏱️</span>
+                      <span>
+                        Rà soát trùng trong khoảng thời gian (Interval Overlap) giữa các nhóm DVKT &
+                        trên cùng mã máy
+                      </span>
+                    </span>
+                    <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-black text-amber-900 border border-amber-400 shadow-2xs">
+                      MẶC ĐỊNH BẬT
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
+                    Kiểm tra các dịch vụ của <b>cùng một người bệnh</b> có khoảng thời gian thực
+                    hiện giao nhau (giao giữa [NGAY_TH_YL, NGAY_KQ] &gt; 0 phút giữa các nhóm kỹ
+                    thuật hoặc cùng nhóm), đồng thời phát hiện các dịch vụ thực hiện trên{" "}
+                    <b>cùng mã máy</b> có khoảng thời gian chồng lấn lên nhau (thay vì chỉ so khớp
+                    cùng phút bắt đầu).
+                  </p>
+                </div>
+              </label>
+            </div>
+
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs">
               <span className="text-slate-600 font-medium">
                 ⚙️ Thư viện dịch vụ kỹ thuật & danh mục thuốc loại trừ XML2 được quản lý tại tab Thư
@@ -2533,6 +2639,12 @@ function CheckerView({
                 value={filteredRecords.filter((record) => record.hasDuplicateMachineWarning).length}
                 tone="rose"
                 onClick={() => onSummaryFocus("dupMachine")}
+              />
+              <Metric
+                label="Trùng khoảng TG"
+                value={filteredRecords.filter((record) => record.hasTimeOverlapWarning).length}
+                tone="amber"
+                onClick={() => onSummaryFocus("timeOverlap")}
               />
               <Metric
                 label="XML4 · KET_LUAN"
@@ -2810,6 +2922,7 @@ function CheckerView({
                     "overMax",
                     "underMin",
                     "dupMachine",
+                    "timeOverlap",
                     "maMay",
                     "ttThau",
                     "order",
@@ -3173,6 +3286,7 @@ function CheckerView({
                                       <option value="ĐẠT">ĐẠT</option>
                                       <option value="VƯỢT MAX">VƯỢT MAX</option>
                                       <option value="TRÙNG MÁY">TRÙNG MÁY</option>
+                                      <option value="TRÙNG KHOẢNG">TRÙNG KHOẢNG</option>
                                       <option value="MÃ MÁY">MÃ MÁY</option>
                                       <option value="TT_THAU">TT_THAU</option>
                                       <option value="SAI THỨ TỰ">SAI THỨ TỰ</option>

@@ -2,12 +2,23 @@ export const APP_META = {
   name: "NsN_XMLcheck",
   title: "NsN_XMLcheck",
   description: "Tổng hợp công cụ xử lý XML_Namns",
-  version: "2.25.0",
+  version: "2.26.0",
   date: "2026-11-27",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.26.0",
+      date: "2026-11-27",
+      changes: [
+        "Rà soát trùng trong khoảng thời gian (Interval Overlap) giữa các nhóm dịch vụ kỹ thuật: Tự động phát hiện các ca của cùng một người bệnh có khoảng thời gian thực hiện chồng lấn nhau ([NGAY_TH_YL, NGAY_KQ] overlap > 0 phút), phân biệt rõ trùng khác nhóm (ví dụ Nhóm 2 CĐHA vs Nhóm 3 TDCN vs Nhóm 18 Thủ thuật) và cùng nhóm, hỗ trợ đắc lực chống xuất toán BHYT.",
+        "Nâng cấp rà soát trùng trên cùng mã máy theo khoảng thời gian: Hai hoặc nhiều ca thực hiện trên cùng một thiết bị/máy có khoảng thời gian đè lên nhau sẽ được cảnh báo trùng lịch máy kèm số phút chồng lấn (thay vì chỉ so khớp cùng một phút bắt đầu).",
+        "Thêm tùy chọn kiểm tra trùng khoảng thời gian (Interval Overlap): Hộp chọn nổi bật với trạng thái Mặc định bật, lưu cấu hình vào bộ nhớ trình duyệt, tự động phân tích lại ngay khi người dùng chuyển đổi tùy chọn.",
+        "Bổ sung phân loại cảnh báo mới 'Trùng khoảng thời gian' (icon ⏱️, màu cam hổ phách #EA580C, nhãn TRÙNG KHOẢNG), thẻ thống kê Metric tổng quan và bộ lọc phân loại chuyên biệt.",
+        "Xử lý chuẩn xác quy định mã khoa theo Quyết định số 3176/QĐ-BYT & QĐ 5937/QĐ-BYT: Hỗ trợ trường hợp người bệnh điều trị/khám ở nhiều khoa phân cách bằng dấu chấm phẩy ';' (ví dụ 'K01;K031802', 'K01;K192726'). Từng mã khoa được kiểm tra độc lập với Bảng 1 Thông tư 12 và danh mục mã khoa loại trừ, loại bỏ triệt để 100% các cảnh báo sai lệch.",
+      ],
+    },
     {
       version: "2.25.0",
       date: "2026-11-27",
