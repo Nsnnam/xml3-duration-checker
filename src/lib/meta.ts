@@ -2,12 +2,21 @@ export const APP_META = {
   name: "NsN_XMLcheck",
   title: "NsN_XMLcheck",
   description: "Tổng hợp công cụ xử lý XML_Namns",
-  version: "2.26.4",
+  version: "2.26.5",
   date: "2026-11-28",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.26.5",
+      date: "2026-11-28",
+      changes: [
+        "Sửa triệt để cơ chế gán gợi ý MA_DOITUONG_KCB: Khai 1.15 có bệnh Phụ lục II gợi ý chuẩn xác 1.16 ('⚡ Đổi 1.16'); Khai 1.16 có bệnh chính không thuộc Phụ lục II gợi ý chuẩn xác 1.15 ('⚡ Đổi 1.15'); Trẻ sơ sinh điều trị sau sinh <= 28 ngày gợi ý chuẩn xác 1.7 ('⚡ Đổi 1.7').",
+        "Gán trực tiếp thuộc tính suggestedCode và suggestedReason vào từng cảnh báo ValidationWarning kết hợp bộ phân tích Regex chính xác cao, loại bỏ hoàn toàn tình trạng gán nhầm nút '⚡ Đổi 1.15' cho các ca cần đổi sang 1.16.",
+        "Đồng bộ hoàn hảo cho tính năng sửa hàng loạt (Batch fix) và kế hoạch sửa: Tự động trích xuất đúng mã gốc (oldValue) và mã mới (newValue) tương ứng cho từng bệnh nhân.",
+      ],
+    },
     {
       version: "2.26.4",
       date: "2026-11-28",

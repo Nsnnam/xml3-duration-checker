@@ -2007,6 +2007,7 @@ assert.ok(wDt01);
 assert.equal(getValidationWarningCategory(wDt01), "doiTuongKcb");
 assert.ok(wDt01.message.includes("Phụ lục II"));
 assert.ok(wDt01.message.includes("1.16"));
+assert.equal(wDt01.suggestedCode, "1.16");
 
 const wDt02 = dtWarnings.find((w) => w.MA_LK === "LK-DT-02");
 assert.ok(wDt02);
@@ -2014,12 +2015,14 @@ assert.equal(getValidationWarningCategory(wDt02), "doiTuongKcb");
 assert.ok(wDt02.message.includes("Mã đối tượng 1.16: Mã bệnh chính"));
 assert.ok(wDt02.message.includes("PHẢI THUỘC Phụ lục 2"));
 assert.ok(wDt02.message.includes("Gợi ý: Điều chỉnh sang mã 1.15"));
+assert.equal(wDt02.suggestedCode, "1.15");
 
 const wDt03 = dtWarnings.find((w) => w.MA_LK === "LK-DT-03");
 assert.ok(wDt03);
 assert.equal(getValidationWarningCategory(wDt03), "doiTuongKcb");
 assert.ok(wDt03.message.includes("Trẻ sơ sinh"));
 assert.ok(wDt03.message.includes("1.7"));
+assert.equal(wDt03.suggestedCode, "1.7");
 
 const wDt04 = dtWarnings.find((w) => w.MA_LK === "LK-DT-04");
 assert.ok(wDt04);
@@ -2061,6 +2064,7 @@ assert.ok(
   wDt06Default.message.includes("Mã đối tượng 1.16: Mã bệnh chính [J18.1] PHẢI THUỘC Phụ lục 2"),
 );
 assert.ok(wDt06Default.message.includes("Gợi ý: Điều chỉnh sang mã 1.15"));
+assert.equal(wDt06Default.suggestedCode, "1.15");
 
 // Khi bật tùy chọn checkMaBenhKtForDoiTuong: kiểm tra cả MA_BENH_KT -> Hợp lệ, không báo lỗi!
 const dtWarningsWithSub = readXml1Warnings(mockDocDoiTuongWithSub, new Map(), undefined, {

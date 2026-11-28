@@ -201,6 +201,8 @@ export type ValidationWarning = {
   record?: Xml3Record;
   patient?: PatientInfo;
   giaTri?: string;
+  suggestedCode?: string;
+  suggestedReason?: string;
 };
 
 export type Xml4Record = {
@@ -1247,6 +1249,9 @@ export function readXml1Warnings(
               ...base,
               MA_DICH_VU: "MA_DOITUONG_KCB",
               TEN_DICH_VU: "Mã đối tượng KCB",
+              suggestedCode: "1.16",
+              suggestedReason:
+                "Điều chỉnh sang mã 1.16 theo QĐ 3276/QĐ-BYT để bảo đảm quyền lợi 100% chi phí KCB BHYT cho người bệnh tự đến KCB tại cơ sở cấp cơ bản",
               message: `XML 1. Chi tiết thứ ${detailIndex}: Sai mã đối tượng KCB: Bệnh nhân có mã bệnh ${allMatchedStr} thuộc Phụ lục II Thông tư 01/2025/TT-BYT nhưng đang khai MA_DOITUONG_KCB là '${cleanDoiTuong}'. Gợi ý: Điều chỉnh sang mã 1.16 theo Quyết định 3276/QĐ-BYT để bảo đảm quyền lợi 100% chi phí KCB BHYT cho người bệnh tự đến KCB tại cơ sở cấp cơ bản.`,
             });
           }
@@ -1256,6 +1261,9 @@ export function readXml1Warnings(
             ...base,
             MA_DICH_VU: "MA_DOITUONG_KCB",
             TEN_DICH_VU: "Mã đối tượng KCB",
+            suggestedCode: "1.15",
+            suggestedReason:
+              "Điều chỉnh về mã 1.15 theo QĐ 3276/QĐ-BYT (mã bệnh chính không thuộc Phụ lục II TT 01/2025/TT-BYT)",
             message: `XML 1. Chi tiết thứ ${detailIndex}: Mã đối tượng 1.16: Mã bệnh chính [${maBenh || "trống"}] PHẢI THUỘC Phụ lục 2. Gợi ý: Điều chỉnh sang mã 1.15 theo Quyết định 3276/QĐ-BYT (hoặc kiểm tra lại mã bệnh theo Thông tư 01/2025/TT-BYT).`,
           });
         }
@@ -1284,6 +1292,9 @@ export function readXml1Warnings(
                 ...base,
                 MA_DICH_VU: "MA_DOITUONG_KCB",
                 TEN_DICH_VU: "Mã đối tượng KCB",
+                suggestedCode: "1.7",
+                suggestedReason:
+                  "Điều chỉnh sang mã 1.7 (Trẻ sơ sinh phải điều trị ngay sau khi sinh ra) theo Quyết định 3276/QĐ-BYT để được hưởng 100% chi phí KCB BHYT",
                 message: `XML 1. Chi tiết thứ ${detailIndex}: Nghi ngờ sai MA_DOITUONG_KCB: Bệnh nhân là trẻ sơ sinh (${ageInDays} ngày tuổi, sinh ngày ${formatXmlDate(ngaySinhRaw)}) điều trị sau sinh nhưng đang khai MA_DOITUONG_KCB là '${maDoiTuong}'. Gợi ý: Điều chỉnh sang mã 1.7 (Trẻ sơ sinh phải điều trị ngay sau khi sinh ra) theo Quyết định 3276/QĐ-BYT để được hưởng 100% chi phí KCB BHYT.`,
               });
             }

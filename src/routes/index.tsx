@@ -4458,10 +4458,42 @@ function extractSuggestedDoiTuongKcb(warning: ValidationWarning): {
   ) {
     return null;
   }
-  // Gợi ý điều chỉnh về mã 1.15 (Mã đối tượng 1.16 nhưng bệnh chính không thuộc Phụ lục II)
+  // 1. Ưu tiên cao nhất: Lấy từ suggestedCode nếu warning đã được gán sẵn khi phân tích
+  if (warning.suggestedCode) {
+    return {
+      code: warning.suggestedCode,
+      reason:
+        warning.suggestedReason ||
+        `Điều chỉnh sang mã ${warning.suggestedCode} theo Quyết định 3276/QĐ-BYT`,
+    };
+  }
+
+  // 2. Trích xuất chính xác mã đích từ cụm "Gợi ý: ... mã X.X"
+  const match =
+    warning.message.match(/Gợi ý:.*?mã\s+([0-9.]+)/i) ||
+    warning.message.match(/gợi ý.*?sang mã\s+([0-9.]+)/i) ||
+    warning.message.match(/gợi ý.*?về mã\s+([0-9.]+)/i);
+  if (match) {
+    const suggestedCode = match[1].trim();
+    let reason = `Điều chỉnh sang mã ${suggestedCode} theo Quyết định 3276/QĐ-BYT`;
+    if (suggestedCode === "1.16") {
+      reason =
+        "Điều chỉnh sang mã 1.16 theo QĐ 3276/QĐ-BYT (bệnh thuộc Phụ lục II TT 01/2025/TT-BYT tại CSKCB cấp cơ bản)";
+    } else if (suggestedCode === "1.15") {
+      reason =
+        "Điều chỉnh về mã 1.15 theo QĐ 3276/QĐ-BYT (mã bệnh chính không thuộc Phụ lục II TT 01/2025/TT-BYT)";
+    } else if (suggestedCode === "1.7") {
+      reason =
+        "Điều chỉnh sang mã 1.7 theo QĐ 3276/QĐ-BYT (Trẻ sơ sinh điều trị ngay sau khi sinh ra)";
+    }
+    return { code: suggestedCode, reason };
+  }
+
+  // 3. Fallback theo ngữ cảnh cụ thể nếu không có cụm "Gợi ý":
+  // Nếu khai 1.16 mà bệnh chính không thuộc Phụ lục 2 -> gợi ý về 1.15
   if (
-    warning.message.includes("1.15") ||
-    (warning.message.includes("1.16") && warning.message.includes("PHẢI THUỘC Phụ lục 2"))
+    warning.message.includes("PHẢI THUỘC Phụ lục 2") ||
+    warning.message.includes("Mã đối tượng 1.16: Mã bệnh chính")
   ) {
     return {
       code: "1.15",
@@ -4469,10 +4501,11 @@ function extractSuggestedDoiTuongKcb(warning: ValidationWarning): {
         "Điều chỉnh về mã 1.15 theo QĐ 3276/QĐ-BYT (mã bệnh chính không thuộc Phụ lục II TT 01/2025/TT-BYT)",
     };
   }
-  // Gợi ý điều chỉnh sang mã 1.16 (bệnh Phụ lục II TT 01/2025 tại CSKCB cấp cơ bản)
+
+  // Nếu có bệnh thuộc Phụ lục 2 nhưng đang khai 1.15/1.13/1.14 -> gợi ý sang 1.16
   if (
-    warning.message.includes("1.16") &&
-    (warning.message.includes("Gợi ý") || warning.message.includes("Phụ lục II"))
+    warning.message.includes("thuộc Phụ lục II") ||
+    warning.message.includes("Phụ lục II Thông tư 01/2025")
   ) {
     return {
       code: "1.16",
@@ -4480,10 +4513,12 @@ function extractSuggestedDoiTuongKcb(warning: ValidationWarning): {
         "Điều chỉnh sang mã 1.16 theo QĐ 3276/QĐ-BYT (bệnh thuộc Phụ lục II TT 01/2025/TT-BYT tại CSKCB cấp cơ bản)",
     };
   }
-  // Gợi ý điều chỉnh sang mã 1.7 (Trẻ sơ sinh điều trị sau sinh)
+
+  // Nếu là trẻ sơ sinh -> gợi ý 1.7
   if (
-    warning.message.includes("1.7") &&
-    (warning.message.includes("Gợi ý") || warning.message.includes("sơ sinh"))
+    warning.message.includes("Trẻ sơ sinh") ||
+    warning.message.includes("trẻ sơ sinh") ||
+    warning.message.includes("1.7")
   ) {
     return {
       code: "1.7",
@@ -4672,8 +4707,13 @@ function ValidationTable({
     const ngayRa = dossier?.patient?.NGAY_RA || "";
     const tuNgay = toHisDateString(ngayVao);
     const denNgay = toHisDateString(ngayRa);
+    const extractedCurrent =
+      w.message.match(/đang khai MA_DOITUONG_KCB là '([^']+)'/i)?.[1] ||
+      (w.message.includes("Mã đối tượng 1.16") ? "1.16" : undefined);
     const currentCode =
-      dossier?.patient?.MA_DOITUONG_KCB || (targetCode === "1.15" ? "1.16" : "1.15");
+      dossier?.patient?.MA_DOITUONG_KCB ||
+      extractedCurrent ||
+      (targetCode === "1.15" ? "1.16" : "1.15");
 
     const item: CorrectionItem = {
       id: `plan_xml1_doituong_${w.MA_LK}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -4728,8 +4768,13 @@ function ValidationTable({
       const ngayRa = dossier?.patient?.NGAY_RA || "";
       const tuNgay = toHisDateString(ngayVao);
       const denNgay = toHisDateString(ngayRa);
+      const extractedCurrent =
+        w.message.match(/đang khai MA_DOITUONG_KCB là '([^']+)'/i)?.[1] ||
+        (w.message.includes("Mã đối tượng 1.16") ? "1.16" : undefined);
       const currentCode =
-        dossier?.patient?.MA_DOITUONG_KCB || (suggestion.code === "1.15" ? "1.16" : "1.15");
+        dossier?.patient?.MA_DOITUONG_KCB ||
+        extractedCurrent ||
+        (suggestion.code === "1.15" ? "1.16" : "1.15");
 
       newItems.push({
         id: `plan_xml1_doituong_${w.MA_LK}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
