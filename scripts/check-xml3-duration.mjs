@@ -36,6 +36,8 @@ import {
   saveWarningColors,
   resetWarningColors,
   addBedWarnings,
+  findIcd9Mapping,
+  auditXml1Icd9Warnings,
 } from "../src/lib/xml3-duration.ts";
 import { createDuplicateMachineWorkbook, createBedSharingWorkbook } from "../src/lib/export.ts";
 import {
@@ -1438,10 +1440,11 @@ assert.equal(
 );
 
 // Test color config & load
-assert.equal(Object.keys(DEFAULT_WARNING_COLORS).length, 15);
-assert.equal(Object.keys(WARNING_CATEGORY_CONFIG).length, 15);
+assert.equal(Object.keys(DEFAULT_WARNING_COLORS).length, 16);
+assert.equal(Object.keys(WARNING_CATEGORY_CONFIG).length, 16);
 assert.equal(typeof DEFAULT_WARNING_COLORS.timeOverlap, "string");
 assert.equal(typeof DEFAULT_WARNING_COLORS.doiTuongKcb, "string");
+assert.equal(typeof DEFAULT_WARNING_COLORS.icd9, "string");
 const colors = loadWarningColors();
 assert.equal(typeof colors.dupMachine, "string");
 assert.equal(typeof colors.overMax, "string");
@@ -2408,6 +2411,95 @@ assert.equal(matchesTextFilter(null, "trống"), true);
 assert.equal(matchesTextFilter("—", "rỗng"), true);
 assert.equal(matchesTextFilter("Có dữ liệu", "trống"), false);
 
+// 30. Kiểm tra cảnh báo ICD-9-CM Volume 3 cho XML3 và XML1 (Thông tư 21/2020/TT-BYT & QĐ 130 / QĐ 3176)
+const mapTest = findIcd9Mapping("01.0115.0297");
+assert.ok(mapTest);
+assert.equal(mapTest.maIcd9, "88.73");
+
+// 30.1 XML3 thiếu MA_PTTT_QT cho DVKT thuộc danh mục
+const rIcd9Missing = evaluateRecord({
+  fileName: "test.xml",
+  table: "XML3",
+  MA_LK: "LK-ICD9-01",
+  MA_BN: "BN-01",
+  HO_TEN: "BỆNH NHÂN A",
+  STT: "1",
+  MA_DICH_VU: "01.0115.0297",
+  MA_VAT_TU: "",
+  TEN_DICH_VU: "Siêu âm nội soi phế quản ống mềm",
+  TEN_VAT_TU: "",
+  MA_NHOM: "2",
+  MA_KHOA: "K01",
+  MA_GIUONG: "",
+  MA_BAC_SI: "BS01",
+  NGUOI_THUC_HIEN: "BS A",
+  MA_BENH: "J18.0",
+  MA_BENH_YHCT: "",
+  NGAY_YL: "202611240900",
+  NGAY_TH_YL: "202611240905",
+  NGAY_KQ: "202611240930",
+  MA_MAY: "",
+  MA_HIEU_SP: "",
+  TT_THAU: "",
+  MA_PTTT_QT: "",
+});
+assert.equal(rIcd9Missing.hasIcd9Warning, true);
+assert.equal(rIcd9Missing.suggestedIcd9, "88.73");
+assert.ok(rIcd9Missing.icd9WarningMessage.includes("88.73"));
+
+// 30.2 XML3 đã điền MA_PTTT_QT đầy đủ chuẩn
+const rIcd9Valid = evaluateRecord({
+  fileName: "test.xml",
+  table: "XML3",
+  MA_LK: "LK-ICD9-01",
+  MA_BN: "BN-01",
+  HO_TEN: "BỆNH NHÂN A",
+  STT: "1",
+  MA_DICH_VU: "01.0115.0297",
+  MA_VAT_TU: "",
+  TEN_DICH_VU: "Siêu âm nội soi phế quản ống mềm",
+  TEN_VAT_TU: "",
+  MA_NHOM: "2",
+  MA_KHOA: "K01",
+  MA_GIUONG: "",
+  MA_BAC_SI: "BS01",
+  NGUOI_THUC_HIEN: "BS A",
+  MA_BENH: "J18.0",
+  MA_BENH_YHCT: "",
+  NGAY_YL: "202611240900",
+  NGAY_TH_YL: "202611240905",
+  NGAY_KQ: "202611240930",
+  MA_MAY: "",
+  MA_HIEU_SP: "",
+  TT_THAU: "",
+  MA_PTTT_QT: "88.73",
+});
+assert.equal(rIcd9Valid.hasIcd9Warning, false);
+
+// 30.3 XML1 tổng hợp chuỗi mã ICD-9-CM từ XML3
+const mockIcd9Patients = new Map([
+  [
+    "LK-ICD9-01",
+    {
+      MA_LK: "LK-ICD9-01",
+      HO_TEN: "BỆNH NHÂN A",
+      MA_BN: "BN-01",
+      NGAY_SINH: "198001010000",
+      GIOI_TINH: "1",
+      NGAY_VAO: "202611240800",
+      NGAY_RA: "202611241100",
+      MA_DOITUONG_KCB: "1.15",
+      MA_BENH_CHINH: "J18.0",
+      MA_BENH_KT: "",
+      MA_PTTT_QT: "", // Thiếu chuỗi ICD-9-CM
+    },
+  ],
+]);
+const xml1Icd9Warnings = auditXml1Icd9Warnings(mockIcd9Patients, [rIcd9Missing]);
+assert.equal(xml1Icd9Warnings.length, 1);
+assert.equal(xml1Icd9Warnings[0].suggestedCode, "88.73");
+assert.ok(xml1Icd9Warnings[0].message.includes("88.73"));
+
 console.log(
-  "All tests passed: XML1 CCCD validation, Z00.0 & Z30.1 validation, XML3 duplicate machine time validation, XML7 NGOAITRU_TUNGAY < NGAY_RA validation (+1 day suggestion), duplicate machine excel export, KT251 bed sharing & multi-day & minute duplicate validation & workbook export, warning colors & column filter/sort helpers, TT01 Appendix 2 & QĐ 3276 MA_DOITUONG_KCB validation, TT12 Bảng 6 machine catalog audit, TT12 Bảng 1 multi-department ';' validation, interval overlap detection, and Vietnamese tone/accentless/multi-word text search: OK",
+  "All tests passed: XML1 CCCD validation, Z00.0 & Z30.1 validation, XML3 duplicate machine time validation, XML7 NGOAITRU_TUNGAY < NGAY_RA validation (+1 day suggestion), duplicate machine excel export, KT251 bed sharing & multi-day & minute duplicate validation & workbook export, warning colors & column filter/sort helpers, TT01 Appendix 2 & QĐ 3276 MA_DOITUONG_KCB validation, TT12 Bảng 6 machine catalog audit, TT12 Bảng 1 multi-department ';' validation, interval overlap detection, Vietnamese tone search, and ICD-9-CM Volume 3 (XML1 & XML3 MA_PTTT_QT) audit: OK",
 );

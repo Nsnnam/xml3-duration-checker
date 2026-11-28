@@ -22,11 +22,13 @@ export type CorrectionItem = {
   stt: string;
   maDichVu: string;
   tenDichVu: string;
-  field: string; // NGAY_KQ, NGAY_TH_YL, NGAY_YL, MA_MAY, SO_CCCD, KET_LUAN, etc.
+  field: string; // NGAY_KQ, NGAY_TH_YL, NGAY_YL, MA_MAY, SO_CCCD, KET_LUAN, MA_PTTT_QT, etc.
   oldValue: string;
   newValue: string;
   lyDo: string;
   createdAt: string;
+  ngayThYl?: string; // Thời gian thực hiện y lệnh gốc (XML3: NGAY_TH_YL - dùng để định vị chính xác dòng)
+  ngayYl?: string; // Thời gian y lệnh gốc (XML3: NGAY_YL)
 };
 
 const STORAGE_KEY = "nsn_xml130_correction_plan";
@@ -147,6 +149,7 @@ export const COMMON_LABELS: Record<string, string> = {
   NGAY_TH_YL: "Ngày giờ thực hiện y lệnh",
   NGAY_KQ: "Ngày giờ có kết quả",
   MA_PTTT: "Mã phẫu thuật thủ thuật",
+  MA_PTTT_QT: "Mã PTTT Quốc tế (ICD-9-CM)",
   MA_MAY: "Mã máy thực hiện",
   MA_HIEU_SP: "Mã hiệu sản phẩm",
   TT_THAU: "Thông tin thầu",
@@ -273,6 +276,8 @@ export function generateAutoCorrectionPlan(analysis: BatchAnalysis): CorrectionI
           newValue: newThYl,
           lyDo: `Tránh trùng thời gian trên cùng mã máy ${r.MA_MAY} (dịch +${offsetMins} phút)`,
           createdAt: nowStr,
+          ngayThYl: r.NGAY_TH_YL,
+          ngayYl: r.NGAY_YL,
         });
 
         // Nếu thời lượng sau khi dịch hoặc ban đầu > 70 phút, chỉnh lại NGAY_KQ
@@ -296,6 +301,8 @@ export function generateAutoCorrectionPlan(analysis: BatchAnalysis): CorrectionI
             newValue: newKq,
             lyDo: `Đồng bộ NGAY_KQ sau khi dịch thời gian thực hiện máy (thời lượng 30 phút)`,
             createdAt: nowStr,
+            ngayThYl: r.NGAY_TH_YL,
+            ngayYl: r.NGAY_YL,
           });
         }
       }
@@ -338,6 +345,8 @@ export function generateAutoCorrectionPlan(analysis: BatchAnalysis): CorrectionI
         newValue: newKq,
         lyDo: `Rút ngắn thời lượng thực hiện từ ${r.durationMinutes} phút xuống ${targetDuration} phút (ngưỡng tối đa: ${maxMins} phút)`,
         createdAt: nowStr,
+        ngayThYl: r.NGAY_TH_YL,
+        ngayYl: r.NGAY_YL,
       });
     }
 
@@ -372,6 +381,8 @@ export function generateAutoCorrectionPlan(analysis: BatchAnalysis): CorrectionI
         newValue: newThYl,
         lyDo: "Trừ lùi giờ thực hiện y lệnh 10 phút so với giờ trả kết quả để tránh trùng giờ (0 phút)",
         createdAt: nowStr,
+        ngayThYl: r.NGAY_TH_YL,
+        ngayYl: r.NGAY_YL,
       });
       handledDupKeys.add(itemThKey);
     }
@@ -408,6 +419,8 @@ export function generateAutoCorrectionPlan(analysis: BatchAnalysis): CorrectionI
           ? "Công khám (nhóm 13): Đồng bộ NGAY_YL = NGAY_TH_YL (cho phép trùng thời gian y lệnh và thực hiện)"
           : `Khắc phục lỗi thứ tự: NGAY_TH_YL sớm hơn NGAY_YL (điều chỉnh NGAY_YL trước 5 phút)`,
         createdAt: nowStr,
+        ngayThYl: r.NGAY_TH_YL,
+        ngayYl: r.NGAY_YL,
       });
     }
   }
@@ -530,6 +543,7 @@ export async function exportCorrectionPlanExcel(items: CorrectionItem[]): Promis
     { header: "STT dòng", key: "stt", width: 10 },
     { header: "Mã DV / Thuốc", key: "maDichVu", width: 16 },
     { header: "Tên DV / Thuốc", key: "tenDichVu", width: 28 },
+    { header: "Thời gian TH Y lệnh (gốc)", key: "ngayThYl", width: 24 },
     { header: "Trường sửa", key: "field", width: 14 },
     { header: "Giá trị cũ", key: "oldValue", width: 18 },
     { header: "Giá trị mới", key: "newValue", width: 18 },
@@ -555,6 +569,7 @@ export async function exportCorrectionPlanExcel(items: CorrectionItem[]): Promis
       stt: item.stt,
       maDichVu: item.maDichVu,
       tenDichVu: item.tenDichVu,
+      ngayThYl: item.ngayThYl || "",
       field: item.field,
       oldValue: item.oldValue,
       newValue: item.newValue,

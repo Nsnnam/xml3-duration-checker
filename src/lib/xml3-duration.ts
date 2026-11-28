@@ -17,8 +17,22 @@ import {
   type Tt12UnitData,
 } from "./tt12-library.ts";
 
-export type { MachineServiceRule };
-export { DEFAULT_MANDATORY_MACHINE_SERVICES };
+import {
+  findIcd9Mapping,
+  DEFAULT_ICD9_CM_SERVICES,
+  loadIcd9Services,
+  saveIcd9Services,
+  type Icd9ServiceMapping,
+} from "./icd9-cm-services-data.ts";
+
+export type { MachineServiceRule, Icd9ServiceMapping };
+export {
+  DEFAULT_MANDATORY_MACHINE_SERVICES,
+  findIcd9Mapping,
+  DEFAULT_ICD9_CM_SERVICES,
+  loadIcd9Services,
+  saveIcd9Services,
+};
 
 export const DEFAULT_MANDATORY_MACHINE_MAP: ReadonlyMap<string, MachineServiceRule> = new Map(
   DEFAULT_MANDATORY_MACHINE_SERVICES.map((item) => [item.code.trim().toUpperCase(), item]),
@@ -125,6 +139,7 @@ export type Xml3Record = {
   MA_MAY: string;
   MA_HIEU_SP: string;
   TT_THAU: string;
+  MA_PTTT_QT?: string;
   SO_LUONG?: number;
   DON_GIA?: number;
   DON_GIA_BV?: number;
@@ -170,6 +185,9 @@ export type Xml3Record = {
   hasTimeOverlapWarning?: boolean;
   timeOverlapInfo?: TimeOverlapPeerInfo[];
   hasZ000Warning?: boolean;
+  hasIcd9Warning?: boolean;
+  suggestedIcd9?: string;
+  icd9WarningMessage?: string;
   orderIssues: string[];
   status:
     | "warning"
@@ -302,6 +320,7 @@ export const XML3_FIELDS = [
   "NGAY_YL",
   "NGAY_TH_YL",
   "NGAY_KQ",
+  "MA_PTTT_QT",
   "MA_MAY",
   "MA_HIEU_SP",
   "TT_THAU",
@@ -422,6 +441,7 @@ export type PatientInfo = {
   CHAN_DOAN_VAO?: string;
   MA_BENHKEMTHEO?: string;
   MA_BENH_CHINH?: string;
+  MA_PTTT_QT?: string;
   GT_THE_TU?: string;
   GT_THE_DEN?: string;
   MA_KHUVUC?: string;
@@ -491,7 +511,8 @@ export type WarningCategory =
   | "bed"
   | "ketLuan"
   | "cccd"
-  | "doiTuongKcb";
+  | "doiTuongKcb"
+  | "icd9";
 
 export const DEFAULT_WARNING_COLORS: Record<WarningCategory, string> = {
   all: "#E11D48",
@@ -509,6 +530,7 @@ export const DEFAULT_WARNING_COLORS: Record<WarningCategory, string> = {
   ketLuan: "#0F766E",
   cccd: "#2563EB",
   doiTuongKcb: "#0E7490",
+  icd9: "#059669",
 };
 
 export const WARNING_COLORS_KEY = "nsn-xmlcheck-warning-colors";
@@ -697,6 +719,16 @@ export const WARNING_CATEGORY_CONFIG: Record<WarningCategory, WarningCategoryMet
     icon: "🏷️",
     defaultColor: DEFAULT_WARNING_COLORS.doiTuongKcb,
   },
+  icd9: {
+    id: "icd9",
+    label: "Mã PTTT QT (ICD-9)",
+    badgeText: "ICD-9-CM",
+    badgeClass: "bg-emerald-700 text-white border border-emerald-800 shadow-xs",
+    chipClass: "border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100",
+    activeChipClass: "bg-emerald-700 text-white border-emerald-700 shadow-sm",
+    icon: "🩺",
+    defaultColor: DEFAULT_WARNING_COLORS.icd9,
+  },
 };
 
 export function getXml3RecordCategory(record: Xml3Record): WarningCategory {
@@ -742,6 +774,7 @@ export function getXml3RecordCategory(record: Xml3Record): WarningCategory {
   if (record.hasZ000Warning) return "z000";
   if (record.hasMaMayWarning) return "maMay";
   if (record.hasTtThauWarning) return "ttThau";
+  if (record.hasIcd9Warning) return "icd9";
   if (record.hasBedWarning) {
     if (record.bedWarningType === "multiple-beds") return "multipleBeds";
     return "bed";
@@ -883,6 +916,14 @@ export function getValidationWarningCategory(warning: ValidationWarning): Warnin
       warning.message.includes("1.7"))
   ) {
     return "doiTuongKcb";
+  }
+  if (
+    warning.MA_DICH_VU === "MA_PTTT_QT" ||
+    warning.message.includes("MA_PTTT_QT") ||
+    warning.message.includes("ICD-9") ||
+    warning.message.includes("ICD9")
+  ) {
+    return "icd9";
   }
   if (warning.message.includes("Z00.0") || warning.message.includes("Z30.1")) return "z000";
   if (warning.message.includes("TT_THAU")) return "ttThau";
@@ -1082,6 +1123,7 @@ export function readXml1Patients(doc: Document): Map<string, PatientInfo> {
           directTextOf(node, "MA_BENH_KT") ||
           textOfGeneral(node, "MA_BENH_KT"),
         MA_BENH_CHINH: directTextOf(node, "MA_BENH_CHINH") || textOfGeneral(node, "MA_BENH_CHINH"),
+        MA_PTTT_QT: directTextOf(node, "MA_PTTT_QT") || textOfGeneral(node, "MA_PTTT_QT"),
         GT_THE_TU: directTextOf(node, "GT_THE_TU") || textOfGeneral(node, "GT_THE_TU"),
         GT_THE_DEN: directTextOf(node, "GT_THE_DEN") || textOfGeneral(node, "GT_THE_DEN"),
         MA_KHUVUC: directTextOf(node, "MA_KHUVUC") || textOfGeneral(node, "MA_KHUVUC"),
@@ -1348,6 +1390,88 @@ export function readXml1Warnings(
       }
     }
   });
+  return warnings;
+}
+
+/**
+ * Rà soát và đối chiếu mã phẫu thuật, thủ thuật quốc tế (ICD-9-CM) giữa XML1 và XML3
+ * Căn cứ Phụ lục 3 (QĐ số 5937/QĐ-BYT / Thông tư 21/2020/TT-BYT) và quy ước cột MA_PTTT_QT
+ */
+export function auditXml1Icd9Warnings(
+  patients: ReadonlyMap<string, PatientInfo> | PatientInfo[],
+  xml3Records: Xml3Record[],
+): ValidationWarning[] {
+  const warnings: ValidationWarning[] = [];
+  const patientMap = Array.isArray(patients)
+    ? new Map(patients.map((p) => [p.MA_LK, p]))
+    : patients;
+
+  // Gom các bản ghi XML3 theo MA_LK
+  const xml3ByMaLk = new Map<string, Xml3Record[]>();
+  for (const r of xml3Records) {
+    if (!r.MA_LK) continue;
+    const list = xml3ByMaLk.get(r.MA_LK) || [];
+    list.push(r);
+    xml3ByMaLk.set(r.MA_LK, list);
+  }
+
+  for (const [maLk, pat] of patientMap.entries()) {
+    const pXml3List = xml3ByMaLk.get(maLk) || [];
+    if (!pXml3List.length) continue;
+
+    // Tìm tất cả các mã ICD-9-CM từ các DVKT trong XML3
+    const icd9Codes: string[] = [];
+    for (const r of pXml3List) {
+      const map = findIcd9Mapping(r.MA_DICH_VU);
+      if (map && map.maIcd9) {
+        icd9Codes.push(map.maIcd9.trim());
+      }
+    }
+
+    if (icd9Codes.length === 0) continue;
+
+    // Gom duy nhất theo thứ tự xuất hiện
+    const uniqueCodes: string[] = [];
+    for (const c of icd9Codes) {
+      if (!uniqueCodes.includes(c)) {
+        uniqueCodes.push(c);
+      }
+    }
+    const expectedIcd9List = uniqueCodes.join(";");
+
+    const currentVal = (pat.MA_PTTT_QT || pat.rawFields?.MA_PTTT_QT || "").trim();
+    let hasWarning = false;
+    let message = "";
+
+    if (!currentVal) {
+      hasWarning = true;
+      message = `XML 1. Trường MA_PTTT_QT đang để trống, trong khi XML 3 có các mã phẫu thuật thủ thuật quốc tế (ICD-9-CM): [${expectedIcd9List}].`;
+    } else {
+      const currentParts = currentVal.split(";").map((s) => s.trim().toUpperCase());
+      const missingParts = uniqueCodes.filter((code) => !currentParts.includes(code.toUpperCase()));
+      if (missingParts.length > 0) {
+        hasWarning = true;
+        message = `XML 1. Trường MA_PTTT_QT đang là '${currentVal}', trong khi XML 3 có các mã phẫu thuật thủ thuật quốc tế (ICD-9-CM): [${expectedIcd9List}].`;
+      }
+    }
+
+    if (hasWarning) {
+      warnings.push({
+        source: "XML1",
+        detailIndex: 1,
+        MA_LK: maLk,
+        HO_TEN: pat.HO_TEN || "",
+        MA_BN: pat.MA_BN || "",
+        MA_DICH_VU: "MA_PTTT_QT",
+        TEN_DICH_VU: "Mã PTTT Quốc tế (ICD-9-CM)",
+        message,
+        suggestedCode: expectedIcd9List,
+        suggestedReason: `Đồng bộ ${uniqueCodes.length} mã ICD-9-CM từ bảng XML3: ${expectedIcd9List}`,
+        patient: pat,
+      });
+    }
+  }
+
   return warnings;
 }
 
@@ -3198,6 +3322,36 @@ export function evaluateRecord(
     details.unshift(formatZ301WarningMessage("XML3", stt));
   }
 
+  // Rà soát danh mục kỹ thuật ánh xạ ICD-9-CM (Phụ lục 3 TT 21/2020/TT-BYT)
+  const rawPtttQt = (
+    fields.MA_PTTT_QT ||
+    (fields as Record<string, string>).MA_PTTT_QT ||
+    ""
+  ).trim();
+  const icd9Map = findIcd9Mapping(fields.MA_DICH_VU);
+  let hasIcd9Warning = false;
+  let suggestedIcd9 = "";
+  let icd9WarningMessage = "";
+
+  if (icd9Map) {
+    suggestedIcd9 = icd9Map.maIcd9;
+    if (!rawPtttQt) {
+      hasIcd9Warning = true;
+      icd9WarningMessage = `XML 3. Chi tiết thứ ${fields.STT || "1"}: Dịch vụ kỹ thuật [${fields.MA_DICH_VU} - ${fields.TEN_DICH_VU}] thuộc danh mục ánh xạ ICD-9-CM tương ứng mã [${icd9Map.maIcd9} - ${icd9Map.tenIcd9}], nhưng trường MA_PTTT_QT trong XML3 đang để trống.`;
+    } else {
+      const currentCodes = rawPtttQt.split(";").map((c) => c.trim().toUpperCase());
+      if (!currentCodes.includes(icd9Map.maIcd9.trim().toUpperCase())) {
+        hasIcd9Warning = true;
+        icd9WarningMessage = `XML 3. Chi tiết thứ ${fields.STT || "1"}: Dịch vụ kỹ thuật [${fields.MA_DICH_VU} - ${fields.TEN_DICH_VU}] thuộc danh mục ánh xạ ICD-9-CM tương ứng mã [${icd9Map.maIcd9} - ${icd9Map.tenIcd9}], nhưng trường MA_PTTT_QT đang là '${rawPtttQt}'.`;
+      }
+    }
+  }
+
+  if (hasIcd9Warning) {
+    if (status === "ok") status = "warning";
+    details.unshift(icd9WarningMessage);
+  }
+
   const rawFields = fields as Record<string, string>;
   const soLuong = rawFields.SO_LUONG ? parseFloat(rawFields.SO_LUONG) : undefined;
   const donGia =
@@ -3267,6 +3421,10 @@ export function evaluateRecord(
     hasDuplicateMachineWarning: false,
     hasTimeOverlapWarning: false,
     hasZ000Warning: Boolean(hasZ000Warning || hasZ301Warning),
+    MA_PTTT_QT: rawPtttQt,
+    hasIcd9Warning,
+    suggestedIcd9,
+    icd9WarningMessage,
     orderIssues,
     status,
     detail: details.join(" · "),
@@ -3292,7 +3450,8 @@ export function isWarning(record: Xml3Record): boolean {
     record.hasMaMayWarning ||
     Boolean(record.hasDuplicateMachineWarning) ||
     Boolean(record.hasTimeOverlapWarning) ||
-    Boolean(record.hasZ000Warning)
+    Boolean(record.hasZ000Warning) ||
+    Boolean(record.hasIcd9Warning)
   );
 }
 
@@ -3308,6 +3467,10 @@ function toXml3Warning(record: Xml3Record, index: number): ValidationWarning {
     message: record.detail,
     record,
     patient: record.patient,
+    suggestedCode: record.suggestedIcd9,
+    suggestedReason: record.hasIcd9Warning
+      ? `Điền mã ICD-9-CM [${record.suggestedIcd9}] theo Phụ lục 3 TT 21/2020/TT-BYT`
+      : undefined,
   };
 }
 
@@ -3808,6 +3971,12 @@ export async function analyzeXml3File(
   const warnings = records.filter(isWarning);
   const xml3Warnings = warnings.map(toXml3Warning);
   const xml4Warnings = createXml4Warnings(records, xml4Records, patients);
+  const xml1Icd9List = auditXml1Icd9Warnings(patients, records);
+  for (const w of xml1Icd9List) {
+    if (!xml1Warnings.some((xw) => xw.MA_LK === w.MA_LK && xw.MA_DICH_VU === w.MA_DICH_VU)) {
+      xml1Warnings.push(w);
+    }
+  }
   const z000Warnings = [
     ...xml1Warnings.filter((w) => w.message.includes("Z00.0") || w.message.includes("Z30.1")),
     ...xml2Warnings.filter((w) => w.message.includes("Z00.0") || w.message.includes("Z30.1")),
@@ -4111,6 +4280,12 @@ export async function analyzeXml3Files(
   }
 
   const xml4Warnings = createXml4Warnings(allRecords, xml4Records, sharedPatients);
+  const batchXml1Icd9Warnings = auditXml1Icd9Warnings(sharedPatients, allRecords);
+  for (const w of batchXml1Icd9Warnings) {
+    if (!xml1Warnings.some((xw) => xw.MA_LK === w.MA_LK && xw.MA_DICH_VU === w.MA_DICH_VU)) {
+      xml1Warnings.push(w);
+    }
+  }
 
   const allValidationWarnings: ValidationWarning[] = [];
   const addedWarningKeys = new Set<string>();

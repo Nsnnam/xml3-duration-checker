@@ -2,6 +2,7 @@ import ExcelJS from "exceljs";
 import fileSaver from "file-saver";
 import { formatTimestampForFilename } from "./timezone.ts";
 import type { ServiceRule, DrugRule, MachineServiceRule } from "./xml3-duration.ts";
+import type { Icd9ServiceMapping } from "./icd9-cm-services-data.ts";
 
 const saveAs =
   typeof fileSaver === "function"
@@ -402,4 +403,46 @@ export async function importLibraryFromExcel(file: File): Promise<{
     drugRules: importedDrugRules,
     machineRules: importedMachineRules,
   };
+}
+
+/**
+ * Xuất toàn bộ danh mục ánh xạ DVKT sang ICD-9-CM Volume 3 ra file Excel
+ */
+export async function exportIcd9MappingsToExcel(
+  mappings: Icd9ServiceMapping[],
+  filenamePrefix: string = "DanhMuc_AnhXa_DVKT_ICD9_CM",
+): Promise<void> {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "Nguyễn Sơn Nam (Nsnnam)";
+  workbook.created = new Date();
+
+  const sheet = workbook.addWorksheet("ICD9_CM_Volume3");
+  sheet.columns = [
+    { header: "STT", key: "stt", width: 8 },
+    { header: "Mã DVKT tương đương", key: "maDichVu", width: 22 },
+    { header: "Tên kỹ thuật tương đương", key: "tenDichVu", width: 45 },
+    { header: "Mã ICD-9-CM", key: "maIcd9", width: 16 },
+    { header: "Tên phẫu thuật, thủ thuật theo ICD-9-CM Volume 3", key: "tenIcd9", width: 50 },
+    { header: "Chuyên khoa", key: "chuyenKhoa", width: 25 },
+  ];
+
+  mappings.forEach((item, index) => {
+    sheet.addRow({
+      stt: index + 1,
+      maDichVu: item.maDichVu,
+      tenDichVu: item.tenDichVu,
+      maIcd9: item.maIcd9,
+      tenIcd9: item.tenIcd9,
+      chuyenKhoa: item.chuyenKhoa || "",
+    });
+  });
+
+  styleHeader(sheet, "059669", 6);
+  autoFitColumns(sheet, [8, 20, 35, 14, 40, 20]);
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  saveAs(blob, `${formatTimestampForFilename()}_${filenamePrefix}.xlsx`);
 }

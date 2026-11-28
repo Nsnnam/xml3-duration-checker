@@ -2,12 +2,23 @@ export const APP_META = {
   name: "NsN_XMLcheck",
   title: "NsN_XMLcheck",
   description: "Tổng hợp công cụ xử lý XML_Namns",
-  version: "2.26.6",
+  version: "2.26.7",
   date: "2026-11-28",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.26.7",
+      date: "2026-11-28",
+      changes: [
+        "Tích hợp danh mục 8,033 Dịch vụ kỹ thuật tương đương ICD-9-CM Volume 3 theo Thông tư 21/2020/TT-BYT vào Thư viện quy tắc.",
+        "Rà soát và cảnh báo cột MA_PTTT_QT trên cả XML3 và XML1: Cảnh báo DVKT thiếu mã ICD-9-CM tương ứng trên XML3 và tự động tổng hợp chuỗi mã ICD-9-CM duy nhất vào XML1.",
+        "Hỗ trợ sửa nhanh 1-Click ('⚡ Gán ICD-9') và sửa hàng loạt đưa vào Kế hoạch chỉnh sửa cho cả XML1 và XML3.",
+        "Bổ sung mốc thời gian thực hiện y lệnh gốc (NGAY_TH_YL) vào Kế hoạch chỉnh sửa để tránh sửa nhầm khi kê trùng DVKT nhiều lần trong ngày.",
+        "Thu gọn 2 tùy chọn cấu hình nâng cao (Rà soát trùng khoảng thời gian & Kiểm tra mã bệnh kèm theo) giúp giao diện gọn gàng, trực quan.",
+      ],
+    },
     {
       version: "2.26.6",
       date: "2026-11-28",

@@ -53,6 +53,7 @@ function calcDiffMinutes(startRaw?: string, endRaw?: string): number | null {
 }
 import { WarningColorModal } from "../lib/warning-color-modal.tsx";
 import { Tt12LibraryView } from "../lib/tt12-library-view.tsx";
+import { Icd9LibraryView } from "../lib/icd9-library-view.tsx";
 import {
   loadTelegramConfig,
   saveTelegramConfig,
@@ -1825,6 +1826,7 @@ function CheckerView({
       ketLuan: 0,
       cccd: 0,
       doiTuongKcb: 0,
+      icd9: 0,
     };
     for (const r of list) {
       const isDurApplicable = isDurationCheckApplicableGroup(r.MA_NHOM, groupCodes);
@@ -1864,6 +1866,9 @@ function CheckerView({
       if (r.hasDuplicateMachineWarning && cat !== "dupMachine") {
         counts.dupMachine = (counts.dupMachine || 0) + 1;
       }
+      if (r.hasIcd9Warning && cat !== "icd9") {
+        counts.icd9 = (counts.icd9 || 0) + 1;
+      }
     }
     if (analysis?.z000Warnings) {
       counts.z000 = Math.max(counts.z000, analysis.z000Warnings.length);
@@ -1888,6 +1893,14 @@ function CheckerView({
           w.message.includes("sơ sinh"),
       ).length;
       counts.doiTuongKcb = doiTuongCount;
+      const icd9Xml1Count = analysis.xml1Warnings.filter(
+        (w) =>
+          w.MA_DICH_VU === "MA_PTTT_QT" ||
+          w.message.includes("MA_PTTT_QT") ||
+          w.message.includes("ICD-9") ||
+          w.message.includes("ICD9"),
+      ).length;
+      counts.icd9 = (counts.icd9 || 0) + icd9Xml1Count;
     }
     return counts;
   }, [onlyWarnings, filteredWarnings, filteredRecords, analysis, groupCodes]);
@@ -2207,6 +2220,57 @@ function CheckerView({
     }
   };
 
+  const handleBatchFixIcd9Xml3 = () => {
+    if (!onSaveCorrectionItems) return;
+    const targetRecords = (
+      selectedXml3Keys.size > 0
+        ? displayRecords.filter((r) => selectedXml3Keys.has(`${r.fileName}-${r.MA_LK}-${r.STT}`))
+        : displayRecords
+    ).filter((r) => r.hasIcd9Warning && r.suggestedIcd9);
+
+    if (targetRecords.length === 0) return;
+
+    const newItems: CorrectionItem[] = [];
+    for (const r of targetRecords) {
+      const dossier = analysis?.dossiers?.find((d) => d.maLk === r.MA_LK);
+      const ngayVao = dossier?.patient?.NGAY_VAO || r.NGAY_YL || "";
+      const ngayRa = dossier?.patient?.NGAY_RA || r.NGAY_KQ || "";
+      const tuNgay = toHisDateString(ngayVao) || toHisDateString(r.NGAY_YL);
+      const denNgay = toHisDateString(ngayRa) || toHisDateString(r.NGAY_KQ);
+
+      newItems.push({
+        id: `plan_xml3_icd9_${r.MA_LK}_${r.STT}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        maLk: r.MA_LK,
+        maBa: r.MA_BN || dossier?.patient?.MA_BN || "",
+        hoTen: r.HO_TEN || dossier?.patient?.HO_TEN || "",
+        ngayVao,
+        ngayRa,
+        tuNgay,
+        denNgay,
+        tab: "XML3",
+        stt: r.STT,
+        maDichVu: r.MA_DICH_VU,
+        tenDichVu: r.TEN_DICH_VU || r.TEN_VAT_TU,
+        ngayThYl: r.NGAY_TH_YL,
+        ngayYl: r.NGAY_YL,
+        field: "MA_PTTT_QT",
+        oldValue: r.MA_PTTT_QT || "",
+        newValue: r.suggestedIcd9!,
+        lyDo:
+          r.icd9WarningMessage || "Gán mã PTTT QT (ICD-9-CM Volume 3) theo Thông tư 21/2020/TT-BYT",
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    if (newItems.length > 0) {
+      onSaveCorrectionItems(
+        newItems,
+        `✓ Đã thêm ${newItems.length} dịch vụ kỹ thuật cần bổ sung mã ICD-9-CM vào Kế hoạch sửa!`,
+      );
+      setSelectedXml3Keys(new Set());
+    }
+  };
+
   const handleBatchResetXml3 = () => {
     if (selectedXml3Keys.size === 0) return;
     const targetRecords = displayRecords.filter((r) =>
@@ -2437,6 +2501,10 @@ function CheckerView({
     return list;
   }, [records, columnFilters, sortConfig]);
 
+  const xml3Icd9List = useMemo(() => {
+    return displayRecords.filter((r) => r.hasIcd9Warning && r.suggestedIcd9);
+  }, [displayRecords]);
+
   return (
     <div className="space-y-6">
       <section className="space-y-4">
@@ -2551,69 +2619,89 @@ function CheckerView({
               </p>
             </details>
 
-            {/* Tùy chọn kiểm tra trùng khoảng thời gian (Interval Overlap) */}
-            <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50/80 p-4 shadow-2xs transition hover:bg-amber-50">
-              <label className="flex cursor-pointer items-start gap-3 select-none">
-                <input
-                  type="checkbox"
-                  checked={checkTimeOverlap}
-                  onChange={(e) => onCheckTimeOverlapChange(e.target.checked)}
-                  className="mt-1 h-4 w-4 rounded accent-amber-600 focus:ring-amber-500 cursor-pointer"
-                />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
-                      <span>⏱️</span>
-                      <span>
-                        Rà soát trùng trong khoảng thời gian (Interval Overlap) giữa các nhóm DVKT &
-                        trên cùng mã máy
-                      </span>
-                    </span>
-                    <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-black text-amber-900 border border-amber-400 shadow-2xs">
-                      MẶC ĐỊNH BẬT
-                    </span>
-                  </div>
-                  <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
-                    Kiểm tra các dịch vụ của <b>cùng một người bệnh</b> có khoảng thời gian thực
-                    hiện giao nhau (giao giữa [NGAY_TH_YL, NGAY_KQ] &gt; 0 phút giữa các nhóm kỹ
-                    thuật hoặc cùng nhóm), đồng thời phát hiện các dịch vụ thực hiện trên{" "}
-                    <b>cùng mã máy</b> có khoảng thời gian chồng lấn lên nhau (thay vì chỉ so khớp
-                    cùng phút bắt đầu).
-                  </p>
+            {/* Tùy chọn kiểm tra nâng cao (Thu gọn mặc định để gọn gàng giao diện) */}
+            <details className="mt-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-3.5 group shadow-2xs">
+              <summary className="cursor-pointer list-none text-xs font-bold text-slate-700 flex items-center justify-between select-none">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm">⚙️</span>
+                  <span className="font-bold text-slate-800">
+                    Tùy chọn kiểm tra nâng cao (Trùng khoảng thời gian & Mã bệnh kèm theo 1.16 /
+                    1.7)
+                  </span>
+                  <span className="text-[11px] font-normal text-slate-500">
+                    · bấm để mở/thu gọn
+                  </span>
                 </div>
-              </label>
-            </div>
+                <span className="text-xs text-slate-400 group-open:rotate-180 transition-transform">
+                  ▼
+                </span>
+              </summary>
+              <div className="mt-3 space-y-3 pt-3 border-t border-slate-200/70">
+                {/* Tùy chọn kiểm tra trùng khoảng thời gian (Interval Overlap) */}
+                <div className="rounded-2xl border border-amber-300 bg-amber-50/80 p-3.5 shadow-2xs transition hover:bg-amber-50">
+                  <label className="flex cursor-pointer items-start gap-3 select-none">
+                    <input
+                      type="checkbox"
+                      checked={checkTimeOverlap}
+                      onChange={(e) => onCheckTimeOverlapChange(e.target.checked)}
+                      className="mt-1 h-4 w-4 rounded accent-amber-600 focus:ring-amber-500 cursor-pointer"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                          <span>⏱️</span>
+                          <span>
+                            Rà soát trùng trong khoảng thời gian (Interval Overlap) giữa các nhóm
+                            DVKT & trên cùng mã máy
+                          </span>
+                        </span>
+                        <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-black text-amber-900 border border-amber-400 shadow-2xs">
+                          MẶC ĐỊNH BẬT
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-slate-600 leading-relaxed">
+                        Kiểm tra các dịch vụ của <b>cùng một người bệnh</b> có khoảng thời gian thực
+                        hiện giao nhau (giao giữa [NGAY_TH_YL, NGAY_KQ] &gt; 0 phút giữa các nhóm kỹ
+                        thuật hoặc cùng nhóm), đồng thời phát hiện các dịch vụ thực hiện trên{" "}
+                        <b>cùng mã máy</b> có khoảng thời gian chồng lấn lên nhau (thay vì chỉ so
+                        khớp cùng phút bắt đầu).
+                      </p>
+                    </div>
+                  </label>
+                </div>
 
-            {/* Tùy chọn kiểm tra MA_BENH_KT cho đối tượng KCB 1.16 & 1.7 */}
-            <div className="mt-3 rounded-2xl border border-blue-300 bg-blue-50/80 p-4 shadow-2xs transition hover:bg-blue-50">
-              <label className="flex cursor-pointer items-start gap-3 select-none">
-                <input
-                  type="checkbox"
-                  checked={Boolean(checkMaBenhKtForDoiTuong)}
-                  onChange={(e) => onCheckMaBenhKtChange?.(e.target.checked)}
-                  className="mt-1 h-4 w-4 rounded accent-blue-600 focus:ring-blue-500 cursor-pointer"
-                />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
-                      <span>🏷️</span>
-                      <span>
-                        Kiểm tra mã bệnh kèm theo (MA_BENH_KT) cho đối tượng KCB (1.16 & 1.7)
-                      </span>
-                    </span>
-                    <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-700 border border-slate-300">
-                      MẶC ĐỊNH TẮT (CHỈ CĂN CỨ MA_BENH_CHINH)
-                    </span>
-                  </div>
-                  <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
-                    Cảnh báo mã đối tượng <b>1.16</b> (bệnh Phụ lục II TT 01/2025/TT-BYT) và{" "}
-                    <b>1.7</b> (trẻ sơ sinh) sẽ chỉ căn cứ trên cột <b>MA_BENH_CHINH</b> của XML1.
-                    Tích chọn ô này nếu muốn mở rộng kiểm tra cả các mã bệnh kèm theo (MA_BENH_KT /
-                    MA_BENHKEMTHEO).
-                  </p>
+                {/* Tùy chọn kiểm tra MA_BENH_KT cho đối tượng KCB 1.16 & 1.7 */}
+                <div className="rounded-2xl border border-blue-300 bg-blue-50/80 p-3.5 shadow-2xs transition hover:bg-blue-50">
+                  <label className="flex cursor-pointer items-start gap-3 select-none">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(checkMaBenhKtForDoiTuong)}
+                      onChange={(e) => onCheckMaBenhKtChange?.(e.target.checked)}
+                      className="mt-1 h-4 w-4 rounded accent-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                          <span>🏷️</span>
+                          <span>
+                            Kiểm tra mã bệnh kèm theo (MA_BENH_KT) cho đối tượng KCB (1.16 & 1.7)
+                          </span>
+                        </span>
+                        <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-700 border border-slate-300">
+                          MẶC ĐỊNH TẮT (CHỈ CĂN CỨ MA_BENH_CHINH)
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-slate-600 leading-relaxed">
+                        Cảnh báo mã đối tượng <b>1.16</b> (bệnh Phụ lục II TT 01/2025/TT-BYT) và{" "}
+                        <b>1.7</b> (trẻ sơ sinh) sẽ chỉ căn cứ trên cột <b>MA_BENH_CHINH</b> của
+                        XML1. Tích chọn ô này nếu muốn mở rộng kiểm tra cả các mã bệnh kèm theo
+                        (MA_BENH_KT / MA_BENHKEMTHEO).
+                      </p>
+                    </div>
+                  </label>
                 </div>
-              </label>
-            </div>
+              </div>
+            </details>
 
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs">
               <span className="text-slate-600 font-medium">
@@ -3086,6 +3174,7 @@ function CheckerView({
                     "ketLuan",
                     "cccd",
                     "doiTuongKcb",
+                    "icd9",
                   ] as WarningCategory[]
                 ).map((catKey) => {
                   const cfg = WARNING_CATEGORY_CONFIG[catKey];
@@ -3101,6 +3190,10 @@ function CheckerView({
                           onAlertTabChange("XML1");
                         } else if (catKey === "ketLuan") {
                           onAlertTabChange("XML4");
+                        } else if (catKey === "icd9") {
+                          if (alertTab !== "XML1" && alertTab !== "XML3") {
+                            onAlertTabChange("XML3");
+                          }
                         } else if (catKey === "z000") {
                           if (analysis?.z000Warnings && analysis.z000Warnings.length > 0) {
                             onAlertTabChange(analysis.z000Warnings[0].source);
@@ -3342,6 +3435,16 @@ function CheckerView({
                           <span>🛏️</span> Giảm tỷ lệ về 33% (Ghép 3+)
                         </button>
 
+                        {/* Nút gán mã ICD-9-CM hàng loạt */}
+                        <button
+                          type="button"
+                          onClick={handleBatchFixIcd9Xml3}
+                          className="rounded-xl border border-emerald-400 bg-emerald-50 px-3 py-1.5 text-[11px] font-bold text-emerald-950 hover:bg-emerald-100 shadow-xs flex items-center gap-1 cursor-pointer"
+                          title="Gán mã ICD-9-CM Volume 3 theo Thông tư 21 cho các dịch vụ kỹ thuật đã chọn có gợi ý"
+                        >
+                          <span>🩺</span> Gán mã ICD-9-CM
+                        </button>
+
                         {/* Nút khôi phục hàng loạt về ban đầu */}
                         <button
                           type="button"
@@ -3373,6 +3476,53 @@ function CheckerView({
                       </div>
                     </div>
                   )}
+
+                  {/* Banner sửa nhanh cho ICD-9 XML3 khi có cảnh báo ICD-9 */}
+                  {xml3Icd9List.length > 0 &&
+                    (warningCategoryFilter === "icd9" || warningCategoryFilter === "all") && (
+                      <div className="sticky top-0 z-30 mb-2 flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-emerald-500 bg-emerald-50/98 p-3 shadow-md backdrop-blur-xs animate-in fade-in duration-150">
+                        <div className="flex items-center gap-2.5">
+                          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-700 text-white text-xs font-black shadow-xs">
+                            🩺
+                          </span>
+                          <div>
+                            <div className="text-xs font-black text-emerald-950">
+                              Phát hiện{" "}
+                              <span className="text-emerald-700 underline font-black">
+                                {xml3Icd9List.length}
+                              </span>{" "}
+                              dịch vụ kỹ thuật thuộc danh mục ánh xạ ICD-9-CM (Thông tư 21) chưa có
+                              MA_PTTT_QT
+                            </div>
+                            <div className="text-[11px] text-emerald-700">
+                              Căn cứ Phụ lục 3 Thông tư 21/2020/TT-BYT & QĐ 130: Tự động gán mã
+                              ICD-9-CM Volume 3 tương ứng vào Kế hoạch sửa
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleBatchFixIcd9Xml3}
+                            className="rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 text-xs font-bold shadow-md flex items-center gap-1.5 transition cursor-pointer"
+                            title="Tự động gán mã ICD-9-CM tương ứng cho tất cả các dịch vụ kỹ thuật đang hiển thị vào Kế hoạch sửa"
+                          >
+                            <span>⚡</span> Gán ICD-9 tất cả ({xml3Icd9List.length} DV)
+                          </button>
+
+                          {onOpenCorrectionPlanModal && (
+                            <button
+                              type="button"
+                              onClick={onOpenCorrectionPlanModal}
+                              className="rounded-xl border border-emerald-300 bg-white px-3 py-1.5 text-[11px] font-bold text-emerald-900 hover:bg-emerald-50 shadow-xs flex items-center gap-1 cursor-pointer"
+                            >
+                              <span>📋</span> Kế hoạch ({correctionPlan.length})
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                   {/* Bảng dữ liệu XML3 với thanh tiêu đề đóng băng (freeze header) khi cuộn */}
                   <div className="relative overflow-x-auto overflow-y-auto max-h-[calc(100vh-250px)] min-h-[380px] rounded-2xl border border-slate-200/90 bg-white shadow-xs">
@@ -3648,6 +3798,8 @@ function CheckerView({
                               correctionPlan={correctionPlan}
                               onResetCorrection={onResetCorrection}
                               groupCodes={groupCodes}
+                              onSaveCorrectionItems={onSaveCorrectionItems}
+                              analysis={analysis}
                             />
                           );
                         })}
@@ -3811,6 +3963,8 @@ function WarningRow({
   correctionPlan,
   onResetCorrection,
   groupCodes,
+  onSaveCorrectionItems,
+  analysis,
 }: {
   record: Xml3Record;
   tabCols: TabColumnState;
@@ -3833,6 +3987,8 @@ function WarningRow({
   correctionPlan?: CorrectionItem[];
   onResetCorrection?: (maLk: string, tab: string, stt: string, maDichVu?: string) => void;
   groupCodes?: string[];
+  onSaveCorrectionItems?: (items: CorrectionItem[], msg?: string) => void;
+  analysis?: BatchAnalysis | null;
 }) {
   const cat = getXml3RecordCategory(record);
   const catMeta = WARNING_CATEGORY_CONFIG[cat];
@@ -4289,6 +4445,61 @@ function WarningRow({
             DV: <span className="text-teal-700 font-bold">{record.MA_DICH_VU || "—"}</span>
             {record.MA_VAT_TU && ` · VT: ${record.MA_VAT_TU}`}
           </div>
+          {record.hasIcd9Warning && record.suggestedIcd9 && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50/90 p-1.5">
+              <span className="text-[10px] font-bold text-emerald-950 flex items-center gap-1">
+                <span>🩺 Gợi ý ICD-9:</span>
+                <span className="rounded bg-emerald-700 px-1.5 py-0.2 font-mono font-black text-white text-[10px]">
+                  {record.suggestedIcd9}
+                </span>
+              </span>
+              {onSaveCorrectionItems && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const dossier = analysis?.dossiers?.find((d) => d.maLk === record.MA_LK);
+                    const ngayVao = dossier?.patient?.NGAY_VAO || record.NGAY_YL || "";
+                    const ngayRa = dossier?.patient?.NGAY_RA || record.NGAY_KQ || "";
+                    const tuNgay = toHisDateString(ngayVao) || toHisDateString(record.NGAY_YL);
+                    const denNgay = toHisDateString(ngayRa) || toHisDateString(record.NGAY_KQ);
+                    onSaveCorrectionItems(
+                      [
+                        {
+                          id: `plan_xml3_icd9_${record.MA_LK}_${record.STT}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                          maLk: record.MA_LK,
+                          maBa: record.MA_BN || dossier?.patient?.MA_BN || "",
+                          hoTen: record.HO_TEN || dossier?.patient?.HO_TEN || "",
+                          ngayVao,
+                          ngayRa,
+                          tuNgay,
+                          denNgay,
+                          tab: "XML3",
+                          stt: record.STT,
+                          maDichVu: record.MA_DICH_VU,
+                          tenDichVu: record.TEN_DICH_VU || record.TEN_VAT_TU,
+                          ngayThYl: record.NGAY_TH_YL,
+                          ngayYl: record.NGAY_YL,
+                          field: "MA_PTTT_QT",
+                          oldValue: record.MA_PTTT_QT || "",
+                          newValue: record.suggestedIcd9!,
+                          lyDo:
+                            record.icd9WarningMessage ||
+                            "Gán mã PTTT QT (ICD-9-CM Volume 3) theo Thông tư 21/2020/TT-BYT",
+                          createdAt: new Date().toISOString(),
+                        },
+                      ],
+                      `✓ Đã gán mã ICD-9-CM [${record.suggestedIcd9}] cho DV [${record.MA_DICH_VU}]!`,
+                    );
+                  }}
+                  className="rounded bg-emerald-700 hover:bg-emerald-800 text-white px-2 py-0.5 text-[10px] font-bold shadow-xs transition cursor-pointer"
+                  title="Gán mã ICD-9-CM này vào Kế hoạch sửa"
+                >
+                  <span>⚡</span> Gán {record.suggestedIcd9}
+                </button>
+              )}
+            </div>
+          )}
         </td>
       )}
       {isVisible("group") && (
@@ -4809,6 +5020,91 @@ function ValidationTable({
     }
   };
 
+  const handleQuickFixIcd9Xml1 = (w: ValidationWarning, targetCode: string, reason: string) => {
+    if (!onSaveCorrectionItems) return;
+    const dossier = analysis?.dossiers?.find((d) => d.maLk === w.MA_LK);
+    const ngayVao = dossier?.patient?.NGAY_VAO || "";
+    const ngayRa = dossier?.patient?.NGAY_RA || "";
+    const tuNgay = toHisDateString(ngayVao);
+    const denNgay = toHisDateString(ngayRa);
+    const currentCode = dossier?.patient?.MA_PTTT_QT || "";
+
+    const item: CorrectionItem = {
+      id: `plan_xml1_icd9_${w.MA_LK}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      maLk: w.MA_LK,
+      maBa: w.MA_BN || dossier?.patient?.MA_BN || "",
+      hoTen: w.HO_TEN || dossier?.patient?.HO_TEN || "",
+      ngayVao,
+      ngayRa,
+      tuNgay,
+      denNgay,
+      tab: "XML1",
+      stt: String(w.detailIndex || "1"),
+      maDichVu: "MA_PTTT_QT",
+      tenDichVu: "Mã PTTT Quốc tế (ICD-9-CM)",
+      field: "MA_PTTT_QT",
+      oldValue: currentCode,
+      newValue: targetCode,
+      lyDo: reason,
+      createdAt: new Date().toISOString(),
+    };
+
+    onSaveCorrectionItems(
+      [item],
+      `✓ Đã cập nhật MA_PTTT_QT của BN ${item.hoTen || w.MA_LK} thành [${targetCode}]!`,
+    );
+  };
+
+  const handleBatchFixAllIcd9Xml1 = () => {
+    if (!onSaveCorrectionItems || icd9SuggestionsList.length === 0) return;
+    const targets =
+      selectedWarningIds.size > 0
+        ? icd9SuggestionsList.filter((x, idx) =>
+            selectedWarningIds.has(`${x.warning.MA_LK}_${x.warning.detailIndex || idx + 1}`),
+          )
+        : icd9SuggestionsList;
+
+    if (targets.length === 0) return;
+
+    const newItems: CorrectionItem[] = [];
+    for (const { warning: w, suggestedCode, suggestedReason } of targets) {
+      const dossier = analysis?.dossiers?.find((d) => d.maLk === w.MA_LK);
+      const ngayVao = dossier?.patient?.NGAY_VAO || "";
+      const ngayRa = dossier?.patient?.NGAY_RA || "";
+      const tuNgay = toHisDateString(ngayVao);
+      const denNgay = toHisDateString(ngayRa);
+      const currentCode = dossier?.patient?.MA_PTTT_QT || "";
+
+      newItems.push({
+        id: `plan_xml1_icd9_${w.MA_LK}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        maLk: w.MA_LK,
+        maBa: w.MA_BN || dossier?.patient?.MA_BN || "",
+        hoTen: w.HO_TEN || dossier?.patient?.HO_TEN || "",
+        ngayVao,
+        ngayRa,
+        tuNgay,
+        denNgay,
+        tab: "XML1",
+        stt: String(w.detailIndex || "1"),
+        maDichVu: "MA_PTTT_QT",
+        tenDichVu: "Mã PTTT Quốc tế (ICD-9-CM)",
+        field: "MA_PTTT_QT",
+        oldValue: currentCode,
+        newValue: suggestedCode,
+        lyDo: suggestedReason,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    if (newItems.length > 0) {
+      onSaveCorrectionItems(
+        newItems,
+        `✓ Đã tự động cập nhật MA_PTTT_QT cho ${newItems.length} hồ sơ XML1 vào Kế hoạch sửa!`,
+      );
+      setSelectedWarningIds(new Set());
+    }
+  };
+
   const displayWarnings = useMemo(() => {
     let list = warnings;
 
@@ -4905,6 +5201,33 @@ function ValidationTable({
       .filter(Boolean) as {
       warning: ValidationWarning;
       suggestion: { code: string; reason: string };
+    }[];
+  }, [source, displayWarnings]);
+
+  const icd9SuggestionsList = useMemo(() => {
+    if (source !== "XML1") return [];
+    return displayWarnings
+      .map((w) => {
+        if (
+          (w.MA_DICH_VU === "MA_PTTT_QT" ||
+            w.message.includes("MA_PTTT_QT") ||
+            w.message.includes("ICD-9") ||
+            w.message.includes("ICD9")) &&
+          w.suggestedCode
+        ) {
+          return {
+            warning: w,
+            suggestedCode: w.suggestedCode,
+            suggestedReason:
+              w.suggestedReason || "Tổng hợp mã PTTT QT (ICD-9-CM) từ XML3 vào XML1 theo quy định",
+          };
+        }
+        return null;
+      })
+      .filter(Boolean) as {
+      warning: ValidationWarning;
+      suggestedCode: string;
+      suggestedReason: string;
     }[];
   }, [source, displayWarnings]);
 
@@ -5077,6 +5400,51 @@ function ValidationTable({
                     type="button"
                     onClick={onOpenCorrectionPlanModal}
                     className="rounded-xl border border-teal-300 bg-white px-3 py-1.5 text-[11px] font-bold text-teal-900 hover:bg-teal-50 shadow-xs flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>📋</span> Kế hoạch ({correctionPlanCount})
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Thanh thao tác nhanh cho MA_PTTT_QT (ICD-9-CM) XML1 - Đóng băng đầu trang */}
+          {source === "XML1" && icd9SuggestionsList.length > 0 && (
+            <div className="sticky top-0 z-30 mb-2 flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-emerald-500 bg-emerald-50/95 p-3 shadow-md backdrop-blur-xs animate-in fade-in duration-150">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-700 text-white text-xs font-black shadow-xs">
+                  🩺
+                </span>
+                <div>
+                  <div className="text-xs font-black text-emerald-950">
+                    Phát hiện{" "}
+                    <span className="text-emerald-700 underline font-black">
+                      {icd9SuggestionsList.length}
+                    </span>{" "}
+                    hồ sơ có mã PTTT QT (ICD-9-CM) từ XML3 cần tổng hợp vào XML1
+                  </div>
+                  <div className="text-[11px] text-emerald-700">
+                    Quy chuẩn QĐ 130 / QĐ 3176: XML1 phải tổng hợp đầy đủ chuỗi các mã ICD-9-CM của
+                    các dịch vụ kỹ thuật đã thực hiện trong XML3 (phân cách bằng dấu chấm phẩy)
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleBatchFixAllIcd9Xml1}
+                  className="rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 text-xs font-bold shadow-md flex items-center gap-1.5 transition cursor-pointer"
+                  title="Tự động áp dụng tất cả các chuỗi mã ICD-9-CM tổng hợp vào XML1 trong kế hoạch sửa"
+                >
+                  <span>⚡</span> Tổng hợp & Cập nhật tất cả ({icd9SuggestionsList.length} ca)
+                </button>
+
+                {onOpenCorrectionPlanModal && (
+                  <button
+                    type="button"
+                    onClick={onOpenCorrectionPlanModal}
+                    className="rounded-xl border border-emerald-300 bg-white px-3 py-1.5 text-[11px] font-bold text-emerald-900 hover:bg-emerald-50 shadow-xs flex items-center gap-1 cursor-pointer"
                   >
                     <span>📋</span> Kế hoạch ({correctionPlanCount})
                   </button>
@@ -5294,6 +5662,26 @@ function ValidationTable({
                                 <span>⚡</span> Đổi {dtSuggestion.code}
                               </button>
                             )}
+                            {source === "XML1" &&
+                              warning.MA_DICH_VU === "MA_PTTT_QT" &&
+                              warning.suggestedCode &&
+                              !isPlanned && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleQuickFixIcd9Xml1(
+                                      warning,
+                                      warning.suggestedCode!,
+                                      warning.suggestedReason ||
+                                        "Tổng hợp mã PTTT QT (ICD-9-CM) từ XML3 vào XML1 theo quy định",
+                                    )
+                                  }
+                                  className="inline-flex items-center justify-center gap-1 rounded-md bg-emerald-700 hover:bg-emerald-800 text-white px-2 py-1 text-[11px] font-bold transition shadow-xs whitespace-nowrap cursor-pointer"
+                                  title={`Cập nhật mã PTTT QT [${warning.suggestedCode}] vào XML1`}
+                                >
+                                  <span>🩺</span> Thêm ICD-9
+                                </button>
+                              )}
                             {source === "XML2" && warning.MA_DICH_VU && (
                               <button
                                 type="button"
@@ -5451,6 +5839,39 @@ function ValidationTable({
                               )}
                             </div>
                           )}
+                          {source === "XML1" &&
+                            warning.MA_DICH_VU === "MA_PTTT_QT" &&
+                            warning.suggestedCode && (
+                              <div className="mt-2 flex flex-wrap items-center gap-2 p-2 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-700/60 text-slate-800 dark:text-slate-200">
+                                <span className="text-[11px] font-bold text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
+                                  <span>🩺 Gợi ý chuỗi ICD-9-CM tổng hợp:</span>
+                                  <span className="px-2 py-0.5 rounded-md bg-emerald-700 text-white font-mono font-black text-xs">
+                                    {warning.suggestedCode}
+                                  </span>
+                                </span>
+                                {!isPlanned ? (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleQuickFixIcd9Xml1(
+                                        warning,
+                                        warning.suggestedCode!,
+                                        warning.suggestedReason ||
+                                          "Tổng hợp mã PTTT QT (ICD-9-CM) từ XML3 vào XML1 theo quy định",
+                                      )
+                                    }
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold shadow-xs transition cursor-pointer"
+                                    title="Cập nhật chuỗi mã ICD-9-CM này vào XML1 trong kế hoạch sửa"
+                                  >
+                                    <span>⚡</span> Cập nhật vào XML1
+                                  </button>
+                                ) : (
+                                  <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                                    <span>✓</span> Đã thêm vào kế hoạch sửa
+                                  </span>
+                                )}
+                              </div>
+                            )}
                         </td>
                       )}
                     </tr>
@@ -5662,7 +6083,7 @@ function LibraryView({
   onOpenColorModal?: () => void;
   onRefreshXmlAudit?: () => void;
 }) {
-  const [subTab, setSubTab] = useState<"service" | "drug" | "machine" | "tt12">("service");
+  const [subTab, setSubTab] = useState<"service" | "drug" | "machine" | "tt12" | "icd9">("service");
 
   // Service rule form state
   const [serviceSearch, setServiceSearch] = useState("");
@@ -6097,6 +6518,24 @@ function LibraryView({
             }`}
           >
             📋 Danh mục Thông tư 12 theo CSKCB (6 Bảng)
+          </button>
+          <button
+            onClick={() => setSubTab("icd9")}
+            className={`rounded-xl px-4 py-2 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              subTab === "icd9"
+                ? "bg-emerald-700 text-white shadow-sm"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            <span>🩺</span>
+            <span>Ánh xạ ICD-9-CM (8,033 DVKT)</span>
+            <span
+              className={`rounded-full px-1.5 py-0.2 text-[10px] font-black ${
+                subTab === "icd9" ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-800"
+              }`}
+            >
+              TT 21
+            </span>
           </button>
         </div>
 
@@ -7109,6 +7548,12 @@ function LibraryView({
       {subTab === "tt12" && (
         <div className="mt-6">
           <Tt12LibraryView onRefreshXmlAudit={onRefreshXmlAudit} />
+        </div>
+      )}
+
+      {subTab === "icd9" && (
+        <div className="mt-6">
+          <Icd9LibraryView onRefreshXmlAudit={onRefreshXmlAudit} />
         </div>
       )}
     </div>
