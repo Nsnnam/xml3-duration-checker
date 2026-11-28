@@ -2,12 +2,21 @@ export const APP_META = {
   name: "NsN_XMLcheck",
   title: "NsN_XMLcheck",
   description: "Tổng hợp công cụ xử lý XML_Namns",
-  version: "2.26.3",
+  version: "2.26.4",
   date: "2026-11-28",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.26.4",
+      date: "2026-11-28",
+      changes: [
+        "Ưu tiên tuyệt đối mã cấp cứu (MA_DOITUONG_KCB = 2, 2.x, 02): Người bệnh cấp cứu đương nhiên hưởng 100% chi phí KCB đúng tuyến, tự động bỏ qua toàn bộ cảnh báo yêu cầu đổi sang mã 1.16 kể cả khi có mã bệnh thuộc Phụ lục II TT 01/2025/TT-BYT.",
+        "Gợi ý chuyển về mã 1.15 khi khai 1.16 nhưng bệnh chính không thuộc Phụ lục 2: Khi phát hiện hồ sơ khai mã đối tượng 1.16 nhưng MA_BENH_CHINH không nằm trong danh mục bệnh Phụ lục II TT 01/2025/TT-BYT, hệ thống cảnh báo chuẩn giám định kèm gợi ý điều chỉnh về mã 1.15 theo Quyết định số 3276/QĐ-BYT.",
+        "Hỗ trợ nút sửa nhanh 1-Click '⚡ Đổi 1.15': Thêm nút chuyển đổi 1-Click trên từng dòng cảnh báo XML1 và trên thanh thao tác nhanh hàng loạt (Batch fix), tự động tạo bản ghi kế hoạch sửa với mã mới là 1.15.",
+      ],
+    },
     {
       version: "2.26.3",
       date: "2026-11-28",

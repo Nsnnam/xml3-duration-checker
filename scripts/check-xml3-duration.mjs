@@ -1993,6 +1993,10 @@ const mockDocDoiTuong = {
       createXml1DoiTuongElement("LK-DT-04", "1.7", "J20", "", "202609010000", "202611010800"),
       // BN khai 1.16 đúng chuẩn với N18.5 -> Không có cảnh báo sai đối tượng
       createXml1DoiTuongElement("LK-DT-05", "1.16", "N18.5"),
+      // BN cấp cứu khai mã đối tượng 2 có bệnh ung thư C50.1 -> Ưu tiên cấp cứu, KHÔNG cảnh báo đổi sang 1.16
+      createXml1DoiTuongElement("LK-DT-07", "2", "C50.1"),
+      createXml1DoiTuongElement("LK-DT-08", "2.1", "C50.1"),
+      createXml1DoiTuongElement("LK-DT-09", "02", "C50.1"),
     ];
   },
 };
@@ -2009,6 +2013,7 @@ assert.ok(wDt02);
 assert.equal(getValidationWarningCategory(wDt02), "doiTuongKcb");
 assert.ok(wDt02.message.includes("Mã đối tượng 1.16: Mã bệnh chính"));
 assert.ok(wDt02.message.includes("PHẢI THUỘC Phụ lục 2"));
+assert.ok(wDt02.message.includes("Gợi ý: Điều chỉnh sang mã 1.15"));
 
 const wDt03 = dtWarnings.find((w) => w.MA_LK === "LK-DT-03");
 assert.ok(wDt03);
@@ -2027,6 +2032,20 @@ assert.equal(
   false,
 );
 
+// LK-DT-07, LK-DT-08, LK-DT-09: Cấp cứu (2, 2.1, 02) -> Ưu tiên cấp cứu, bỏ qua cảnh báo 1.16
+assert.equal(
+  dtWarnings.some((w) => w.MA_LK === "LK-DT-07" && w.MA_DICH_VU === "MA_DOITUONG_KCB"),
+  false,
+);
+assert.equal(
+  dtWarnings.some((w) => w.MA_LK === "LK-DT-08" && w.MA_DICH_VU === "MA_DOITUONG_KCB"),
+  false,
+);
+assert.equal(
+  dtWarnings.some((w) => w.MA_LK === "LK-DT-09" && w.MA_DICH_VU === "MA_DOITUONG_KCB"),
+  false,
+);
+
 // Test tùy chọn checkMaBenhKtForDoiTuong
 // Bệnh chính J18.1 (không thuộc PL2), bệnh kèm theo E11.7 (thuộc PL2)
 const mockDocDoiTuongWithSub = {
@@ -2041,6 +2060,7 @@ assert.ok(wDt06Default);
 assert.ok(
   wDt06Default.message.includes("Mã đối tượng 1.16: Mã bệnh chính [J18.1] PHẢI THUỘC Phụ lục 2"),
 );
+assert.ok(wDt06Default.message.includes("Gợi ý: Điều chỉnh sang mã 1.15"));
 
 // Khi bật tùy chọn checkMaBenhKtForDoiTuong: kiểm tra cả MA_BENH_KT -> Hợp lệ, không báo lỗi!
 const dtWarningsWithSub = readXml1Warnings(mockDocDoiTuongWithSub, new Map(), undefined, {

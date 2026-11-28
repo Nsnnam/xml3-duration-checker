@@ -1888,9 +1888,11 @@ function CheckerView({
       counts.cccd = cccdCount;
       const doiTuongCount = analysis.xml1Warnings.filter(
         (w) =>
+          w.MA_DICH_VU === "MA_DOITUONG_KCB" ||
           w.message.includes("MA_DOITUONG_KCB") ||
           w.message.includes("mã đối tượng") ||
           w.message.includes("1.16") ||
+          w.message.includes("1.15") ||
           w.message.includes("1.7") ||
           w.message.includes("Phụ lục II") ||
           w.message.includes("sơ sinh"),
@@ -4456,6 +4458,17 @@ function extractSuggestedDoiTuongKcb(warning: ValidationWarning): {
   ) {
     return null;
   }
+  // Gợi ý điều chỉnh về mã 1.15 (Mã đối tượng 1.16 nhưng bệnh chính không thuộc Phụ lục II)
+  if (
+    warning.message.includes("1.15") ||
+    (warning.message.includes("1.16") && warning.message.includes("PHẢI THUỘC Phụ lục 2"))
+  ) {
+    return {
+      code: "1.15",
+      reason:
+        "Điều chỉnh về mã 1.15 theo QĐ 3276/QĐ-BYT (mã bệnh chính không thuộc Phụ lục II TT 01/2025/TT-BYT)",
+    };
+  }
   // Gợi ý điều chỉnh sang mã 1.16 (bệnh Phụ lục II TT 01/2025 tại CSKCB cấp cơ bản)
   if (
     warning.message.includes("1.16") &&
@@ -4659,7 +4672,8 @@ function ValidationTable({
     const ngayRa = dossier?.patient?.NGAY_RA || "";
     const tuNgay = toHisDateString(ngayVao);
     const denNgay = toHisDateString(ngayRa);
-    const currentCode = dossier?.patient?.MA_DOITUONG_KCB || "1.15";
+    const currentCode =
+      dossier?.patient?.MA_DOITUONG_KCB || (targetCode === "1.15" ? "1.16" : "1.15");
 
     const item: CorrectionItem = {
       id: `plan_xml1_doituong_${w.MA_LK}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -4714,7 +4728,8 @@ function ValidationTable({
       const ngayRa = dossier?.patient?.NGAY_RA || "";
       const tuNgay = toHisDateString(ngayVao);
       const denNgay = toHisDateString(ngayRa);
-      const currentCode = dossier?.patient?.MA_DOITUONG_KCB || "1.15";
+      const currentCode =
+        dossier?.patient?.MA_DOITUONG_KCB || (suggestion.code === "1.15" ? "1.16" : "1.15");
 
       newItems.push({
         id: `plan_xml1_doituong_${w.MA_LK}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -4984,8 +4999,9 @@ function ValidationTable({
                     hồ sơ có gợi ý điều chỉnh MA_DOITUONG_KCB theo QĐ 3276 & TT 01/2025
                   </div>
                   <div className="text-[11px] text-teal-700">
-                    Điều chỉnh sang mã 1.16 (bệnh Phụ lục II tại cơ sở cấp cơ bản) hoặc mã 1.7 (trẻ
-                    sơ sinh điều trị sau sinh) để bảo đảm quyền lợi BHYT 100%
+                    Điều chỉnh sang mã 1.16 (bệnh Phụ lục II tại cơ sở cấp cơ bản), mã 1.15 (tự đến
+                    cấp cơ bản) hoặc mã 1.7 (trẻ sơ sinh điều trị sau sinh) để bảo đảm đúng đối
+                    tượng KCB theo quy định
                   </div>
                 </div>
               </div>

@@ -873,9 +873,11 @@ export function getValidationWarningCategory(warning: ValidationWarning): Warnin
     return "cccd";
   if (
     warning.source === "XML1" &&
-    (warning.message.includes("MA_DOITUONG_KCB") ||
+    (warning.MA_DICH_VU === "MA_DOITUONG_KCB" ||
+      warning.message.includes("MA_DOITUONG_KCB") ||
       warning.message.includes("mã đối tượng") ||
       warning.message.includes("1.16") ||
+      warning.message.includes("1.15") ||
       warning.message.includes("1.7"))
   ) {
     return "doiTuongKcb";
@@ -1226,30 +1228,37 @@ export function readXml1Warnings(
 
     // Kiểm tra MA_DOITUONG_KCB theo Quyết định 3276/QĐ-BYT và Thông tư 01/2025/TT-BYT
     if (maDoiTuong) {
+      const cleanDoiTuong = maDoiTuong.trim();
+      const isEmergency =
+        cleanDoiTuong === "2" || cleanDoiTuong.startsWith("2.") || cleanDoiTuong === "02";
       // Mặc định chỉ căn cứ trên cột MA_BENH_CHINH của XML1 (phần check MA_BENH_KT chuyển sang tùy chọn, mặc định tắt)
       const subDiseaseForDoiTuong = options?.checkMaBenhKtForDoiTuong ? maBenhKt : undefined;
 
       // 1. Kiểm tra bệnh Phụ lục II TT 01/2025/TT-BYT tại CSKCB cấp cơ bản (mã 1.16)
-      const diseaseCheck = checkPatientDiseasesTt01(maBenh, subDiseaseForDoiTuong);
-      if (diseaseCheck.hasAppendix2Disease) {
-        const allMatchedStr = diseaseCheck.matchedDiseases
-          .map((d) => `[${d.matchedCode} - ${d.diseaseName}]`)
-          .join(", ");
-        if (maDoiTuong === "1.15" || maDoiTuong === "1.13" || maDoiTuong === "1.14") {
+      // Nếu MA_DOITUONG_KCB gốc là 2 (cấp cứu) thì ưu tiên mã cấp cứu, bỏ qua cảnh báo MA_DOITUONG_KCB 1.16
+      if (!isEmergency) {
+        const diseaseCheck = checkPatientDiseasesTt01(maBenh, subDiseaseForDoiTuong);
+        if (diseaseCheck.hasAppendix2Disease) {
+          const allMatchedStr = diseaseCheck.matchedDiseases
+            .map((d) => `[${d.matchedCode} - ${d.diseaseName}]`)
+            .join(", ");
+          if (cleanDoiTuong === "1.15" || cleanDoiTuong === "1.13" || cleanDoiTuong === "1.14") {
+            warnings.push({
+              ...base,
+              MA_DICH_VU: "MA_DOITUONG_KCB",
+              TEN_DICH_VU: "Mã đối tượng KCB",
+              message: `XML 1. Chi tiết thứ ${detailIndex}: Sai mã đối tượng KCB: Bệnh nhân có mã bệnh ${allMatchedStr} thuộc Phụ lục II Thông tư 01/2025/TT-BYT nhưng đang khai MA_DOITUONG_KCB là '${cleanDoiTuong}'. Gợi ý: Điều chỉnh sang mã 1.16 theo Quyết định 3276/QĐ-BYT để bảo đảm quyền lợi 100% chi phí KCB BHYT cho người bệnh tự đến KCB tại cơ sở cấp cơ bản.`,
+            });
+          }
+        } else if (cleanDoiTuong === "1.16") {
+          // Nếu MA_DOITUONG_KCB gốc là 1.16 nhưng MA_BENH_CHINH của XML1 không nằm trong phụ lục 2 thì gợi ý chỉnh sửa về 1.15
           warnings.push({
             ...base,
             MA_DICH_VU: "MA_DOITUONG_KCB",
             TEN_DICH_VU: "Mã đối tượng KCB",
-            message: `XML 1. Chi tiết thứ ${detailIndex}: Sai mã đối tượng KCB: Bệnh nhân có mã bệnh ${allMatchedStr} thuộc Phụ lục II Thông tư 01/2025/TT-BYT nhưng đang khai MA_DOITUONG_KCB là '${maDoiTuong}'. Gợi ý: Điều chỉnh sang mã 1.16 theo Quyết định 3276/QĐ-BYT để bảo đảm quyền lợi 100% chi phí KCB BHYT cho người bệnh tự đến KCB tại cơ sở cấp cơ bản.`,
+            message: `XML 1. Chi tiết thứ ${detailIndex}: Mã đối tượng 1.16: Mã bệnh chính [${maBenh || "trống"}] PHẢI THUỘC Phụ lục 2. Gợi ý: Điều chỉnh sang mã 1.15 theo Quyết định 3276/QĐ-BYT (hoặc kiểm tra lại mã bệnh theo Thông tư 01/2025/TT-BYT).`,
           });
         }
-      } else if (maDoiTuong === "1.16") {
-        warnings.push({
-          ...base,
-          MA_DICH_VU: "MA_DOITUONG_KCB",
-          TEN_DICH_VU: "Mã đối tượng KCB",
-          message: `XML 1. Chi tiết thứ ${detailIndex}: Mã đối tượng 1.16: Mã bệnh chính [${maBenh || "trống"}] PHẢI THUỘC Phụ lục 2.`,
-        });
       }
 
       // 2. Kiểm tra Trẻ sơ sinh điều trị ngay sau khi sinh ra (Mã 1.7)
