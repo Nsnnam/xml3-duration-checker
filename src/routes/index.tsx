@@ -21,6 +21,7 @@ import {
   analyzeXml3Files,
   isValidMaMay,
   isMandatoryMachineService,
+  isDurationCheckApplicableGroup,
   DEFAULT_MANDATORY_MACHINE_SERVICES,
   getXml3RecordCategory,
   getRecordStatusLabel,
@@ -309,6 +310,7 @@ type SummaryFocus =
   | "xml4";
 
 const CHECK_TIME_OVERLAP_STORAGE_KEY = "nsn-xmlcheck-check-time-overlap";
+const CHECK_MA_BENH_KT_STORAGE_KEY = "nsn-xmlcheck-check-ma-benh-kt-doi-tuong";
 
 export function HomePage() {
   const [view, setView] = useState<View>("checker");
@@ -323,6 +325,14 @@ export function HomePage() {
       return saved !== null ? JSON.parse(saved) : true;
     } catch {
       return true;
+    }
+  });
+  const [checkMaBenhKtForDoiTuong, setCheckMaBenhKtForDoiTuong] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(CHECK_MA_BENH_KT_STORAGE_KEY);
+      return saved !== null ? JSON.parse(saved) : false;
+    } catch {
+      return false;
     }
   });
   const [patientQuery, setPatientQuery] = useState("");
@@ -699,25 +709,31 @@ export function HomePage() {
     if (warningCategoryFilter !== "all") {
       source = source.filter((record) => {
         if (warningCategoryFilter === "overMax") {
+          const maxL = record.serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES;
+          const isDurApplicable = isDurationCheckApplicableGroup(record.MA_NHOM, groupCodes);
           return (
-            record.status === "warning" ||
-            record.detail.includes("Vượt") ||
-            (record.durationMinutes !== null &&
-              record.durationMinutes > (record.serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES))
+            isDurApplicable &&
+            ((record.durationMinutes !== null && record.durationMinutes > maxL) ||
+              record.detail.includes("so với ngưỡng tối đa") ||
+              record.detail.includes("Vượt ngưỡng thời gian") ||
+              record.detail.includes("vượt ngưỡng thời gian"))
           );
         }
         if (warningCategoryFilter === "underMin") {
+          const minL = record.serviceRule?.minMinutes ?? 1;
+          const isDurApplicable = isDurationCheckApplicableGroup(record.MA_NHOM, groupCodes);
           return (
             record.status === "negative" ||
             record.status === "missing" ||
             record.status === "invalid" ||
-            (record.durationMinutes !== null && record.durationMinutes <= 0) ||
+            (isDurApplicable && record.durationMinutes !== null && record.durationMinutes < minL) ||
             record.detail.includes("nhỏ hơn thời gian tối thiểu") ||
             record.detail.includes("Thời lượng 0 phút") ||
             record.detail.includes("Thiếu thời gian") ||
             record.detail.includes("thiếu thời gian") ||
             record.detail.includes("Thời gian âm") ||
-            record.detail.includes("không hợp lệ")
+            record.detail.includes("không hợp lệ") ||
+            record.detail.includes("NGAY_KQ sớm hơn NGAY_TH_YL")
           );
         }
         if (warningCategoryFilter === "timeOverlap") {
@@ -731,7 +747,14 @@ export function HomePage() {
     }
 
     return source;
-  }, [filteredRecords, filteredWarnings, onlyWarnings, summaryFocus, warningCategoryFilter]);
+  }, [
+    filteredRecords,
+    filteredWarnings,
+    onlyWarnings,
+    summaryFocus,
+    warningCategoryFilter,
+    groupCodes,
+  ]);
 
   function focusSummary(focus: SummaryFocus) {
     setSummaryFocus(focus);
@@ -819,7 +842,7 @@ export function HomePage() {
         drugRules,
         machineRules,
         undefined,
-        { checkTimeOverlap, groupCodes },
+        { checkTimeOverlap, groupCodes, checkMaBenhKtForDoiTuong },
       );
       setSummaryFocus("warnings");
       setAlertTab("XML3");
@@ -855,7 +878,7 @@ export function HomePage() {
           nextDrugRules,
           nextMachineRules,
           undefined,
-          { checkTimeOverlap, groupCodes },
+          { checkTimeOverlap, groupCodes, checkMaBenhKtForDoiTuong },
         ),
       );
     } finally {
@@ -877,6 +900,48 @@ export function HomePage() {
           await analyzeXml3Files(files, serviceRules, drugRules, machineRules, undefined, {
             checkTimeOverlap: nextChecked,
             groupCodes,
+            checkMaBenhKtForDoiTuong,
+          }),
+        );
+      } finally {
+        setBusy(false);
+      }
+    }
+  }
+
+  async function handleCheckMaBenhKtChange(nextChecked: boolean) {
+    setCheckMaBenhKtForDoiTuong(nextChecked);
+    try {
+      localStorage.setItem(CHECK_MA_BENH_KT_STORAGE_KEY, JSON.stringify(nextChecked));
+    } catch {
+      // ignore
+    }
+    if (files.length > 0) {
+      setBusy(true);
+      try {
+        setAnalysis(
+          await analyzeXml3Files(files, serviceRules, drugRules, machineRules, undefined, {
+            checkTimeOverlap,
+            groupCodes,
+            checkMaBenhKtForDoiTuong: nextChecked,
+          }),
+        );
+      } finally {
+        setBusy(false);
+      }
+    }
+  }
+
+  async function handleGroupCodesChange(nextGroupCodes: string[]) {
+    setGroupCodes(nextGroupCodes);
+    if (files.length > 0) {
+      setBusy(true);
+      try {
+        setAnalysis(
+          await analyzeXml3Files(files, serviceRules, drugRules, machineRules, undefined, {
+            checkTimeOverlap,
+            groupCodes: nextGroupCodes,
+            checkMaBenhKtForDoiTuong,
           }),
         );
       } finally {
@@ -1293,9 +1358,11 @@ export function HomePage() {
             }
             onClear={clearAll}
             onAnalyze={runAnalysis}
-            onGroupCodesChange={setGroupCodes}
+            onGroupCodesChange={handleGroupCodesChange}
             checkTimeOverlap={checkTimeOverlap}
             onCheckTimeOverlapChange={handleCheckTimeOverlapChange}
+            checkMaBenhKtForDoiTuong={checkMaBenhKtForDoiTuong}
+            onCheckMaBenhKtChange={handleCheckMaBenhKtChange}
             onPatientQueryChange={setPatientQuery}
             onAlertTabChange={setAlertTab}
             onSummaryFocus={focusSummary}
@@ -1583,7 +1650,7 @@ function removeVietnameseTones(str: string): string {
 
 function matchesTextFilter(text: string | null | undefined, query: string): boolean {
   if (!query) return true;
-  const qClean = query.trim().toLowerCase();
+  const qClean = query.trim().normalize("NFC").toLowerCase();
   if (!qClean) return true;
 
   if (qClean === "trống" || qClean === "rỗng" || qClean === "empty") {
@@ -1591,10 +1658,10 @@ function matchesTextFilter(text: string | null | undefined, query: string): bool
   }
 
   if (!text) return false;
-  const tLower = text.toLowerCase();
-  if (tLower.includes(qClean)) return true;
+  const tNormNFC = text.normalize("NFC").toLowerCase();
+  if (tNormNFC.includes(qClean)) return true;
 
-  const tNorm = removeVietnameseTones(tLower);
+  const tNorm = removeVietnameseTones(tNormNFC);
   const qNorm = removeVietnameseTones(qClean);
   return tNorm.includes(qNorm);
 }
@@ -1656,6 +1723,8 @@ function CheckerView({
   onGroupCodesChange,
   checkTimeOverlap,
   onCheckTimeOverlapChange,
+  checkMaBenhKtForDoiTuong,
+  onCheckMaBenhKtChange,
   onPatientQueryChange,
   onAlertTabChange,
   onSummaryFocus,
@@ -1708,6 +1777,8 @@ function CheckerView({
   onGroupCodesChange: (value: string[]) => void;
   checkTimeOverlap: boolean;
   onCheckTimeOverlapChange: (checked: boolean) => void;
+  checkMaBenhKtForDoiTuong?: boolean;
+  onCheckMaBenhKtChange: (checked: boolean) => void;
   onPatientQueryChange: (value: string) => void;
   onAlertTabChange: (value: AlertTab) => void;
   onSummaryFocus: (value: SummaryFocus) => void;
@@ -1766,22 +1837,29 @@ function CheckerView({
       doiTuongKcb: 0,
     };
     for (const r of list) {
+      const isDurApplicable = isDurationCheckApplicableGroup(r.MA_NHOM, groupCodes);
+      const minL = r.serviceRule?.minMinutes ?? 1;
+      const maxL = r.serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES;
+
       const isOverMax =
-        r.status === "warning" ||
-        r.detail.includes("Vượt") ||
-        (r.durationMinutes !== null &&
-          r.durationMinutes > (r.serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES));
+        isDurApplicable &&
+        ((r.durationMinutes !== null && r.durationMinutes > maxL) ||
+          r.detail.includes("so với ngưỡng tối đa") ||
+          r.detail.includes("Vượt ngưỡng thời gian") ||
+          r.detail.includes("vượt ngưỡng thời gian"));
+
       const isUnderMin =
         r.status === "negative" ||
         r.status === "missing" ||
         r.status === "invalid" ||
-        (r.durationMinutes !== null && r.durationMinutes <= 0) ||
+        (isDurApplicable && r.durationMinutes !== null && r.durationMinutes < minL) ||
         r.detail.includes("nhỏ hơn thời gian tối thiểu") ||
         r.detail.includes("Thời lượng 0 phút") ||
         r.detail.includes("Thiếu thời gian") ||
         r.detail.includes("thiếu thời gian") ||
         r.detail.includes("Thời gian âm") ||
-        r.detail.includes("không hợp lệ");
+        r.detail.includes("không hợp lệ") ||
+        r.detail.includes("NGAY_KQ sớm hơn NGAY_TH_YL");
 
       if (isOverMax) counts.overMax = (counts.overMax || 0) + 1;
       if (isUnderMin) counts.underMin = (counts.underMin || 0) + 1;
@@ -1820,7 +1898,7 @@ function CheckerView({
       counts.doiTuongKcb = doiTuongCount;
     }
     return counts;
-  }, [onlyWarnings, filteredWarnings, filteredRecords, analysis]);
+  }, [onlyWarnings, filteredWarnings, filteredRecords, analysis, groupCodes]);
 
   const totalBedRefusal = useMemo(() => {
     const list = onlyWarnings ? filteredWarnings : filteredRecords;
@@ -2509,6 +2587,37 @@ function CheckerView({
                     thuật hoặc cùng nhóm), đồng thời phát hiện các dịch vụ thực hiện trên{" "}
                     <b>cùng mã máy</b> có khoảng thời gian chồng lấn lên nhau (thay vì chỉ so khớp
                     cùng phút bắt đầu).
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            {/* Tùy chọn kiểm tra MA_BENH_KT cho đối tượng KCB 1.16 & 1.7 */}
+            <div className="mt-3 rounded-2xl border border-blue-300 bg-blue-50/80 p-4 shadow-2xs transition hover:bg-blue-50">
+              <label className="flex cursor-pointer items-start gap-3 select-none">
+                <input
+                  type="checkbox"
+                  checked={Boolean(checkMaBenhKtForDoiTuong)}
+                  onChange={(e) => onCheckMaBenhKtChange?.(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded accent-blue-600 focus:ring-blue-500 cursor-pointer"
+                />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
+                      <span>🏷️</span>
+                      <span>
+                        Kiểm tra mã bệnh kèm theo (MA_BENH_KT) cho đối tượng KCB (1.16 & 1.7)
+                      </span>
+                    </span>
+                    <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-700 border border-slate-300">
+                      MẶC ĐỊNH TẮT (CHỈ CĂN CỨ MA_BENH_CHINH)
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
+                    Cảnh báo mã đối tượng <b>1.16</b> (bệnh Phụ lục II TT 01/2025/TT-BYT) và{" "}
+                    <b>1.7</b> (trẻ sơ sinh) sẽ chỉ căn cứ trên cột <b>MA_BENH_CHINH</b> của XML1.
+                    Tích chọn ô này nếu muốn mở rộng kiểm tra cả các mã bệnh kèm theo (MA_BENH_KT /
+                    MA_BENHKEMTHEO).
                   </p>
                 </div>
               </label>
@@ -3327,6 +3436,8 @@ function CheckerView({
                                       <option value="">Tất cả</option>
                                       <option value="ĐẠT">ĐẠT</option>
                                       <option value="VƯỢT MAX">VƯỢT MAX</option>
+                                      <option value="DƯỚI MIN">DƯỚI MIN</option>
+                                      <option value="THỜI LƯỢNG 0">THỜI LƯỢNG 0</option>
                                       <option value="TRÙNG MÁY">TRÙNG MÁY</option>
                                       <option value="TRÙNG KHOẢNG">TRÙNG KHOẢNG</option>
                                       <option value="MÃ MÁY">MÃ MÁY</option>
@@ -3337,12 +3448,147 @@ function CheckerView({
                                       <option value="GHÉP 2 NGƯỜI">GHÉP 2 NGƯỜI</option>
                                       <option value="GHÉP 3+ NGƯỜI">GHÉP 3+ NGƯỜI</option>
                                       <option value="GỐI ĐẦU">GỐI ĐẦU NHIỀU NGÀY</option>
+                                      <option value="NGÀY GIƯỜNG > 1">NGÀY GIƯỜNG &gt; 1</option>
                                       <option value="TRÙNG PHÚT">TRÙNG PHÚT GIÁP RANH</option>
                                       <option value="THIẾU MÃ GIƯỜNG">THIẾU MÃ GIƯỜNG</option>
                                       <option value="VƯỢT GIỜ RA">VƯỢT GIỜ RA VIỆN</option>
                                       <option value="Z00.0">Z00.0</option>
                                       <option value="Z30.1">Z30.1</option>
                                       <option value="THIẾU">THIẾU / LỖI</option>
+                                    </select>
+                                  ) : col.key === "detail" ? (
+                                    <div className="space-y-1">
+                                      <select
+                                        value={
+                                          [
+                                            "",
+                                            "so với ngưỡng tối đa",
+                                            "nhỏ hơn thời gian tối thiểu",
+                                            "Thời lượng 0 phút",
+                                            "Thiếu thời gian",
+                                            "Thời gian âm",
+                                            "trên cùng mã máy",
+                                            "Trùng khoảng thời gian",
+                                            "không tồn tại trong Bảng 6",
+                                            "bắt buộc phải có MA_MAY",
+                                            "TT_THAU không được để trống",
+                                            "Kiểm tra thứ tự",
+                                            "Kiểm tra trùng mốc",
+                                            "gối đầu liên tiếp",
+                                            "ghép",
+                                            "vượt quá 1 ngày",
+                                            "Thiếu mã giường",
+                                            "VƯỢT GIỜ RA",
+                                            "Z00.0",
+                                            "Z30.1",
+                                          ].includes(filterVal)
+                                            ? filterVal
+                                            : ""
+                                        }
+                                        onChange={(e) =>
+                                          handleFilterChange(col.key, e.target.value)
+                                        }
+                                        className="w-full rounded border border-slate-300 bg-white px-1 py-0.5 text-[10px] font-medium text-slate-700 focus:border-teal-500 focus:outline-none"
+                                        title="Chọn nhanh mẫu lỗi chi tiết"
+                                      >
+                                        <option value="">-- Mẫu lỗi chi tiết --</option>
+                                        <option value="so với ngưỡng tối đa">
+                                          Vượt thời lượng tối đa
+                                        </option>
+                                        <option value="nhỏ hơn thời gian tối thiểu">
+                                          Nhỏ hơn thời gian tối thiểu
+                                        </option>
+                                        <option value="Thời lượng 0 phút">Thời lượng 0 phút</option>
+                                        <option value="Thiếu thời gian">
+                                          Thiếu NGAY_TH_YL hoặc KQ
+                                        </option>
+                                        <option value="Thời gian âm">
+                                          Thời gian âm (KQ &lt; TH_YL)
+                                        </option>
+                                        <option value="trên cùng mã máy">Trùng cùng mã máy</option>
+                                        <option value="Trùng khoảng thời gian">
+                                          Trùng khoảng thời gian
+                                        </option>
+                                        <option value="không tồn tại trong Bảng 6">
+                                          Mã máy ngoài Bảng 6 TT12
+                                        </option>
+                                        <option value="bắt buộc phải có MA_MAY">
+                                          Thiếu mã máy bắt buộc
+                                        </option>
+                                        <option value="TT_THAU không được để trống">
+                                          Thiếu TT_THAU (nhóm 10/11)
+                                        </option>
+                                        <option value="Kiểm tra thứ tự">
+                                          Sai thứ tự thời gian
+                                        </option>
+                                        <option value="Kiểm tra trùng mốc">
+                                          Trùng mốc thời gian
+                                        </option>
+                                        <option value="gối đầu liên tiếp">
+                                          Giường gối đầu liên tiếp
+                                        </option>
+                                        <option value="ghép">Giường ghép phòng/giường</option>
+                                        <option value="vượt quá 1 ngày">
+                                          Ngày giường &gt; 1 ngày
+                                        </option>
+                                        <option value="Thiếu mã giường">Thiếu mã giường</option>
+                                        <option value="VƯỢT GIỜ RA">Vượt giờ ra viện</option>
+                                        <option value="Z00.0">Mã bệnh Z00.0</option>
+                                        <option value="Z30.1">Mã bệnh Z30.1</option>
+                                      </select>
+                                      <div className="relative flex items-center">
+                                        <input
+                                          type="text"
+                                          value={filterVal}
+                                          onChange={(e) =>
+                                            handleFilterChange(col.key, e.target.value)
+                                          }
+                                          placeholder="Hoặc gõ từ khóa..."
+                                          className="w-full rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[11px] font-normal text-slate-800 placeholder:text-slate-400 focus:border-teal-500 focus:outline-none"
+                                        />
+                                        {filterVal && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleFilterChange(col.key, "")}
+                                            className="absolute right-1 text-slate-400 hover:text-rose-600 text-[10px] font-bold"
+                                            title="Xóa ô lọc này"
+                                          >
+                                            ✕
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ) : col.key === "group" ? (
+                                    <select
+                                      value={filterVal}
+                                      onChange={(e) => handleFilterChange(col.key, e.target.value)}
+                                      className="w-full rounded border border-slate-300 bg-white px-1 py-1 text-[11px] font-medium text-slate-700 focus:border-teal-500 focus:outline-none"
+                                    >
+                                      <option value="">Tất cả nhóm</option>
+                                      <option value="1">01 - Khám bệnh</option>
+                                      <option value="2">02 - PTTT</option>
+                                      <option value="3">03 - CĐHA, TDCN</option>
+                                      <option value="4">04 - Thuốc</option>
+                                      <option value="7">07 - Máu & chế phẩm</option>
+                                      <option value="8">08 - Xét nghiệm</option>
+                                      <option value="10">10 - VTYT</option>
+                                      <option value="11">11 - VTYT thay thế</option>
+                                      <option value="12">12 - Vận chuyển</option>
+                                      <option value="14">14 - Giường ngoại trú</option>
+                                      <option value="15">15 - Giường nội trú</option>
+                                      <option value="16">16 - Giường lưu</option>
+                                      <option value="17">17 - Thuốc K/ĐB</option>
+                                      <option value="18">18 - DVKT khác</option>
+                                    </select>
+                                  ) : col.key === "ttThau" ? (
+                                    <select
+                                      value={filterVal}
+                                      onChange={(e) => handleFilterChange(col.key, e.target.value)}
+                                      className="w-full rounded border border-slate-300 bg-white px-1 py-1 text-[11px] font-medium text-slate-700 focus:border-teal-500 focus:outline-none"
+                                    >
+                                      <option value="">Tất cả</option>
+                                      <option value="trống">Trống / Chưa có thầu</option>
+                                      <option value="QĐ">Có thông tin thầu</option>
                                     </select>
                                   ) : (
                                     <div className="relative flex items-center">
@@ -3357,7 +3603,7 @@ function CheckerView({
                                             ? "vd >70"
                                             : col.key === "overLimit"
                                               ? "vd >0"
-                                              : col.key === "ttThau" || col.key === "maMay"
+                                              : col.key === "maMay"
                                                 ? "Tìm/trống"
                                                 : "Lọc..."
                                         }
@@ -3399,6 +3645,7 @@ function CheckerView({
                               onToggleSelect={(e) => handleToggleSelectXml3Row(recordKey, index, e)}
                               correctionPlan={correctionPlan}
                               onResetCorrection={onResetCorrection}
+                              groupCodes={groupCodes}
                             />
                           );
                         })}
@@ -3560,6 +3807,7 @@ function WarningRow({
   onToggleSelect,
   correctionPlan,
   onResetCorrection,
+  groupCodes,
 }: {
   record: Xml3Record;
   tabCols: TabColumnState;
@@ -3581,6 +3829,7 @@ function WarningRow({
   onToggleSelect?: (e: React.MouseEvent<HTMLElement> | React.ChangeEvent<HTMLInputElement>) => void;
   correctionPlan?: CorrectionItem[];
   onResetCorrection?: (maLk: string, tab: string, stt: string, maDichVu?: string) => void;
+  groupCodes?: string[];
 }) {
   const cat = getXml3RecordCategory(record);
   const catMeta = WARNING_CATEGORY_CONFIG[cat];
@@ -3885,8 +4134,10 @@ function WarningRow({
                   </span>
                 );
               })()
-            : record.status === "warning" && record.durationMinutes !== null
-              ? `${(record.durationMinutes - (record.serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES)).toLocaleString("vi-VN")} ph`
+            : record.durationMinutes !== null &&
+                isDurationCheckApplicableGroup(record.MA_NHOM, groupCodes) &&
+                record.durationMinutes > (record.serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES)
+              ? `+${(record.durationMinutes - (record.serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES)).toLocaleString("vi-VN")} ph`
               : "—"}
         </td>
       )}

@@ -698,32 +698,41 @@ export const WARNING_CATEGORY_CONFIG: Record<WarningCategory, WarningCategoryMet
 };
 
 export function getXml3RecordCategory(record: Xml3Record): WarningCategory {
-  // Ưu tiên 1: Cảnh báo vượt thời lượng (> 70p hoặc vượt ngưỡng DVKT)
-  if (
-    record.status === "warning" ||
-    record.detail.includes("Vượt ngưỡng thời gian") ||
-    record.detail.includes("vượt ngưỡng thời gian") ||
-    record.detail.includes("Vượt quá") ||
-    (record.durationMinutes !== null &&
-      record.durationMinutes > (record.serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES))
-  ) {
-    return "overMax";
-  }
+  const isDurationApplicable = isDurationCheckApplicableGroup(record.MA_NHOM);
+  const minLimit = record.serviceRule?.minMinutes ?? 1;
+  const maxLimit = record.serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES;
 
-  // Ưu tiên 2: Cảnh báo thời gian thiếu / thời gian âm / không hợp lệ / nhỏ hơn tối thiểu
+  // Ưu tiên 1: Cảnh báo thời gian thiếu / thời gian âm / không hợp lệ / nhỏ hơn tối thiểu / thời lượng 0p
+  // (Ưu tiên kiểm tra trước để các ca dưới min/thiếu không bao giờ bị xếp nhầm thành vượt max)
   if (
     record.status === "negative" ||
     record.status === "missing" ||
     record.status === "invalid" ||
-    (record.durationMinutes !== null && record.durationMinutes <= 0) ||
+    (isDurationApplicable &&
+      record.durationMinutes !== null &&
+      record.durationMinutes < minLimit) ||
     record.detail.includes("nhỏ hơn thời gian tối thiểu") ||
     record.detail.includes("Thời lượng 0 phút") ||
     record.detail.includes("Thiếu thời gian") ||
     record.detail.includes("thiếu thời gian") ||
     record.detail.includes("Thời gian âm") ||
-    record.detail.includes("không hợp lệ")
+    record.detail.includes("không hợp lệ") ||
+    record.detail.includes("NGAY_KQ sớm hơn NGAY_TH_YL")
   ) {
     return "underMin";
+  }
+
+  // Ưu tiên 2: Cảnh báo vượt thời lượng (> 70p hoặc vượt ngưỡng DVKT)
+  // CHỈ áp dụng cho nhóm DVKT được cấu hình (như 2, 3, 8, 18...) và thời lượng thực tế > maxLimit
+  // Tuyệt đối không áp dụng cho ngày giường (14, 15, 16) hay thuốc/vật tư
+  if (
+    isDurationApplicable &&
+    ((record.durationMinutes !== null && record.durationMinutes > maxLimit) ||
+      record.detail.includes("so với ngưỡng tối đa") ||
+      record.detail.includes("Vượt ngưỡng thời gian") ||
+      record.detail.includes("vượt ngưỡng thời gian"))
+  ) {
+    return "overMax";
   }
 
   if (record.hasDuplicateMachineWarning) return "dupMachine";
@@ -742,11 +751,34 @@ export function getXml3RecordCategory(record: Xml3Record): WarningCategory {
 }
 
 export function getRecordStatusLabel(record: Xml3Record): string {
-  // Ưu tiên 1: Cảnh báo thời lượng & thời gian
-  if (record.status === "warning") return "VƯỢT MAX";
+  const isDurationApplicable = isDurationCheckApplicableGroup(record.MA_NHOM);
+  const minLimit = record.serviceRule?.minMinutes ?? 1;
+  const maxLimit = record.serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES;
+
+  // Kiểm tra thời gian thiếu / âm / lỗi
   if (record.status === "missing") return "THIẾU";
   if (record.status === "negative") return "THỜI GIAN ÂM";
   if (record.status === "invalid") return "LỖI";
+
+  // Kiểm tra ca dưới min hoặc thời lượng 0p
+  if (
+    isDurationApplicable &&
+    record.durationMinutes !== null &&
+    record.durationMinutes < minLimit
+  ) {
+    return record.durationMinutes === 0 ? "THỜI LƯỢNG 0" : "DƯỚI MIN";
+  }
+  if (record.detail.includes("nhỏ hơn thời gian tối thiểu")) return "DƯỚI MIN";
+  if (record.detail.includes("Thời lượng 0 phút")) return "THỜI LƯỢNG 0";
+
+  // Kiểm tra ca vượt thời lượng tối đa
+  if (
+    isDurationApplicable &&
+    ((record.durationMinutes !== null && record.durationMinutes > maxLimit) ||
+      record.detail.includes("so với ngưỡng tối đa"))
+  ) {
+    return "VƯỢT MAX";
+  }
 
   if (record.hasDuplicateMachineWarning) return "TRÙNG MÁY";
   if (record.hasTimeOverlapWarning) return "TRÙNG KHOẢNG";
@@ -780,23 +812,16 @@ export function getRecordStatusLabel(record: Xml3Record): string {
   if (record.hasTtThauWarning) return "TT_THAU";
   if (record.hasMaMayWarning) return "MÃ MÁY";
   if (record.status === "ok") return "ĐẠT";
+  if (record.status === "warning") return "CẢNH BÁO";
   return record.status.toUpperCase();
 }
 
 export function getValidationWarningCategory(warning: ValidationWarning): WarningCategory {
-  // Ưu tiên 1: Cảnh báo vượt thời lượng (XML3)
-  if (
-    warning.source === "XML3" &&
-    (warning.message.includes("Vượt ngưỡng thời gian") ||
-      warning.message.includes("vượt ngưỡng thời gian") ||
-      warning.message.includes("Vượt quá") ||
-      warning.message.includes("VƯỢT MAX") ||
-      warning.record?.status === "warning")
-  ) {
-    return "overMax";
-  }
+  const isDurationApplicable = isDurationCheckApplicableGroup(warning.record?.MA_NHOM || "");
+  const minLimit = warning.record?.serviceRule?.minMinutes ?? 1;
+  const maxLimit = warning.record?.serviceRule?.maxMinutes ?? DURATION_LIMIT_MINUTES;
 
-  // Ưu tiên 2: Cảnh báo thời gian thiếu / không hợp lệ / âm (XML3)
+  // Ưu tiên 1: Cảnh báo thời gian thiếu / không hợp lệ / âm / dưới min (XML3)
   if (
     warning.source === "XML3" &&
     (warning.message.includes("Thiếu thời gian") ||
@@ -808,9 +833,27 @@ export function getValidationWarningCategory(warning: ValidationWarning): Warnin
       warning.message.includes("thời gian không hợp lệ") ||
       warning.record?.status === "missing" ||
       warning.record?.status === "negative" ||
-      warning.record?.status === "invalid")
+      warning.record?.status === "invalid" ||
+      (warning.record &&
+        isDurationApplicable &&
+        warning.record.durationMinutes !== null &&
+        warning.record.durationMinutes < minLimit))
   ) {
     return "underMin";
+  }
+
+  // Ưu tiên 2: Cảnh báo vượt thời lượng (XML3) - chỉ áp dụng khi thuộc nhóm DVKT hợp lệ
+  if (
+    warning.source === "XML3" &&
+    isDurationApplicable &&
+    (warning.message.includes("so với ngưỡng tối đa") ||
+      warning.message.includes("Vượt ngưỡng thời gian") ||
+      warning.message.includes("vượt ngưỡng thời gian") ||
+      (warning.record &&
+        warning.record.durationMinutes !== null &&
+        warning.record.durationMinutes > maxLimit))
+  ) {
+    return "overMax";
   }
 
   if (
@@ -1065,6 +1108,7 @@ export function readXml1Warnings(
   doc: Document,
   patients: ReadonlyMap<string, PatientInfo> = new Map(),
   tt12Catalogs?: Record<string, Tt12UnitData>,
+  options?: { checkMaBenhKtForDoiTuong?: boolean },
 ): ValidationWarning[] {
   const warnings: ValidationWarning[] = [];
   const rows = Array.from(doc.getElementsByTagName("*"))
@@ -1182,8 +1226,11 @@ export function readXml1Warnings(
 
     // Kiểm tra MA_DOITUONG_KCB theo Quyết định 3276/QĐ-BYT và Thông tư 01/2025/TT-BYT
     if (maDoiTuong) {
+      // Mặc định chỉ căn cứ trên cột MA_BENH_CHINH của XML1 (phần check MA_BENH_KT chuyển sang tùy chọn, mặc định tắt)
+      const subDiseaseForDoiTuong = options?.checkMaBenhKtForDoiTuong ? maBenhKt : undefined;
+
       // 1. Kiểm tra bệnh Phụ lục II TT 01/2025/TT-BYT tại CSKCB cấp cơ bản (mã 1.16)
-      const diseaseCheck = checkPatientDiseasesTt01(maBenh, maBenhKt);
+      const diseaseCheck = checkPatientDiseasesTt01(maBenh, subDiseaseForDoiTuong);
       if (diseaseCheck.hasAppendix2Disease) {
         const allMatchedStr = diseaseCheck.matchedDiseases
           .map((d) => `[${d.matchedCode} - ${d.diseaseName}]`)
@@ -1201,7 +1248,7 @@ export function readXml1Warnings(
           ...base,
           MA_DICH_VU: "MA_DOITUONG_KCB",
           TEN_DICH_VU: "Mã đối tượng KCB",
-          message: `XML 1. Chi tiết thứ ${detailIndex}: Cảnh báo MA_DOITUONG_KCB: Khai mã đối tượng 1.16 (bệnh Phụ lục II TT 01/2025/TT-BYT tại CSKCB cấp cơ bản) nhưng không tìm thấy mã bệnh chính (${maBenh || "trống"}) hoặc bệnh kèm theo (${maBenhKt || "trống"}) nào thuộc danh mục Phụ lục II TT 01/2025/TT-BYT.`,
+          message: `XML 1. Chi tiết thứ ${detailIndex}: Mã đối tượng 1.16: Mã bệnh chính [${maBenh || "trống"}] PHẢI THUỘC Phụ lục 2.`,
         });
       }
 
@@ -1588,6 +1635,7 @@ function readXml3Records(
   serviceRules: ReadonlyMap<string, ServiceRule>,
   mandatoryMachineRules: ReadonlyMap<string, MachineServiceRule> = DEFAULT_MANDATORY_MACHINE_MAP,
   tt12Catalogs?: Record<string, Tt12UnitData>,
+  applicableGroupCodes?: ReadonlyArray<string> | ReadonlySet<string>,
 ): Xml3Record[] {
   const detailTagCandidates = ["CHI_TIET_DVKT", "CHI_TIET_VTYT", "CHI_TIET"];
   let detailElements: Element[] = [];
@@ -1632,7 +1680,14 @@ function readXml3Records(
     const maCskcb = patient?.MA_CSKCB || "";
     const unitData = maCskcb ? loadedTt12[maCskcb] || getUnitCatalog(maCskcb) : undefined;
 
-    const record = evaluateRecord(fields, fileName, serviceRules, mandatoryMachineRules, unitData);
+    const record = evaluateRecord(
+      fields,
+      fileName,
+      serviceRules,
+      mandatoryMachineRules,
+      unitData,
+      applicableGroupCodes,
+    );
     return withPatientInfo(record, patients);
   });
 }
@@ -2922,6 +2977,43 @@ export function isMandatoryMachineService(
   return false;
 }
 
+export function isDurationCheckApplicableGroup(
+  groupCode: string,
+  applicableGroupCodes?: ReadonlyArray<string> | ReadonlySet<string>,
+): boolean {
+  const clean = (groupCode || "").trim();
+  if (!clean) return false;
+
+  // Loại trừ tuyệt đối các nhóm không phải dịch vụ kỹ thuật can thiệp/thực hiện trực tiếp:
+  // Nhóm 14, 15, 16 là ngày giường; Nhóm 4, 17 là thuốc/chế phẩm; Nhóm 7 là máu; Nhóm 10, 11 là vật tư; Nhóm 12 là vận chuyển; Nhóm 13 khám bệnh
+  const nonDurationGroups = new Set([
+    "14",
+    "15",
+    "16",
+    "4",
+    "04",
+    "7",
+    "07",
+    "10",
+    "11",
+    "12",
+    "13",
+    "17",
+  ]);
+  if (nonDurationGroups.has(clean)) {
+    return false;
+  }
+
+  if (applicableGroupCodes) {
+    if ("has" in applicableGroupCodes && typeof applicableGroupCodes.has === "function") {
+      return (applicableGroupCodes as ReadonlySet<string>).has(clean);
+    }
+    return Array.from(applicableGroupCodes).includes(clean);
+  }
+
+  return DEFAULT_GROUP_CODES.includes(clean as (typeof DEFAULT_GROUP_CODES)[number]);
+}
+
 export function evaluateRecord(
   fields: Record<Xml3Field, string> & {
     MA_BN?: string;
@@ -2934,6 +3026,7 @@ export function evaluateRecord(
     | ReadonlyMap<string, MachineServiceRule>
     | ReadonlyArray<MachineServiceRule> = DEFAULT_MANDATORY_MACHINE_MAP,
   tt12UnitData?: Tt12UnitData,
+  applicableGroupCodes?: ReadonlyArray<string> | ReadonlySet<string>,
 ): Xml3Record {
   const durationMinutes = minutesBetween(fields.NGAY_TH_YL, fields.NGAY_KQ);
   const serviceRule = serviceRules.get(fields.MA_DICH_VU.trim());
@@ -2946,7 +3039,8 @@ export function evaluateRecord(
   const hasOrderWarning = orderIssues.some((issue) => issue.includes("sớm hơn"));
   const hasEqualWarning = orderIssues.some((issue) => issue.includes("="));
 
-  const groupCode = fields.MA_NHOM.trim();
+  const groupCode = fields.MA_NHOM ? fields.MA_NHOM.trim() : "";
+  const isDurationCheckApplicable = isDurationCheckApplicableGroup(groupCode, applicableGroupCodes);
   const isGroup10Or11 = groupCode === "10" || groupCode === "11";
   const hasTtThauWarning = isGroup10Or11 && (!fields.TT_THAU || !fields.TT_THAU.trim());
 
@@ -2991,35 +3085,46 @@ export function evaluateRecord(
   let status: Xml3Record["status"] = "ok";
   const details: string[] = [];
 
-  if (!fields.NGAY_TH_YL || !fields.NGAY_KQ) {
-    status = "missing";
-    details.push("Thiếu NGAY_TH_YL hoặc NGAY_KQ");
-  } else if (durationMinutes === null) {
-    status = "invalid";
-    details.push("Không đọc được định dạng NGAY_TH_YL hoặc NGAY_KQ");
-  } else if (durationMinutes < 0) {
-    status = "negative";
-    details.push("NGAY_KQ sớm hơn NGAY_TH_YL");
-  } else if (serviceRule?.maxMinutes === null) {
-    details.push("Dịch vụ được loại trừ khỏi cảnh báo thời lượng");
-  } else if (durationMinutes < minLimit) {
-    status = "warning";
-    if (minLimit === 1 && durationMinutes === 0) {
-      details.push("Thời lượng 0 phút (yêu cầu thời gian > 0 phút)");
+  if (isDurationCheckApplicable) {
+    if (!fields.NGAY_TH_YL || !fields.NGAY_KQ) {
+      status = "missing";
+      details.push("Thiếu NGAY_TH_YL hoặc NGAY_KQ");
+    } else if (durationMinutes === null) {
+      status = "invalid";
+      details.push("Không đọc được định dạng NGAY_TH_YL hoặc NGAY_KQ");
+    } else if (durationMinutes < 0) {
+      status = "negative";
+      details.push("NGAY_KQ sớm hơn NGAY_TH_YL");
+    } else if (serviceRule?.maxMinutes === null) {
+      details.push("Dịch vụ được loại trừ khỏi cảnh báo thời lượng");
+    } else if (durationMinutes < minLimit) {
+      status = "warning";
+      if (minLimit === 1 && durationMinutes === 0) {
+        details.push("Thời lượng 0 phút (yêu cầu thời gian > 0 phút)");
+      } else {
+        details.push(
+          `Thời lượng ${formatMinutes(durationMinutes)} phút nhỏ hơn thời gian tối thiểu quy định (${minLimit} phút)`,
+        );
+      }
+    } else if (durationMinutes > maxLimit) {
+      status = "warning";
+      details.push(
+        `Vượt ${formatMinutes(durationMinutes - maxLimit)} phút so với ngưỡng tối đa ${maxLimit} phút`,
+      );
     } else {
       details.push(
-        `Thời lượng ${formatMinutes(durationMinutes)} phút nhỏ hơn thời gian tối thiểu quy định (${minLimit} phút)`,
+        `Trong ngưỡng thời gian (${minLimit > 1 ? `${minLimit}–` : "≤ "}${maxLimit} phút)`,
       );
     }
-  } else if (durationMinutes > maxLimit) {
-    status = "warning";
-    details.push(
-      `Vượt ${formatMinutes(durationMinutes - maxLimit)} phút so với ngưỡng tối đa ${maxLimit} phút`,
-    );
   } else {
-    details.push(
-      `Trong ngưỡng thời gian (${minLimit > 1 ? `${minLimit}–` : "≤ "}${maxLimit} phút)`,
-    );
+    // Nhóm KHÔNG áp dụng kiểm tra thời lượng (như Nhóm 14, 15, 16 Ngày giường, Nhóm 4 Thuốc, Nhóm 10 Vật tư...)
+    if (!fields.NGAY_TH_YL || !fields.NGAY_KQ) {
+      details.push("Không áp dụng cảnh báo thời lượng DVKT");
+    } else if (durationMinutes !== null) {
+      details.push(
+        `Thời gian: ${formatMinutes(durationMinutes)} phút (Không áp dụng cảnh báo thời lượng DVKT)`,
+      );
+    }
   }
 
   if (!fields.NGAY_YL) {
@@ -3409,6 +3514,7 @@ export async function parseXml3FromExcel(
   serviceRules: ReadonlyMap<string, ServiceRule> = new Map(),
   mandatoryMachineRules: ReadonlyMap<string, MachineServiceRule> = DEFAULT_MANDATORY_MACHINE_MAP,
   tt12Catalogs?: Record<string, Tt12UnitData>,
+  applicableGroupCodes?: ReadonlyArray<string> | ReadonlySet<string>,
 ): Promise<{
   records: Xml3Record[];
   patients: Map<string, PatientInfo>;
@@ -3552,6 +3658,7 @@ export async function parseXml3FromExcel(
       serviceRules,
       mandatoryMachineRules,
       unitData,
+      applicableGroupCodes,
     );
     if (patient) {
       record.patient = patient;
@@ -3573,7 +3680,11 @@ export async function analyzeXml3File(
   drugRules: ReadonlyMap<string, DrugRule> = new Map(),
   mandatoryMachineRules: ReadonlyMap<string, MachineServiceRule> = DEFAULT_MANDATORY_MACHINE_MAP,
   tt12Catalogs?: Record<string, Tt12UnitData>,
-  options?: { checkTimeOverlap?: boolean; groupCodes?: string[] },
+  options?: {
+    checkTimeOverlap?: boolean;
+    groupCodes?: string[];
+    checkMaBenhKtForDoiTuong?: boolean;
+  },
 ): Promise<Xml3Analysis> {
   const text = await file.text();
   const outer = parseXml(text, file.name);
@@ -3594,7 +3705,7 @@ export async function analyzeXml3File(
     if (type === "XML1") {
       const inner = decodeFileContent(content, `${file.name} XML1`);
       for (const [maLk, patient] of readXml1Patients(inner)) patients.set(maLk, patient);
-      xml1Warnings.push(...readXml1Warnings(inner, patients, loadedTt12));
+      xml1Warnings.push(...readXml1Warnings(inner, patients, loadedTt12, options));
     }
     if (type === "XML2") {
       const inner = decodeFileContent(content, `${file.name} XML2`);
@@ -3624,6 +3735,7 @@ export async function analyzeXml3File(
         serviceRules,
         mandatoryMachineRules,
         loadedTt12,
+        options?.groupCodes,
       ),
     );
   }
@@ -3638,6 +3750,7 @@ export async function analyzeXml3File(
         serviceRules,
         mandatoryMachineRules,
         loadedTt12,
+        options?.groupCodes,
       ),
     );
   }
@@ -3656,7 +3769,7 @@ export async function analyzeXml3File(
 
   if (isStandaloneXml1) {
     for (const [maLk, patient] of readXml1Patients(outer)) patients.set(maLk, patient);
-    xml1Warnings.push(...readXml1Warnings(outer, patients, loadedTt12));
+    xml1Warnings.push(...readXml1Warnings(outer, patients, loadedTt12, options));
   }
 
   const hasOtherXml =
@@ -3726,7 +3839,11 @@ export async function analyzeXml3Files(
   drugRules: ReadonlyArray<DrugRule> = [],
   mandatoryMachineRules: ReadonlyArray<MachineServiceRule> = DEFAULT_MANDATORY_MACHINE_SERVICES,
   tt12Catalogs?: Record<string, Tt12UnitData>,
-  options?: { checkTimeOverlap?: boolean; groupCodes?: string[] },
+  options?: {
+    checkTimeOverlap?: boolean;
+    groupCodes?: string[];
+    checkMaBenhKtForDoiTuong?: boolean;
+  },
 ): Promise<BatchAnalysis> {
   const allRecords: Xml3Record[] = [];
   const errors: string[] = [];
@@ -3770,6 +3887,7 @@ export async function analyzeXml3Files(
           serviceRuleMap,
           mandatoryMachineMap,
           loadedTt12,
+          options?.groupCodes,
         );
         tableFiles += parsedExcel.tableFiles;
         allRecords.push(...parsedExcel.records);

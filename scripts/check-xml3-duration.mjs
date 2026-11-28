@@ -1495,9 +1495,51 @@ assert.equal(
   getRecordStatusLabel({
     ...checkedMachines[0],
     hasDuplicateMachineWarning: false,
+    durationMinutes: 85,
     status: "warning",
   }),
   "VƯỢT MAX",
+);
+assert.equal(
+  getRecordStatusLabel({
+    ...checkedMachines[0],
+    hasDuplicateMachineWarning: false,
+    durationMinutes: 6,
+    serviceRule: { minMinutes: 8, maxMinutes: 60 },
+    status: "warning",
+  }),
+  "DƯỚI MIN",
+);
+assert.equal(
+  getRecordStatusLabel({
+    ...checkedMachines[0],
+    hasDuplicateMachineWarning: false,
+    durationMinutes: 0,
+    serviceRule: { minMinutes: 1, maxMinutes: 60 },
+    status: "warning",
+  }),
+  "THỜI LƯỢNG 0",
+);
+assert.equal(
+  getRecordStatusLabel({
+    ...checkedMachines[0],
+    MA_NHOM: "15",
+    durationMinutes: 1440,
+    hasDuplicateMachineWarning: false,
+    status: "ok",
+  }),
+  "ĐẠT",
+);
+assert.equal(
+  getXml3RecordCategory({
+    ...checkedMachines[0],
+    MA_NHOM: "15",
+    durationMinutes: 1440,
+    hasDuplicateMachineWarning: false,
+    status: "ok",
+    detail: "Thời gian: 1440 phút (Không áp dụng cảnh báo thời lượng DVKT)",
+  }),
+  "all",
 );
 assert.equal(
   getRecordStatusLabel({
@@ -1965,8 +2007,8 @@ assert.ok(wDt01.message.includes("1.16"));
 const wDt02 = dtWarnings.find((w) => w.MA_LK === "LK-DT-02");
 assert.ok(wDt02);
 assert.equal(getValidationWarningCategory(wDt02), "doiTuongKcb");
-assert.ok(wDt02.message.includes("không tìm thấy mã bệnh chính"));
-assert.ok(wDt02.message.includes("thuộc danh mục Phụ lục II"));
+assert.ok(wDt02.message.includes("Mã đối tượng 1.16: Mã bệnh chính"));
+assert.ok(wDt02.message.includes("PHẢI THUỘC Phụ lục 2"));
 
 const wDt03 = dtWarnings.find((w) => w.MA_LK === "LK-DT-03");
 assert.ok(wDt03);
@@ -1982,6 +2024,30 @@ assert.ok(wDt04.message.includes("đã quá 28 ngày"));
 // LK-DT-05: Hợp lệ -> Không có cảnh báo đối tượng KCB
 assert.equal(
   dtWarnings.some((w) => w.MA_LK === "LK-DT-05" && w.MA_DICH_VU === "MA_DOITUONG_KCB"),
+  false,
+);
+
+// Test tùy chọn checkMaBenhKtForDoiTuong
+// Bệnh chính J18.1 (không thuộc PL2), bệnh kèm theo E11.7 (thuộc PL2)
+const mockDocDoiTuongWithSub = {
+  getElementsByTagName() {
+    return [createXml1DoiTuongElement("LK-DT-06", "1.16", "J18.1", "E11.7")];
+  },
+};
+// Mặc định (tắt): chỉ căn cứ MA_BENH_CHINH -> Báo lỗi đúng chuẩn!
+const dtWarningsDefault = readXml1Warnings(mockDocDoiTuongWithSub);
+const wDt06Default = dtWarningsDefault.find((w) => w.MA_LK === "LK-DT-06");
+assert.ok(wDt06Default);
+assert.ok(
+  wDt06Default.message.includes("Mã đối tượng 1.16: Mã bệnh chính [J18.1] PHẢI THUỘC Phụ lục 2"),
+);
+
+// Khi bật tùy chọn checkMaBenhKtForDoiTuong: kiểm tra cả MA_BENH_KT -> Hợp lệ, không báo lỗi!
+const dtWarningsWithSub = readXml1Warnings(mockDocDoiTuongWithSub, new Map(), undefined, {
+  checkMaBenhKtForDoiTuong: true,
+});
+assert.equal(
+  dtWarningsWithSub.some((w) => w.MA_LK === "LK-DT-06" && w.MA_DICH_VU === "MA_DOITUONG_KCB"),
   false,
 );
 

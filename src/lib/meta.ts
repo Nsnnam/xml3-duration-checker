@@ -2,12 +2,22 @@ export const APP_META = {
   name: "NsN_XMLcheck",
   title: "NsN_XMLcheck",
   description: "Tổng hợp công cụ xử lý XML_Namns",
-  version: "2.26.2",
-  date: "2026-11-27",
+  version: "2.26.3",
+  date: "2026-11-28",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.26.3",
+      date: "2026-11-28",
+      changes: [
+        "Loại trừ tuyệt đối Ngày giường (nhóm 14, 15, 16) và các nhóm thuốc/vật tư khỏi cảnh báo vượt thời lượng (> 70p) DVKT; chỉ kiểm tra thời lượng cho nhóm DVKT được cấu hình (2, 3, 8, 18).",
+        "Tách biệt hoàn toàn cảnh báo Vượt thời lượng (> 70p) và Thời gian thiếu/dưới min: Ca DVKT dưới thời gian tối thiểu được xếp chuẩn xác vào nhóm 'Thời gian <= 0 / Thiếu', mang nhãn 'DƯỚI MIN' hoặc 'THỜI LƯỢNG 0', cột vượt để '—' (chấm dứt hoàn toàn việc hiển thị số âm '-54 ph' và nhãn đỏ 'VƯỢT MAX' nhầm lẫn).",
+        "Chuẩn hóa kiểm tra mã đối tượng MA_DOITUONG_KCB (1.16 & 1.7) trong XML1: Mặc định chỉ căn cứ trên cột MA_BENH_CHINH (chuẩn giám định BHXH: 'Mã đối tượng 1.16: Mã bệnh chính [...] PHẢI THUỘC Phụ lục 2'); chuyển phần kiểm tra MA_BENH_KT sang tùy chọn mở rộng có checkbox bật/tắt (mặc định tắt).",
+        "Nâng cấp Bộ lọc cột thông minh: Tích hợp dropdown chọn nhanh mẫu lỗi chi tiết (cột CHI TIẾT THU GỌN), danh mục 18 nhóm BHYT (cột MA_NHOM), thông tin thầu (cột TT_THAU), nhãn trạng thái mới; hỗ trợ chuẩn hóa Unicode NFC loại bỏ hoàn toàn lỗi mất dữ liệu khi gõ tiếng Việt có dấu.",
+      ],
+    },
     {
       version: "2.26.2",
       date: "2026-11-27",
