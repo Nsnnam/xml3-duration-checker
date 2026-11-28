@@ -2,12 +2,22 @@ export const APP_META = {
   name: "NsN_XMLcheck",
   title: "NsN_XMLcheck",
   description: "Tổng hợp công cụ xử lý XML_Namns",
-  version: "2.26.5",
+  version: "2.26.6",
   date: "2026-11-28",
   author: "Nguyễn Sơn Nam (Nsnnam)",
   github: "https://github.com/Nsnnam/xml3-duration-checker",
   timezone: "Asia/Ho_Chi_Minh",
   changelog: [
+    {
+      version: "2.26.6",
+      date: "2026-11-28",
+      changes: [
+        "Nâng cấp toàn diện bộ tìm kiếm & lọc tiếng Việt thông minh (Vietnamese Tone/Accentless/Multi-word/NFC/NFD Engine): Hỗ trợ tìm kiếm tiếng Việt có dấu, không dấu ('nguyen thoa' khớp 'NGUYỄN THỊ THOA', 'giuong noi' khớp 'Giường Nội khoa...', 'xquang' khớp 'Chụp X-quang...').",
+        "Xử lý triệt để xung đột Unicode NFC/NFD: Tự động chuẩn hóa ký tự từ mọi bộ gõ (Unikey, EVKey, Telex, VNI) và XML HIS, giải quyết hoàn toàn lỗi gõ tiếng Việt làm rỗng bảng hoặc không lọc được kết quả.",
+        "Mở rộng thanh tìm kiếm chung và bộ lọc cột trên toàn hệ thống: Hỗ trợ tìm kiếm đa trường (Mã BN, Họ tên, Mã LK, Tên DVKT/Vật tư, Mã DV, Chi tiết lỗi, Mã máy, Mã khoa, Mã giường, Tên file XML) đồng bộ trên XML3, XML1, XML2, XML4 và danh mục 6 bảng Thông tư 12.",
+        "Bổ sung nút xóa tìm kiếm nhanh '✕' và tối ưu trải nghiệm người dùng khi nhập bộ lọc văn bản.",
+      ],
+    },
     {
       version: "2.26.5",
       date: "2026-11-28",

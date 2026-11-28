@@ -13,7 +13,13 @@ import {
   importLibraryFromExcel,
 } from "../lib/library-excel.ts";
 import { APP_META } from "../lib/meta.ts";
-import { formatTimestampForFilename, formatXmlDateTime, formatXmlDate } from "../lib/timezone.ts";
+import {
+  formatTimestampForFilename,
+  formatXmlDateTime,
+  formatXmlDate,
+  removeVietnameseTones,
+  matchesTextFilter,
+} from "../lib/timezone.ts";
 import {
   DEFAULT_GROUP_CODES,
   DURATION_LIMIT_MINUTES,
@@ -649,12 +655,21 @@ export function HomePage() {
               record.hasMaMayWarning ||
               record.hasDuplicateMachineWarning ||
               Boolean(record.hasZ000Warning);
-            const query = patientQuery.trim().toLocaleLowerCase("vi-VN");
+            const query = patientQuery.trim();
             const matchesPatient =
               !query ||
-              [record.MA_BN, record.HO_TEN, record.MA_LK].some((value) =>
-                value.toLocaleLowerCase("vi-VN").includes(query),
-              );
+              [
+                record.MA_BN,
+                record.HO_TEN,
+                record.MA_LK,
+                record.TEN_DICH_VU,
+                record.MA_DICH_VU,
+                record.detail,
+                record.MA_MAY,
+                record.MA_KHOA,
+                record.MA_GIUONG,
+                record.fileName,
+              ].some((val) => matchesTextFilter(val, query));
             return matchesGroup && matchesPatient;
           })
         : [],
@@ -1640,31 +1655,6 @@ export function HomePage() {
 // ---------------------------------------------------------------------------
 // COLUMN FILTER & SORT HELPERS
 // ---------------------------------------------------------------------------
-function removeVietnameseTones(str: string): string {
-  return str
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/đ/g, "d")
-    .replace(/Đ/g, "D");
-}
-
-function matchesTextFilter(text: string | null | undefined, query: string): boolean {
-  if (!query) return true;
-  const qClean = query.trim().normalize("NFC").toLowerCase();
-  if (!qClean) return true;
-
-  if (qClean === "trống" || qClean === "rỗng" || qClean === "empty") {
-    return !text || text.trim() === "" || text.trim() === "—";
-  }
-
-  if (!text) return false;
-  const tNormNFC = text.normalize("NFC").toLowerCase();
-  if (tNormNFC.includes(qClean)) return true;
-
-  const tNorm = removeVietnameseTones(tNormNFC);
-  const qNorm = removeVietnameseTones(qClean);
-  return tNorm.includes(qNorm);
-}
 
 function matchesNumberFilter(value: number | null | undefined, filterStr: string): boolean {
   const trimmed = filterStr.trim();
@@ -2877,14 +2867,24 @@ function CheckerView({
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <label className="flex min-w-[220px] items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600">
+                <label className="flex min-w-[240px] items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 focus-within:border-teal-500 focus-within:ring-1 focus-within:ring-teal-200">
                   <span className="font-bold text-teal-700">Tìm kiếm:</span>
                   <input
                     value={patientQuery}
                     onChange={(event) => onPatientQueryChange(event.target.value)}
-                    className="min-w-0 flex-1 bg-transparent font-semibold text-slate-800 outline-none"
-                    placeholder="Mã BN, họ tên, MA_LK..."
+                    className="min-w-0 flex-1 bg-transparent font-semibold text-slate-800 outline-none placeholder:text-slate-400"
+                    placeholder="Mã BN, họ tên, MA_LK, dịch vụ, chi tiết..."
                   />
+                  {patientQuery && (
+                    <button
+                      type="button"
+                      onClick={() => onPatientQueryChange("")}
+                      className="text-slate-400 hover:text-rose-600 text-xs font-bold cursor-pointer"
+                      title="Xóa tìm kiếm"
+                    >
+                      ✕
+                    </button>
+                  )}
                 </label>
                 {alertTab === "XML3" && (
                   <label className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 cursor-pointer">
@@ -3667,6 +3667,7 @@ function CheckerView({
                       )
                 }
                 tabCols={currentTabCols}
+                patientQuery={patientQuery}
                 onUpdateColumnWidth={onUpdateColumnWidth}
                 onExport={() => onExportWarnings(alertTab, xmlWarnings[alertTab] || [])}
                 onAddExcludedDrug={onAddExcludedDrug}
@@ -4533,6 +4534,7 @@ function ValidationTable({
   source,
   warnings,
   tabCols,
+  patientQuery = "",
   onUpdateColumnWidth,
   onExport,
   onAddExcludedDrug,
@@ -4550,6 +4552,7 @@ function ValidationTable({
   source: AlertTab;
   warnings: ValidationWarning[];
   tabCols: TabColumnState;
+  patientQuery?: string;
   onUpdateColumnWidth: (key: string, width: number) => void;
   onExport: () => void;
   onAddExcludedDrug: (code: string, name: string) => void;
@@ -4809,6 +4812,14 @@ function ValidationTable({
   const displayWarnings = useMemo(() => {
     let list = warnings;
 
+    if (patientQuery && patientQuery.trim()) {
+      list = list.filter((w) =>
+        [w.HO_TEN, w.MA_BN, w.MA_LK, w.MA_DICH_VU, w.TEN_DICH_VU, w.message].some((val) =>
+          matchesTextFilter(val, patientQuery),
+        ),
+      );
+    }
+
     const hasFilter = Object.keys(columnFilters).some(
       (k) => (columnFilters[k] || "").trim() !== "",
     );
@@ -4882,7 +4893,7 @@ function ValidationTable({
     }
 
     return list;
-  }, [warnings, columnFilters, sortConfig]);
+  }, [warnings, columnFilters, sortConfig, patientQuery]);
 
   const doiTuongSuggestionsList = useMemo(() => {
     if (source !== "XML1") return [];
@@ -5722,10 +5733,10 @@ function LibraryView({
 
   // Filtered lists
   const filteredServices = useMemo(() => {
-    const q = serviceSearch.trim().toLowerCase();
+    const q = serviceSearch.trim();
     return serviceRules.filter((r) => {
       const matchSearch =
-        !q || r.MA_DICH_VU.toLowerCase().includes(q) || r.TEN_DICH_VU.toLowerCase().includes(q);
+        !q || matchesTextFilter(r.MA_DICH_VU, q) || matchesTextFilter(r.TEN_DICH_VU, q);
       const matchFilter =
         filterType === "all" ||
         (filterType === "excluded" && r.maxMinutes === null) ||
@@ -5735,18 +5746,16 @@ function LibraryView({
   }, [serviceRules, serviceSearch, filterType]);
 
   const filteredDrugs = useMemo(() => {
-    const q = drugSearch.trim().toLowerCase();
+    const q = drugSearch.trim();
     return drugRules.filter(
-      (r) => !q || r.MA_THUOC.toLowerCase().includes(q) || r.TEN_THUOC.toLowerCase().includes(q),
+      (r) => !q || matchesTextFilter(r.MA_THUOC, q) || matchesTextFilter(r.TEN_THUOC, q),
     );
   }, [drugRules, drugSearch]);
 
   const filteredMachines = useMemo(() => {
-    const q = machineSearch.trim().toLowerCase();
+    const q = machineSearch.trim();
     if (!q) return machineRules;
-    return machineRules.filter(
-      (r) => r.code.toLowerCase().includes(q) || r.name.toLowerCase().includes(q),
-    );
+    return machineRules.filter((r) => matchesTextFilter(r.code, q) || matchesTextFilter(r.name, q));
   }, [machineRules, machineSearch]);
 
   const totalMachinePages = Math.max(1, Math.ceil(filteredMachines.length / MACHINE_PAGE_SIZE));

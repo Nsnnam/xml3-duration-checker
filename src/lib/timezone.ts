@@ -85,3 +85,64 @@ export function formatXmlDate(raw: string | undefined | null): string {
   if (!full) return "";
   return full.split(" ")[0] || full;
 }
+
+/**
+ * Loại bỏ dấu tiếng Việt chuẩn xác (hỗ trợ cả Unicode dựng sẵn NFC và tổ hợp NFD).
+ */
+export function removeVietnameseTones(str: string): string {
+  if (!str) return "";
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D");
+}
+
+/**
+ * So khớp văn bản thông minh tiếng Việt:
+ * - Chuẩn hóa NFC/NFD tự động
+ * - Không phân biệt chữ hoa/thường
+ * - Hỗ trợ gõ tiếng Việt có dấu, không dấu
+ * - Hỗ trợ tìm kiếm nhiều từ (tokenized multi-word) không cần đúng thứ tự
+ * - Bỏ qua ký tự phân cách (như dấu gạch ngang: x-quang vs xquang)
+ * - Nhận diện "trống" / "rỗng" / "empty"
+ */
+export function matchesTextFilter(text: string | null | undefined, query: string): boolean {
+  if (!query) return true;
+  const qClean = query.trim().normalize("NFC").toLowerCase();
+  if (!qClean) return true;
+
+  if (qClean === "trống" || qClean === "rỗng" || qClean === "empty") {
+    return !text || text.trim() === "" || text.trim() === "—";
+  }
+
+  if (!text) return false;
+  const tNormNFC = text.normalize("NFC").toLowerCase();
+  if (tNormNFC.includes(qClean)) return true;
+
+  // Hỗ trợ tìm kiếm theo nhiều từ (tokenized) có dấu: ví dụ "nguyễn thoa", "giường nội", "x quang"
+  const words = qClean.split(/\s+/).filter(Boolean);
+  if (words.length > 1 && words.every((w) => tNormNFC.includes(w))) {
+    return true;
+  }
+
+  // Hỗ trợ tìm kiếm tiếng Việt không dấu (loại bỏ dấu hoàn toàn cả chữ hoa lẫn chữ thường)
+  const tUnaccented = removeVietnameseTones(tNormNFC);
+  const qUnaccented = removeVietnameseTones(qClean);
+  if (tUnaccented.includes(qUnaccented)) return true;
+
+  // Hỗ trợ tìm kiếm tiếng Việt không dấu theo từng từ
+  const unaccentedWords = words.map(removeVietnameseTones).filter(Boolean);
+  if (unaccentedWords.length > 0 && unaccentedWords.every((w) => tUnaccented.includes(w))) {
+    return true;
+  }
+
+  // Hỗ trợ bỏ qua ký tự phân cách (như dấu gạch ngang, dấu chấm, dấu phẩy: ví dụ "x-quang" vs "xquang")
+  const tCompact = tUnaccented.replace(/[^a-z0-9]/g, "");
+  const qCompact = qUnaccented.replace(/[^a-z0-9]/g, "");
+  if (qCompact.length >= 3 && tCompact.includes(qCompact)) {
+    return true;
+  }
+
+  return false;
+}

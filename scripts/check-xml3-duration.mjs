@@ -38,7 +38,12 @@ import {
   addBedWarnings,
 } from "../src/lib/xml3-duration.ts";
 import { createDuplicateMachineWorkbook, createBedSharingWorkbook } from "../src/lib/export.ts";
-import { formatXmlDateTime, formatXmlDate } from "../src/lib/timezone.ts";
+import {
+  formatXmlDateTime,
+  formatXmlDate,
+  removeVietnameseTones,
+  matchesTextFilter,
+} from "../src/lib/timezone.ts";
 import {
   parseBackupJson,
   createLibraryBackupContent,
@@ -2366,6 +2371,43 @@ const wInvalid = multiDeptWarnings.find(
 assert.ok(wInvalid);
 assert.ok(wInvalid.message.includes("KHOA_KHONG_TON_TAI_999"));
 
+// 29. Kiểm tra bộ so khớp tiếng Việt thông minh (removeVietnameseTones & matchesTextFilter)
+assert.equal(removeVietnameseTones("ĐÀO THỊ THOA"), "DAO THI THOA");
+assert.equal(removeVietnameseTones("Nguyễn Dương Thiên An"), "Nguyen Duong Thien An");
+assert.equal(removeVietnameseTones("Giường Nội khoa loại 1"), "Giuong Noi khoa loai 1");
+assert.equal(removeVietnameseTones("Chụp X-quang ngực thẳng"), "Chup X-quang nguc thang");
+
+// 29.1 Tìm kiếm tiếng Việt có dấu (NFC / NFD)
+assert.equal(matchesTextFilter("ĐÀO THỊ THOA", "ĐÀO THỊ THOA"), true);
+assert.equal(matchesTextFilter("ĐÀO THỊ THOA", "đào thị thoa"), true);
+assert.equal(matchesTextFilter("ĐÀO THỊ THOA", "ĐÀO THỊ THOA".normalize("NFD")), true);
+assert.equal(matchesTextFilter("ĐÀO THỊ THOA".normalize("NFD"), "đào"), true);
+
+// 29.2 Tìm kiếm tiếng Việt không dấu
+assert.equal(matchesTextFilter("ĐÀO THỊ THOA", "dao thi thoa"), true);
+assert.equal(matchesTextFilter("ĐÀO THỊ THOA", "dao"), true);
+assert.equal(matchesTextFilter("Nguyễn Dương Thiên An", "nguyen duong"), true);
+assert.equal(matchesTextFilter("Giường Nội khoa loại 1", "giuong noi khoa"), true);
+
+// 29.3 Tìm kiếm nhiều từ (tokenized multi-word) không phân biệt thứ tự
+assert.equal(matchesTextFilter("ĐÀO THỊ THOA", "thoa dao"), true);
+assert.equal(matchesTextFilter("Nguyễn Dương Thiên An", "an thien nguyen"), true);
+assert.equal(
+  matchesTextFilter("Chụp X-quang ngực thẳng [số hóa 1 phim]", "xquang nguc thang"),
+  true,
+);
+assert.equal(matchesTextFilter("Chụp X-quang ngực thẳng [số hóa 1 phim]", "nguc x-quang"), true);
+
+// 29.4 Bỏ qua ký tự phân cách (x-quang vs xquang)
+assert.equal(matchesTextFilter("Chụp X-quang ngực thẳng", "xquang"), true);
+assert.equal(matchesTextFilter("HTM.3[vontuco].C249-02;4275-07", "427507"), true);
+
+// 29.5 Nhận diện tìm kiếm từ khóa "trống" / "rỗng" / "empty"
+assert.equal(matchesTextFilter("", "trống"), true);
+assert.equal(matchesTextFilter(null, "trống"), true);
+assert.equal(matchesTextFilter("—", "rỗng"), true);
+assert.equal(matchesTextFilter("Có dữ liệu", "trống"), false);
+
 console.log(
-  "All tests passed: XML1 CCCD validation, Z00.0 & Z30.1 validation, XML3 duplicate machine time validation, XML7 NGOAITRU_TUNGAY < NGAY_RA validation (+1 day suggestion), duplicate machine excel export, KT251 bed sharing & multi-day & minute duplicate validation & workbook export, warning colors & column filter/sort helpers, TT01 Appendix 2 & QĐ 3276 MA_DOITUONG_KCB validation, TT12 Bảng 6 machine catalog audit, TT12 Bảng 1 multi-department ';' validation, and interval overlap detection: OK",
+  "All tests passed: XML1 CCCD validation, Z00.0 & Z30.1 validation, XML3 duplicate machine time validation, XML7 NGOAITRU_TUNGAY < NGAY_RA validation (+1 day suggestion), duplicate machine excel export, KT251 bed sharing & multi-day & minute duplicate validation & workbook export, warning colors & column filter/sort helpers, TT01 Appendix 2 & QĐ 3276 MA_DOITUONG_KCB validation, TT12 Bảng 6 machine catalog audit, TT12 Bảng 1 multi-department ';' validation, interval overlap detection, and Vietnamese tone/accentless/multi-word text search: OK",
 );

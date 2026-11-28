@@ -21,6 +21,7 @@ import {
   DEFAULT_EXCLUDED_DEPTS,
 } from "./tt12-library.ts";
 import { DEFAULT_TT12_CATALOGS } from "./tt12-default-data.ts";
+import { matchesTextFilter } from "./timezone.ts";
 
 export type Tt12RowItem =
   | Tt12Bang1KhoaPhong
@@ -309,61 +310,64 @@ export function Tt12LibraryView({ onRefreshXmlAudit }: { onRefreshXmlAudit?: () 
     onRefreshXmlAudit?.();
   };
 
-  // Filter dữ liệu bảng đang chọn
+  // Filter dữ liệu bảng đang chọn (hỗ trợ tiếng Việt có dấu, không dấu, multi-word, NFC/NFD)
   const filteredData = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
+    const q = searchQuery.trim();
+    if (!q) {
+      if (tableTab === "bang6") return currentUnitData.bang6;
+      if (tableTab === "bang1") return currentUnitData.bang1;
+      if (tableTab === "bang2") return currentUnitData.bang2;
+      if (tableTab === "bang3") return currentUnitData.bang3;
+      if (tableTab === "bang4") return currentUnitData.bang4;
+      if (tableTab === "bang5") return currentUnitData.bang5;
+      return [];
+    }
     if (tableTab === "bang6") {
-      if (!q) return currentUnitData.bang6;
       return currentUnitData.bang6.filter(
         (m) =>
-          m.maMay?.toLowerCase().includes(q) ||
-          m.tenTb?.toLowerCase().includes(q) ||
-          m.kyHieu?.toLowerCase().includes(q) ||
-          m.soLuuHanh?.toLowerCase().includes(q) ||
-          m.congTySx?.toLowerCase().includes(q),
+          matchesTextFilter(m.maMay, q) ||
+          matchesTextFilter(m.tenTb, q) ||
+          matchesTextFilter(m.kyHieu, q) ||
+          matchesTextFilter(m.soLuuHanh, q) ||
+          matchesTextFilter(m.congTySx, q),
       );
     }
     if (tableTab === "bang1") {
-      if (!q) return currentUnitData.bang1;
       return currentUnitData.bang1.filter(
         (d) =>
-          d.maKhoa?.toLowerCase().includes(q) ||
-          d.tenKhoa?.toLowerCase().includes(q) ||
-          d.banKham?.toLowerCase().includes(q),
+          matchesTextFilter(d.maKhoa, q) ||
+          matchesTextFilter(d.tenKhoa, q) ||
+          matchesTextFilter(d.banKham, q),
       );
     }
     if (tableTab === "bang2") {
-      if (!q) return currentUnitData.bang2;
       return currentUnitData.bang2.filter(
         (d) =>
-          d.hoTen?.toLowerCase().includes(q) ||
-          d.macchn?.toLowerCase().includes(q) ||
-          d.maKhoa?.toLowerCase().includes(q) ||
-          d.phamViCm?.toLowerCase().includes(q),
+          matchesTextFilter(d.hoTen, q) ||
+          matchesTextFilter(d.macchn, q) ||
+          matchesTextFilter(d.maKhoa, q) ||
+          matchesTextFilter(d.phamViCm, q),
       );
     }
     if (tableTab === "bang3") {
-      if (!q) return currentUnitData.bang3;
       return currentUnitData.bang3.filter(
         (d) =>
-          d.maThuoc?.toLowerCase().includes(q) ||
-          d.tenThuoc?.toLowerCase().includes(q) ||
-          d.tenHoatChat?.toLowerCase().includes(q),
+          matchesTextFilter(d.maThuoc, q) ||
+          matchesTextFilter(d.tenThuoc, q) ||
+          matchesTextFilter(d.tenHoatChat, q),
       );
     }
     if (tableTab === "bang4") {
-      if (!q) return currentUnitData.bang4;
       return currentUnitData.bang4.filter(
         (d) =>
-          d.maVatTu?.toLowerCase().includes(q) ||
-          d.tenVatTu?.toLowerCase().includes(q) ||
-          d.maHieu?.toLowerCase().includes(q),
+          matchesTextFilter(d.maVatTu, q) ||
+          matchesTextFilter(d.tenVatTu, q) ||
+          matchesTextFilter(d.maHieu, q),
       );
     }
     if (tableTab === "bang5") {
-      if (!q) return currentUnitData.bang5;
       return currentUnitData.bang5.filter(
-        (d) => d.maDichVu?.toLowerCase().includes(q) || d.tenDichVu?.toLowerCase().includes(q),
+        (d) => matchesTextFilter(d.maDichVu, q) || matchesTextFilter(d.tenDichVu, q),
       );
     }
     return [];
